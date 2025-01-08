@@ -8,6 +8,7 @@ from cdp_agentkit_core.actions.register_basename import RegisterBasenameAction
 from cdp_agentkit_core.actions.request_faucet_funds import RequestFaucetFundsAction
 from cdp_agentkit_core.actions.trade import TradeAction
 from cdp_agentkit_core.actions.transfer import TransferAction
+from cdp_agentkit_core.actions.transfer_nft import TransferNftAction
 from cdp_agentkit_core.actions.wow.buy_token import WowBuyTokenAction
 from cdp_agentkit_core.actions.wow.create_token import WowCreateTokenAction
 from cdp_agentkit_core.actions.wow.sell_token import WowSellTokenAction
@@ -38,6 +39,7 @@ __all__ = [
     "RequestFaucetFundsAction",
     "TradeAction",
     "TransferAction",
+    "TransferNftAction",
     "WowBuyTokenAction",
     "WowCreateTokenAction",
     "WowSellTokenAction",

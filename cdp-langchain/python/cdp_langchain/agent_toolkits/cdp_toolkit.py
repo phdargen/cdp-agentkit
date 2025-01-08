@@ -55,6 +55,7 @@ class CdpToolkit(BaseToolkit):
             get_balance
             request_faucet_funds
             transfer
+            transfer_nft
             trade
             deploy_token
             mint_nft
