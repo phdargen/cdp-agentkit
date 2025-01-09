@@ -2,6 +2,7 @@ from cdp_agentkit_core.actions.cdp_action import CdpAction
 from cdp_agentkit_core.actions.deploy_nft import DeployNftAction
 from cdp_agentkit_core.actions.deploy_token import DeployTokenAction
 from cdp_agentkit_core.actions.get_balance import GetBalanceAction
+from cdp_agentkit_core.actions.get_balance_nft import GetBalanceNftAction
 from cdp_agentkit_core.actions.get_wallet_details import GetWalletDetailsAction
 from cdp_agentkit_core.actions.mint_nft import MintNftAction
 from cdp_agentkit_core.actions.register_basename import RegisterBasenameAction
@@ -13,7 +14,6 @@ from cdp_agentkit_core.actions.wow.buy_token import WowBuyTokenAction
 from cdp_agentkit_core.actions.wow.create_token import WowCreateTokenAction
 from cdp_agentkit_core.actions.wow.sell_token import WowSellTokenAction
 from cdp_agentkit_core.actions.wrap_eth import WrapEthAction
-
 
 # WARNING: All new CdpAction subclasses must be imported above, otherwise they will not be discovered
 # by get_all_cdp_actions(). The import ensures the class is registered as a subclass of CdpAction.
@@ -33,6 +33,7 @@ __all__ = [
     "DeployNftAction",
     "DeployTokenAction",
     "GetBalanceAction",
+    "GetBalanceNftAction",
     "GetWalletDetailsAction",
     "MintNftAction",
     "RegisterBasenameAction",
