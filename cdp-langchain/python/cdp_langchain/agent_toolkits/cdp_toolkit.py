@@ -64,6 +64,10 @@ class CdpToolkit(BaseToolkit):
             wow_buy_token
             wow_sell_token
             wrap_eth
+=======
+            transfer_nft
+            get_balance_nft
+>>>>>>> 3a426a6 (add get_balance_nft action):cdp-langchain/cdp_langchain/agent_toolkits/cdp_toolkit.py
     Use within an agent:
         .. code-block:: python
 
