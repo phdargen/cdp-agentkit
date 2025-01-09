@@ -15,6 +15,7 @@ from cdp_agentkit_core.actions.wow.create_token import WowCreateTokenAction
 from cdp_agentkit_core.actions.wow.sell_token import WowSellTokenAction
 from cdp_agentkit_core.actions.wrap_eth import WrapEthAction
 
+
 # WARNING: All new CdpAction subclasses must be imported above, otherwise they will not be discovered
 # by get_all_cdp_actions(). The import ensures the class is registered as a subclass of CdpAction.
 def get_all_cdp_actions() -> list[type[CdpAction]]:
