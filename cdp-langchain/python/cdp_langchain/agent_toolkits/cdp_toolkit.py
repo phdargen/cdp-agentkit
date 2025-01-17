@@ -66,6 +66,8 @@ class CdpToolkit(BaseToolkit):
             wow_buy_token
             wow_sell_token
             wrap_eth
+            list_nft
+            approve_nft_for_trading
     Use within an agent:
         .. code-block:: python
 
