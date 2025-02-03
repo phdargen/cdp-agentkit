@@ -6,6 +6,8 @@ import logging
 from eth_utils import keccak
 from eth_abi import encode
 from eth_utils import to_bytes, to_hex
+import requests
+from typing import Optional
 
 from cdp import Wallet
 from cdp.payload_signature import PayloadSignature
@@ -59,6 +61,10 @@ SEAPORT_CONTRACT_NAME = "Seaport"
 SEAPORT_CONTRACT_VERSION = "1.6"
 CROSS_CHAIN_SEAPORT_ADDRESS = "0x0000000000000068F116a894984e2DB1123eB395"
 OPENSEA_CONDUIT_KEY = "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000"
+
+# Add OpenSea API constants
+OPENSEA_API_URL = "https://api.opensea.io/v2"
+OPENSEA_TESTNET_API_URL = "https://testnets-api.opensea.io/v2"
 
 LIST_NFT_PROMPT = """
 This tool will list an NFT for sale on OpenSea marketplace.
@@ -134,12 +140,126 @@ def get_order_hash(typed_data):
     
     return to_hex(order_hash)
 
+def submit_listing_to_opensea(
+    network_id: str,
+    order: dict,
+    api_key: str,
+    wallet: Wallet
+) -> Optional[dict]:
+    """Submit listing to OpenSea API."""
+    
+    # Create the initial payload
+    payload = {
+        "parameters": {
+            "orderType": 0,
+            "consideration": [
+                {
+                    "itemType": 0,
+                    "token": "0x0000000000000000000000000000000000000000",
+                    "identifierOrCriteria": 0,
+                    "startAmount": "975000000000000000",
+                    "endAmount": "975000000000000000",
+                    "recipient": "0x1fc53ac4d509839EC35003512905606a9e1D8b41"
+                },
+                {
+                    "itemType": 0,
+                    "token": "0x0000000000000000000000000000000000000000",
+                    "identifierOrCriteria": 0,
+                    "startAmount": "25000000000000000",
+                    "endAmount": "25000000000000000",
+                    "recipient": "0x0000a26b00c1F0DF003000390027140000fAa719"
+                }
+            ],
+            "offer": [
+                {
+                    "itemType": 2,
+                    "token": "0x341444B4B6C1D2FC9897Fe578361880dd3F77CF5",
+                    "identifierOrCriteria": 0,
+                    "startAmount": 1,
+                    "endAmount": 1
+                }
+            ],
+            "offerer": "0x1fc53ac4d509839EC35003512905606a9e1D8b41",
+            "startTime": 1737276045,
+            "endTime": 1752914442,
+            "zone": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "salt": "24446860302761739304752683030156737591518664810215442929813199115111869615072",
+            "zoneHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "conduitKey": "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000",
+            "totalOriginalConsiderationItems": 2,
+            "counter": "0"
+        },
+        "protocol_address": "0x0000000000000068f116a894984e2db1123eb395"
+    }
+
+    # Create typed data for signing using the parameters
+    typed_data = {
+        "types": {
+            "EIP712Domain": [
+                {"name": "name", "type": "string"},
+                {"name": "version", "type": "string"},
+                {"name": "chainId", "type": "uint256"},
+                {"name": "verifyingContract", "type": "address"}
+            ],
+            **EIP_712_ORDER_TYPE
+        },
+        "primaryType": "OrderComponents",
+        "domain": {
+            "name": SEAPORT_CONTRACT_NAME,
+            "version": SEAPORT_CONTRACT_VERSION,
+            "chainId": "84532",
+            "verifyingContract": CROSS_CHAIN_SEAPORT_ADDRESS
+        },
+        "message": payload["parameters"]
+    }
+
+    # Sign the payload
+    typed_data_json = json.dumps(typed_data)
+    typed_data_hash = keccak(text=typed_data_json).hex()
+    payload_signature = wallet.sign_payload(typed_data_hash)
+    signed_payload = payload_signature.wait()
+    
+    if signed_payload.status == PayloadSignature.Status.FAILED:
+        logger.error("Failed to sign the listing")
+        return None
+
+    # Update payload with the signature
+    payload["signature"] = signed_payload.signature
+
+    # Map CDP network IDs to OpenSea API network IDs
+    network_mapping = {
+        "base-sepolia": "base_sepolia",
+        "base": "base"
+    }
+    opensea_network = network_mapping.get(network_id, network_id)
+    
+    # Choose API URL based on network
+    base_url = OPENSEA_TESTNET_API_URL if "sepolia" in network_id else OPENSEA_API_URL
+    api_url = f"{base_url}/orders/{opensea_network}/seaport/listings"
+
+    headers = {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "x-api-key": api_key  # Note: using lowercase x-api-key
+    }
+
+    logger.debug(f"Submitting listing to OpenSea API: {api_url}")
+    logger.debug(f"Payload: {json.dumps(payload, indent=2)}")
+    response = requests.post(api_url, headers=headers, json=payload)
+    
+    if response.status_code == 200:
+        return response.json()
+    else:
+        logger.error(f"OpenSea API error: {response.status_code} - {response.text}")
+        return None
+
 def list_nft(
     wallet: Wallet,
     contract_address: str,
     token_id: str,
     price_in_wei: str,
-    duration_in_seconds: int = 15552000
+    duration_in_seconds: int = 15552000,
+    api_key: str = 'eb3f0c5ed549496bae57bc112d871a37'
 ) -> str:
     """List an NFT for sale on OpenSea using off-chain signature."""
     logger.debug(f"Creating listing for NFT {token_id} from contract {contract_address}")
@@ -213,7 +333,7 @@ def list_nft(
         "domain": {
             "name": SEAPORT_CONTRACT_NAME,
             "version": SEAPORT_CONTRACT_VERSION,
-            "chainId": wallet.network_id == "base-sepolia" and "84532" or "8453",
+            "chainId":  "84532",
             "verifyingContract": CROSS_CHAIN_SEAPORT_ADDRESS
         },
         "message": order
@@ -258,7 +378,25 @@ def list_nft(
             int(status.get("totalFilled", 0)) > 0
         )
             
-        # Return both the typed data, signature and order status
+        if api_key:
+            # Submit to OpenSea API
+            result = submit_listing_to_opensea(
+                network_id=wallet.network_id,
+                order=order,
+                api_key=api_key,
+                wallet=wallet
+            )
+            
+            if result:
+                return (
+                    f"Successfully listed NFT {token_id} from contract {contract_address}\n"
+                    f"Price: {price_in_wei} wei\n"
+                    f"Order Hash: {result.get('order_hash')}\n"
+                    f"Created: {result.get('created_date')}\n"
+                    f"Listing URL: {result.get('protocol_data', {}).get('parameters', {}).get('listing_url')}"
+                )
+
+        # Return signature if API submission failed or no API key provided
         return (
             f"Created listing signature for NFT {token_id} from contract {contract_address}\n"
             f"Price: {price_in_wei} wei\n"
@@ -269,8 +407,8 @@ def list_nft(
             f"Order valid until: {end_time}"
         )
     except Exception as e:
-        logger.error(f"Error creating listing signature: {e!s}", exc_info=True)
-        return f"Error creating listing signature: {e!s}"
+        logger.error(f"Error creating listing: {e!s}", exc_info=True)
+        return f"Error creating listing: {e!s}"
 
 class ListNftAction(CdpAction):
     """OpenSea NFT listing action."""
