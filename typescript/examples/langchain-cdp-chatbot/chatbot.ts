@@ -1,19 +1,20 @@
 import {
   AgentKit,
   CdpWalletProvider,
-  wethActionProvider,
   walletActionProvider,
   erc20ActionProvider,
   cdpApiActionProvider,
   cdpWalletActionProvider,
-  pythActionProvider,
+  placeholderActionProvider,
 } from "@coinbase/agentkit";
+import { PlaceholderActionProvider, PlaceholderActionProviderInterface } from "@coinbase/agentkit";
 import { getLangChainTools } from "@coinbase/agentkit-langchain";
 import { HumanMessage } from "@langchain/core/messages";
 import { MemorySaver } from "@langchain/langgraph";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { ChatOpenAI } from "@langchain/openai";
 import * as dotenv from "dotenv";
+import { formatUnits } from "ethers";
 import * as fs from "fs";
 import * as readline from "readline";
 
@@ -77,7 +78,6 @@ async function initializeAgent() {
         walletDataStr = fs.readFileSync(WALLET_DATA_FILE, "utf8");
       } catch (error) {
         console.error("Error reading wallet data:", error);
-        // Continue without wallet data
       }
     }
 
@@ -91,12 +91,15 @@ async function initializeAgent() {
 
     const walletProvider = await CdpWalletProvider.configureWithWallet(config);
 
+    // Create placeholder provider instance
+    const placeholder = placeholderActionProvider() as PlaceholderActionProvider &
+      PlaceholderActionProviderInterface;
+
     // Initialize AgentKit
     const agentkit = await AgentKit.from({
       walletProvider,
       actionProviders: [
-        wethActionProvider(),
-        pythActionProvider(),
+        placeholder,
         walletActionProvider(),
         erc20ActionProvider(),
         cdpApiActionProvider({
@@ -110,38 +113,58 @@ async function initializeAgent() {
       ],
     });
 
+    // Initialize placeholder monitoring
+    await placeholder.startMonitoring(walletProvider);
+
     const tools = await getLangChainTools(agentkit);
 
     // Store buffered conversation history in memory
     const memory = new MemorySaver();
-    const agentConfig = { configurable: { thread_id: "CDP AgentKit Chatbot Example!" } };
+    const agentConfig = {
+      configurable: {
+        thread_id: "CDP AgentKit Placeholder Auction Bot",
+        placeholder_provider: placeholder,
+      },
+    };
 
-    // Create React Agent using the LLM and CDP AgentKit tools
+    // Create React Agent with auction-specific instructions
     const agent = createReactAgent({
       llm,
       tools,
       checkpointSaver: memory,
       messageModifier: `
-        You are a helpful agent that can interact onchain using the Coinbase Developer Platform AgentKit. You are 
-        empowered to interact onchain using your tools. If you ever need funds, you can request them from the 
-        faucet if you are on network ID 'base-sepolia'. If not, you can provide your wallet details and request 
-        funds from the user. Before executing your first action, get the wallet details to see what network 
-        you're on. If there is a 5XX (internal) HTTP error code, ask the user to try again later. If someone 
-        asks you to do something you can't do with your currently available tools, you must say so, and 
-        encourage them to implement it themselves using the CDP SDK + Agentkit, recommend they go to 
-        docs.cdp.coinbase.com for more information. Be concise and helpful with your responses. Refrain from 
-        restating your tools' descriptions unless it is explicitly requested.
-        `,
+    You are an autonomous agent managing bids in a Placeholder Ads auction system using stable coin. Your primary goals are:
+    1. Monitor auction events and respond to them
+    2. Place bids using different strategies depending on market conditions
+    3. Track successful display acquisitions (target: 5 displays)
+    4. Adapt bidding strategy based on outcomes
+
+    You have access to the following key functions:
+    - place_bid: Place a bid on a token with a specified USD amount
+    - Monitor auction events through the placeholder provider
+    
+    Important: All bids must be in in USD For example:
+    - To bid 100 stable coins, use "100"
+    
+    
+    You should:
+    - Actively participate in auctions when they start
+    - Adjust your bidding strategy based on success/failure
+    - Track your progress towards the 5 display goal
+    - Provide clear updates on your actions and reasoning
+
+    If you encounter any errors or limitations, explain them clearly and try to adapt your strategy.
+`,
     });
 
     // Save wallet data
     const exportedWallet = await walletProvider.exportWallet();
     fs.writeFileSync(WALLET_DATA_FILE, JSON.stringify(exportedWallet));
 
-    return { agent, config: agentConfig };
+    return { agent, config: agentConfig, placeholder };
   } catch (error) {
     console.error("Failed to initialize agent:", error);
-    throw error; // Re-throw to be handled by caller
+    throw error;
   }
 }
 
@@ -154,34 +177,84 @@ async function initializeAgent() {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function runAutonomousMode(agent: any, config: any, interval = 10) {
-  console.log("Starting autonomous mode...");
+  console.log("Starting autonomous auction bidding mode...");
 
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
+  let displayCount = 0;
+  const maxDisplays = 5;
+  let consecutiveErrors = 0;
+  const maxConsecutiveErrors = 5;
+
+  while (displayCount < maxDisplays) {
     try {
-      const thought =
-        "Be creative and do something interesting on the blockchain. " +
-        "Choose an action or set of actions and execute it that highlights your abilities.";
+      // Get current auction state
+      const auctionState = config.configurable.placeholder_provider.auctionState;
+      const currentPrice = await config.configurable.placeholder_provider.getCurrentPrice();
+      const currentPriceInStableCoin = formatUnits(currentPrice, 18);
+
+      const thought = `
+        Monitor auction activity and execute bidding strategy.
+        Current displays acquired: ${displayCount}/${maxDisplays}.
+        Auction active: ${auctionState.isActive}
+        Current price: ${currentPriceInStableCoin} USD)
+        Last strategy used: ${config.configurable.placeholder_provider.currentStrategy?.name || "none"}
+        Evaluate market conditions and adjust strategy as needed.
+      `;
+
+      const auctionActive = config.configurable.placeholder_provider.auctionState.isActive;
+      console.log(config.configurable.placeholder_provider.auctionState);
+      console.log(config.configurable.placeholder_provider.currentStrategy);
+
+      const strategyName = config.configurable.placeholder_provider.currentStrategy?.name || "none";
+
+      console.log(
+        `Auction Active: ${auctionActive}, Current Price: ${currentPriceInStableCoin}, Strategy: ${strategyName}`,
+      );
 
       const stream = await agent.stream({ messages: [new HumanMessage(thought)] }, config);
 
       for await (const chunk of stream) {
         if ("agent" in chunk) {
-          console.log(chunk.agent.messages[0].content);
+          console.log("Agent Thought:", chunk.agent.messages[0].content);
         } else if ("tools" in chunk) {
-          console.log(chunk.tools.messages[0].content);
+          console.log("Action Taken:", chunk.tools.messages[0].content);
+
+          if (chunk.tools.messages[0].content.includes("Bid placed successfully")) {
+            // Reset error counter on successful bid
+            consecutiveErrors = 0;
+            // Update display count from provider state
+            displayCount = config.configurable.placeholder_provider.auctionState.currentDisplay;
+            console.log(`Updated display count: ${displayCount}/${maxDisplays}`);
+          }
         }
         console.log("-------------------");
       }
 
-      await new Promise(resolve => setTimeout(resolve, interval * 1000));
+      // Add a dynamic delay based on auction state
+      const delayTime = auctionState.isActive ? interval * 1000 : interval * 3000;
+      await new Promise(resolve => setTimeout(resolve, delayTime));
     } catch (error) {
-      if (error instanceof Error) {
-        console.error("Error:", error.message);
+      consecutiveErrors++;
+      console.error("Error in autonomous mode:", error instanceof Error ? error.message : error);
+
+      if (consecutiveErrors >= maxConsecutiveErrors) {
+        console.error(`Stopping due to ${maxConsecutiveErrors} consecutive errors`);
+        throw new Error(`Autonomous mode stopped: Too many consecutive errors`);
       }
-      process.exit(1);
+
+      // Exponential backoff on errors
+      const backoffDelay = interval * 2000 * Math.min(consecutiveErrors, 5);
+      console.log(`Waiting ${backoffDelay / 1000} seconds before retry...`);
+      await new Promise(resolve => setTimeout(resolve, backoffDelay));
     }
   }
+
+  console.log("\nTarget number of displays achieved. Autonomous mode completed.");
+  console.log("Final Statistics:");
+  console.log("- Total displays acquired:", displayCount);
+  console.log(
+    "- Final strategy used:",
+    config.configurable.placeholder_provider.currentStrategy?.name,
+  );
 }
 
 /**
