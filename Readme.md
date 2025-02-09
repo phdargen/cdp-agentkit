@@ -1,150 +1,107 @@
 # AgenticPlaceholder Bidding Agent
 
-## Overview
-AgenticPlaceholder is a revolutionary on-chain advertising network for digital billboards that leverages agentic automation and blockchain technology. This repository contains the bidding agent component, built using Coinbase's AI Agent Kit, which autonomously manages ad placement bidding strategies on the Base network.
 
-## Key Features
-### Autonomous Bidding Agent
-- Fully automated bidding system requiring zero human intervention
-- Dynamic strategy adaptation based on market conditions and constraints
-- Built with Coinbase's AgentKit for robust blockchain interaction
-- Seamless integration with dutch auction marketplace mechanics
-- Real-time bid optimization for optimal ad placement
 
-### Smart Contract Integration
-- Interacts with AgenticPlaceholder's core smart contracts on Base
-- Supports dutch auction bidding mechanism
-- Direct integration with NFT-based ad management system
-- Real-time monitoring of auction states and market conditions
+## System Architecture
 
-### Bidding Strategies
-The agent employs multiple bidding strategies that are dynamically selected based on:
-- Current market conditions
-- Historical price data
-- Time-of-day patterns
-- Location-specific demand
-- Budget constraints
-- Display duration requirements
+Our bidding agent system utilizes a sophisticated multi-layered architecture that ensures efficient, automated, and reliable ad placement across the digital billboard network. The following diagram illustrates the system's key components and their interactions:
 
-## Technical Architecture
+```mermaid
+flowchart TB
+    subgraph User["User Interface"]
+        UI["Web Interface"]
+        Mobile["Mobile App"]
+    end
 
-### Prerequisites
-- Node.js (version X.X.X)
-- Coinbase AgentKit
-- Base network connection
-- Access to AgenticPlaceholder smart contracts
+    subgraph AgentSystem["Bidding Agent System"]
+        BA["Bidding Agent Core"]
+        BS["Bidding Strategies"]
+        AM["Auction Monitor"]
+        PM["Price Monitor"]
+        
+        subgraph Strategy["Strategy Engine"]
+            ML["Large Language Module"]
+            OPT["Prompt Engineering Engine"]
+        end
+        
+        BA --> BS
+        BA --> AM
+        BA --> PM
+        BS --> Strategy
+        Strategy --> ML
+        Strategy --> OPT
+        Strategy --> RISK
+    end
 
-### Installation
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/agentic-placeholder-bidding
+    subgraph Blockchain["Blockchain Layer"]
+        direction TB
+        BSC["Base Network"]
+        
+        subgraph SmartContracts["Smart Contracts"]
+            NFT["NFT Contract"]
+            MP["Marketplace Contract"]
+           
+        end
+        
+        BSC --> SmartContracts
+    end
 
-# Install dependencies
-npm install
+    subgraph Display["Display Network"]
+        RPI["Raspberry Pi Devices"]
+        DISP["Digital Billboards"]
+        
+        RPI --> DISP
+    end
 
-# Configure environment
-cp .env.example .env
+    subgraph External["External Services"]
+        CB["Coinbase Agent Kit"]
+        TN["True Network"]
+        IPFS["IPFS Storage"]
+    end
+
+    User --> BA
+    BA --> BSC
+    BA --> External
+    SmartContracts --> RPI
+    TN --> SmartContracts
+
+    classDef blockchain fill:#f9f,stroke:#333,stroke-width:2px
+    classDef agent fill:#bbf,stroke:#333,stroke-width:2px
+    classDef external fill:#bfb,stroke:#333,stroke-width:2px
+    classDef display fill:#fbb,stroke:#333,stroke-width:2px
+    
+    class BSC,SmartContracts blockchain
+    class AgentSystem,BA,BS,Strategy agent
+    class External,CB,TN external
+    class Display,RPI,DISP display
 ```
+![Ad Image](https://placeholderads.s3.ap-south-1.amazonaws.com/ad-images/1739114313544-762.png)
+### Architecture Components
 
-### Configuration
-Create a `.env` file with the following parameters:
-```
-BASE_RPC_URL=
-AGENT_PRIVATE_KEY=
-MARKETPLACE_CONTRACT_ADDRESS=
-NFT_CONTRACT_ADDRESS=
-```
+The system architecture consists of four main layers that work together seamlessly to provide automated ad bidding and placement:
 
-## Usage
+1. Users can chat with the Publisher Agent. It extracts the necessariy details from the user's conversation to generate a Title,Text and an Image Description. The image description is then used to generate an image with DaLLE. Afterwards this Ad is published as an NFT.
 
-### Basic Implementation
-```javascript
-const BiddingAgent = require('./src/agent');
+2. Bidding Agent System serves as the intelligent core of our platform. The bidding agent continuously monitors market conditions, analyzes pricing trends, and executes optimal bidding strategies. It uses 4O-mini  for prediction, risk management for exposure control, and an optimization engine for precise bid timing and pricing.
 
-const agent = new BiddingAgent({
-    marketplaceAddress: MARKETPLACE_CONTRACT_ADDRESS,
-    nftContractAddress: NFT_CONTRACT_ADDRESS
-});
+3. Blockchain Layer, built on the Base network, manages all transactions and ad ownership through smart contracts. The NFT contract handles ad content ownership, while the marketplace contract manages the dutch auction mechanism for ad space allocation.
 
-await agent.startBidding({
-    targetLocations: ['NYC-1', 'LA-2'],
-    maxBudget: '1000000000000000000', // in wei
-    displayDuration: 3600 // in seconds
-});
-```
+4. Display Network consists of Raspberry Pi devices connected to physical digital billboards. These edge nodes receive ad content directly from the blockchain and ensure timely display updates.
 
-### Advanced Configuration
-```javascript
-const config = {
-    strategies: ['aggressive', 'conservative', 'balanced'],
-    bidUpdateInterval: 300, // 5 minutes
-    gasPrice: {
-        max: '50000000000',
-        strategy: 'dynamic'
-    },
-    // Add other configuration options
-};
-```
+### Integration Points
 
-## Integration with AgenticPlaceholder Ecosystem
+The system leverages several external services for enhanced functionality:
 
-### Smart Contract Interaction
-The bidding agent interfaces with two primary smart contracts:
-1. NFT Smart Contract: Handles ad content and ownership
-2. Marketplace Smart Contract: Manages dutch auctions and bid processing
+- Coinbase Agent Kit provides the foundational framework for our autonomous bidding agent
+- True Network's attestation layer ensures publisher accountability through reputation scoring
+- IPFS delivers decentralized storage for ad content and metadata
 
-### True Network Integration
-- Utilizes True Network's attestation layer for reputation scoring
-- Considers publisher reputation scores in bidding strategies
-- Validates ad performance metrics
+### Data Flow
 
-## Development
+The architecture supports a streamlined data flow where:
 
-### Testing
-```bash
-# Run unit tests
-npm run test
-
-# Run integration tests
-npm run test:integration
-
-# Run specific test suite
-npm run test:bidding-strategies
-```
-
-### Contributing
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## Future Enhancements
-- [ ] Implementation of machine learning models for bid optimization
-- [ ] Support for multiple blockchain networks
-- [ ] Enhanced analytics dashboard for strategy performance
-- [ ] Integration with additional ad verification systems
-- [ ] Support for programmatic creative optimization
-
-## Documentation
-Detailed documentation is available in the `/docs` directory:
-- [API Reference](docs/API.md)
-- [Bidding Strategies](docs/strategies.md)
-- [Smart Contract Integration](docs/contracts.md)
-- [Configuration Guide](docs/configuration.md)
-
-## License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Support
-For support and questions, please open an issue in the repository or contact the development team at support@agenticplaceholder.com
-
-## Acknowledgments
-- Coinbase AgentKit Team
-- Base Network
-- True Network Team
-- AgenticPlaceholder Core Team
-
----
-
-**Note**: This bidding agent is part of the larger AgenticPlaceholder ecosystem. For full system documentation, please refer to the main [AgenticPlaceholder Documentation](https://docs.agenticplaceholder.com).
+1. Users input their advertising requirements through the interface.
+2. The bidding agent processes these requirements and monitors market conditions
+3. Smart contracts handle the auction mechanics and ownership verification
+4. Display devices receive and showcase the winning advertisements
+5. True Network validates performance metrics and updates reputation scores
