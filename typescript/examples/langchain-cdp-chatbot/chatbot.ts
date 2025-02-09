@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable jsdoc/require-jsdoc */
-import { z } from "zod";
 
 import {
   AgentKit,
@@ -23,6 +22,24 @@ import { ethers, formatUnits, JsonRpcProvider } from "ethers";
 import * as fs from "fs";
 import * as readline from "readline";
 dotenv.config();
+
+async function sendToUI(message: string) {
+  try {
+    const response = await fetch("http://localhost:3000/api/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message, timestamp: Date.now() }),
+    });
+
+    if (!response.ok) {
+      console.error(`Failed to send to UI: ${response.status} ${response.statusText}`);
+    }
+  } catch (error) {
+    console.error("Failed to send to UI:", error);
+  }
+}
 
 /**
  * Validates that required environment variables are set
@@ -222,6 +239,7 @@ async function initializeAgent() {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function runAutonomousMode(agent: any, config: any, interval = 10) {
   console.log("Starting optimized autonomous auction bidding mode...");
+  await sendToUI("Starting optimized autonomous auction bidding mode...");
 
   let displayCount = 0;
   const maxDisplays = 5;
@@ -277,7 +295,9 @@ async function runAutonomousMode(agent: any, config: any, interval = 10) {
 
       // Check if auction is active
       if (!marketState.isActive) {
-        console.log("Waiting for next auction to start...");
+        const message = "Auction is not active. Waiting for next auction to start...";
+        console.log(message);
+        await sendToUI(message);
         await new Promise(resolve => setTimeout(resolve, interval * 3000));
         continue;
       }
@@ -290,14 +310,24 @@ Market Status:
 - Displays: ${displayCount}/${maxDisplays}
 `);
 
+      await sendToUI(`
+Market Status:
+- Auction Active: ${marketState.isActive}
+- Current Price: ${marketState.currentPrice} USD
+- Strategy: ${marketState.currentStrategy}
+- Displays: ${displayCount}/${maxDisplays}
+`);
+
       const stream = await agent.stream({ messages: [new HumanMessage(thought)] }, config);
 
       for await (const chunk of stream) {
         if ("agent" in chunk) {
           console.log("Agent Reasoning:", chunk.agent.messages[0].content);
+          await sendToUI("Agent Reasoning:" + chunk.agent.messages[0].content);
         } else if ("tools" in chunk) {
           const action = chunk.tools.messages[0].content;
           console.log("Action Taken:", action);
+          await sendToUI("Action Taken:" + action);
 
           // Handle different action responses
           if (action.includes("Strategy updated to")) {
@@ -323,6 +353,7 @@ Market Status:
           }
         }
         console.log("-------------------");
+        await sendToUI("-------------------");
       }
 
       // Add a dynamic delay based on auction state
@@ -334,12 +365,14 @@ Market Status:
 
       if (consecutiveErrors >= maxConsecutiveErrors) {
         console.error(`Stopping due to ${maxConsecutiveErrors} consecutive errors`);
+        await sendToUI(`Stopping due to ${maxConsecutiveErrors} consecutive errors`);
         throw new Error(`Autonomous mode stopped: Too many consecutive errors`);
       }
 
       // Exponential backoff on errors
       const backoffDelay = interval * 2000 * Math.min(consecutiveErrors, 5);
       console.log(`Waiting ${backoffDelay / 1000} seconds before retry...`);
+      await sendToUI(`Waiting ${backoffDelay / 1000} seconds before retry...`);
       await new Promise(resolve => setTimeout(resolve, backoffDelay));
     }
   }
@@ -349,6 +382,14 @@ Market Status:
   console.log("- Total displays acquired:", displayCount);
   console.log("- Final strategy used:", finalState.currentStrategy);
   console.log("- Total auctions participated:", provider.auctionState.currentDisplay);
+
+  await sendToUI(`
+\nTarget number of displays achieved. Autonomous mode completed.
+Final Statistics:
+- Total displays acquired: ${displayCount}
+- Final strategy used: ${finalState.currentStrategy}
+- Total auctions participated: ${provider.auctionState.currentDisplay}
+  `);
 }
 
 /**
