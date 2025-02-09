@@ -70,7 +70,7 @@ export default function App() {
             <div className="bg-gray-900 rounded-lg p-4 shadow-lg h-full">
               <div className="flex items-center gap-2 mb-4 text-white">
                 <Terminal className="h-6 w-6" />
-                <h2 className="text-xl font-bold">Agent Console</h2>
+                <h2 className="text-xl font-bold"> Bidding Agent 47</h2>
               </div>
               <div className="bg-black rounded-lg p-4 h-[calc(100%-4rem)] overflow-y-auto font-mono text-sm">
                 {messages.map((msg, i) => (

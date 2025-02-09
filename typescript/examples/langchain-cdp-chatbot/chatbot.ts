@@ -193,24 +193,33 @@ async function initializeAgent() {
        - aggressive: Bid at current price
        - patient: Wait for 50% price drop
        - conservative: Wait for 80% price drop
+       - Remember This is a Dutch Auction.
+       - Price starts high and decreases linear.
+       - First to bid always wins.
 
     2. select_price: Set the bid amount
        - Consider current price and strategy
        - Provide reasoning for the price
+   
 
     3. Always use ${lastTokenId} as token Id for calling place bid and Price in USD
      place_bid: Execute the bid by calling the placeBid function with ${lastTokenId} as first argument and the bid amount in USD as second argument
 
     Process for each auction:
     1. First select strategy based on:
-       - Past performance
-       - Current market price
-       - Remaining display target
+        - Remember This is a Dutch Auction.
+        - Price starts high and decreases linear.
+        - First to bid always wins.
+        - Past performance eg: If you win continously change the strategy , If you loose continously change the strategy
+        - Current market price
+        - Remaining display target
+        - Anticipate opponent behavior,
 
     2. Then select price based on:
        - Chosen strategy
        - Current market conditions
        - Budget efficiency
+       - Remember This is a Dutch Auction, Price starts high and decreases linear.
 
     3. Finally place bid if conditions are right
 
@@ -247,18 +256,40 @@ async function runAutonomousMode(agent: any, config: any, interval = 10) {
   const maxConsecutiveErrors = 5;
   const provider = config.configurable.placeholder_provider;
 
+  provider.auctionState = {
+    isActive: false,
+    maxDisplays: 5,
+    currentDisplay: 0,
+    startPrice: 0n,
+    endPrice: 0n,
+    duration: 0n,
+  };
+
   // eslint-disable-next-line jsdoc/require-jsdoc
   async function updateMarketState() {
-    const currentPrice = await provider.getCurrentPrice();
-    return {
-      isActive: provider.auctionState.isActive,
-      currentPrice: formatUnits(currentPrice, 18),
-      startPrice: formatUnits(provider.auctionState.startPrice || 0n, 18),
-      endPrice: formatUnits(provider.auctionState.endPrice || 0n, 18),
-      timeRemaining: provider.auctionState.duration || 0n,
-      currentStrategy: provider.currentStrategy?.name || "none",
-      displayCount: provider.auctionState.currentDisplay,
-    };
+    try {
+      const currentPrice = await provider.getCurrentPrice();
+      return {
+        isActive: provider.auctionState?.isActive ?? false,
+        currentPrice: formatUnits(currentPrice || 0n, 18),
+        startPrice: formatUnits(provider.auctionState?.startPrice || 0n, 18),
+        endPrice: formatUnits(provider.auctionState?.endPrice || 0n, 18),
+        timeRemaining: provider.auctionState?.duration || 0n,
+        currentStrategy: provider.currentStrategy?.name || "none",
+        displayCount: provider.auctionState?.currentDisplay || 0,
+      };
+    } catch (error) {
+      console.error("Error updating market state:", error);
+      return {
+        isActive: false,
+        currentPrice: "0",
+        startPrice: "0",
+        endPrice: "0",
+        timeRemaining: 0n,
+        currentStrategy: "none",
+        displayCount: displayCount,
+      };
+    }
   }
   // eslint-disable-next-line jsdoc/require-jsdoc
   function generateAgentThought(marketState: any, context: string = "") {

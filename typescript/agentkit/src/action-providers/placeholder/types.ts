@@ -1,16 +1,35 @@
 export interface AuctionState {
   isActive: boolean;
-  currentDisplay: number;
-  maxDisplays: number;
   startPrice: bigint;
   endPrice: bigint;
   startTime: bigint;
   duration: bigint;
-  lastSuccessfulBid: number;
-  lastFailedBid: number;
-  lastAuctionStatus: string;
+  currentDisplay: number;
+  maxDisplays: number;
   needsStrategyUpdate: boolean;
   lastStrategySuccess: boolean;
+  currentPrice?: bigint;
+  marketConditions?: {
+    priceRange: bigint;
+    timeRemaining: bigint;
+    priceDropRate: bigint;
+  };
+  lastAuctionResult?: {
+    winner: string;
+    winningBid: bigint;
+    wasWinner: boolean;
+    tokenId: bigint;
+  };
+  strategyMetrics?: {
+    successRate: number;
+    averageBidPrice: bigint;
+    displayProgress: {
+      acquired: number;
+      remaining: number;
+    };
+  };
+  bidHistory?: bigint[];
+  totalAuctions?: number;
 }
 
 export interface BiddingStrategy {
