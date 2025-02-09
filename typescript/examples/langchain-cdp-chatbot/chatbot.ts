@@ -14,7 +14,7 @@ import { MemorySaver } from "@langchain/langgraph";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { ChatOpenAI } from "@langchain/openai";
 import * as dotenv from "dotenv";
-import { formatUnits } from "ethers";
+import { ethers, formatUnits, JsonRpcProvider } from "ethers";
 import * as fs from "fs";
 import * as readline from "readline";
 
@@ -115,6 +115,36 @@ async function initializeAgent() {
 
     // Initialize placeholder monitoring
     await placeholder.startMonitoring(walletProvider);
+    const httpProvider = new JsonRpcProvider(process.env.HTTP_RPC_URL);
+    const minimalAbi = [
+      {
+        inputs: [
+          {
+            internalType: "address",
+            name: "owner",
+            type: "address",
+          },
+        ],
+        name: "getOwnedTokens",
+        outputs: [
+          {
+            internalType: "uint256[]",
+            name: "",
+            type: "uint256[]",
+          },
+        ],
+        stateMutability: "view",
+        type: "function",
+      },
+    ];
+    const placeholderNFT = new ethers.Contract(
+      process.env.PLACEHOLDER_NFT_CONTRACT_ADDRESS!,
+      minimalAbi,
+      httpProvider,
+    );
+    const tokenIds = await placeholderNFT.getOwnedTokens(process.env.WALLET_ADDRESS!);
+
+    const lastTokenId = tokenIds.length - 1;
 
     const tools = await getLangChainTools(agentkit);
 
@@ -133,19 +163,25 @@ async function initializeAgent() {
       tools,
       checkpointSaver: memory,
       messageModifier: `
-    You are an autonomous agent managing bids in a Placeholder Ads auction system using stable coin. Your primary goals are:
+    You are an autonomous agent managing bids in a Placeholder Ads auction system using USD. Your primary goals are:
     1. Monitor auction events and respond to them
     2. Place bids using different strategies depending on market conditions
     3. Track successful display acquisitions (target: 5 displays)
     4. Adapt bidding strategy based on outcomes
 
     You have access to the following key functions:
-    - place_bid: Place a bid on a token with a specified USD amount
+    - place_bid: Place a bid in USD for a specific token ID ${lastTokenId}
+    - Always use the same token ID ${lastTokenId}
     - Monitor auction events through the placeholder provider
+  
     
     Important: All bids must be in in USD For example:
-    - To bid 100 stable coins, use "100"
-    
+    - To bid 100 USD, use "100"
+    Bidding Strategy Guidelines:
+        - Start with conservative bids around $50-100 USD
+        - If a bid fails, try increasing by 10-20%
+        - Track successful bid amounts to inform future bids
+        - Consider auction start and end prices when bidding
     
     You should:
     - Actively participate in auctions when they start
@@ -183,15 +219,24 @@ async function runAutonomousMode(agent: any, config: any, interval = 10) {
   const maxDisplays = 5;
   let consecutiveErrors = 0;
   const maxConsecutiveErrors = 5;
-
+  let auctionState = await config.configurable.placeholder_provider.auctionState.isActive;
+  let currentPrice = await config.configurable.placeholder_provider.fetchCurrentPrice();
+  let currentPriceInStableCoin = formatUnits(currentPrice, 18);
+  let thought = `
+        Monitor auction activity and execute bidding strategy.
+        Current displays acquired: ${displayCount}/${maxDisplays}.
+        Auction active: ${auctionState.isActive}
+        Current price: ${currentPriceInStableCoin} USD)
+        Last strategy used: ${config.configurable.placeholder_provider.currentStrategy?.name || "none"}
+        Evaluate market conditions and adjust strategy as needed.
+      `;
   while (displayCount < maxDisplays) {
     try {
       // Get current auction state
-      const auctionState = config.configurable.placeholder_provider.auctionState;
-      const currentPrice = await config.configurable.placeholder_provider.getCurrentPrice();
-      const currentPriceInStableCoin = formatUnits(currentPrice, 18);
-
-      const thought = `
+      auctionState = config.configurable.placeholder_provider.auctionState.isActive;
+      currentPrice = await config.configurable.placeholder_provider.fetchCurrentPrice();
+      currentPriceInStableCoin = formatUnits(currentPrice, 18);
+      thought = `
         Monitor auction activity and execute bidding strategy.
         Current displays acquired: ${displayCount}/${maxDisplays}.
         Auction active: ${auctionState.isActive}
@@ -201,8 +246,6 @@ async function runAutonomousMode(agent: any, config: any, interval = 10) {
       `;
 
       const auctionActive = config.configurable.placeholder_provider.auctionState.isActive;
-      console.log(config.configurable.placeholder_provider.auctionState);
-      console.log(config.configurable.placeholder_provider.currentStrategy);
 
       const strategyName = config.configurable.placeholder_provider.currentStrategy?.name || "none";
 
@@ -214,16 +257,30 @@ async function runAutonomousMode(agent: any, config: any, interval = 10) {
 
       for await (const chunk of stream) {
         if ("agent" in chunk) {
+          // console.log("Agent", chunk.agent);
           console.log("Agent Thought:", chunk.agent.messages[0].content);
         } else if ("tools" in chunk) {
+          // console.log("Tools", chunk.tools);
           console.log("Action Taken:", chunk.tools.messages[0].content);
 
-          if (chunk.tools.messages[0].content.includes("Bid placed successfully")) {
+          if (chunk.tools.messages[0].content.includes("Auction won")) {
             // Reset error counter on successful bid
             consecutiveErrors = 0;
             // Update display count from provider state
-            displayCount = config.configurable.placeholder_provider.auctionState.currentDisplay;
+            displayCount =
+              await config.configurable.placeholder_provider.auctionState.currentDisplay;
+            // Update auction state from provider
+            auctionState = await config.configurable.placeholder_provider.auctionState.isActive;
+
             console.log(`Updated display count: ${displayCount}/${maxDisplays}`);
+            console.log("Updated auction state:", auctionState);
+            thought = `
+        I won the auction. Must wait for new auction to start.
+        One more display count is acquired.
+        Current displays acquired: ${displayCount}
+        Last strategy used: ${config.configurable.placeholder_provider.currentStrategy?.name || "none"}
+        Evaluate market conditions and adjust strategy as needed.
+      `;
           }
         }
         console.log("-------------------");

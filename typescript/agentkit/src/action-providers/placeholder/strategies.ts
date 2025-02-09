@@ -15,6 +15,9 @@ export const strategies: Record<string, BiddingStrategy> = {
     name: "patient",
     calculateBid: async (currentPrice: bigint, state: AuctionState): Promise<bigint> => {
       try {
+        const placeholderActionProvider = new PlaceholderActionProvider();
+        await placeholderActionProvider.getAuctionDetails();
+
         // Explicit conversion to BigInt for safety
         const startPrice = BigInt(state.startPrice);
         const endPrice = BigInt(state.endPrice);
@@ -24,15 +27,15 @@ export const strategies: Record<string, BiddingStrategy> = {
         const priceRange = startPrice - endPrice;
         const priceDropAmount = (priceRange * fiftyPercent) / hundredPercent;
         const targetPrice = endPrice + priceDropAmount;
-        const placeholderActionProvider = new PlaceholderActionProvider();
         return new Promise((resolve, reject) => {
           // Function to check price
           const checkPrice = async () => {
             try {
               const currentPrice = await placeholderActionProvider.fetchCurrentPrice();
-              console.log(
-                `Current price: ${currentPrice}, Target price: ${ethers.formatUnits(targetPrice, 18)}`,
-              );
+              // eslint-disable-next-line multiline-comment-style
+              // console.log(
+              //   `Current price: ${currentPrice}, Target price: ${ethers.formatUnits(targetPrice, 18)}`,
+              // );
 
               if (currentPrice <= targetPrice) {
                 console.log("Target price reached!");
@@ -61,6 +64,8 @@ export const strategies: Record<string, BiddingStrategy> = {
     name: "conservative",
     calculateBid: async (currentPrice: bigint, state: AuctionState): Promise<bigint> => {
       try {
+        const placeholderActionProvider = new PlaceholderActionProvider();
+        await placeholderActionProvider.getAuctionDetails();
         const startPrice = BigInt(state.startPrice);
         const endPrice = BigInt(state.endPrice);
         const twentyPercent = BigInt(20);
@@ -69,7 +74,6 @@ export const strategies: Record<string, BiddingStrategy> = {
         const priceRange = startPrice - endPrice;
         const priceDropAmount = (priceRange * twentyPercent) / hundredPercent;
         const targetPrice = endPrice + priceDropAmount;
-        const placeholderActionProvider = new PlaceholderActionProvider();
 
         return new Promise((resolve, reject) => {
           // Function to check price

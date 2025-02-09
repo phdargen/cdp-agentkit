@@ -6,6 +6,9 @@ export interface AuctionState {
   endPrice: bigint;
   startTime: bigint;
   duration: bigint;
+  lastSuccessfulBid: number;
+  lastFailedBid: number;
+  lastAuctionStatus: string;
 }
 
 export interface BiddingStrategy {

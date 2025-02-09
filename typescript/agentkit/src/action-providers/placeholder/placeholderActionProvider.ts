@@ -1,3 +1,4 @@
+/* eslint-disable multiline-comment-style */
 import { z } from "zod";
 import { ActionProvider } from "../actionProvider";
 import { Network } from "../../network";
@@ -23,8 +24,10 @@ export class PlaceholderActionProvider
   private readonly contractAddress: string;
   private currentStrategy: BiddingStrategy;
   private auctionState: AuctionState;
-  private wssProvider?: WebSocketProvider;
-  private httpProvider?: JsonRpcProvider;
+  private wssProvider? = process.env.WS_RPC_URL
+    ? new WebSocketProvider(process.env.WS_RPC_URL)
+    : undefined;
+  private httpProvider? = new JsonRpcProvider(process.env.HTTP_RPC_URL);
   private activeWalletProvider?: EvmWalletProvider;
 
   /**
@@ -36,7 +39,7 @@ export class PlaceholderActionProvider
       throw new Error("PLACEHOLDER_CONTRACT_ADDRESS not set in environment");
     }
     this.contractAddress = process.env.PLACEHOLDER_CONTRACT_ADDRESS;
-    this.currentStrategy = strategies.aggressive;
+    this.currentStrategy = strategies.patient;
     this.auctionState = {
       isActive: false,
       currentDisplay: 0,
@@ -45,9 +48,60 @@ export class PlaceholderActionProvider
       endPrice: BigInt(0),
       startTime: BigInt(0),
       duration: BigInt(0),
+      lastSuccessfulBid: 0,
+      lastFailedBid: 0,
+      lastAuctionStatus: "",
     };
   }
-
+  @CreateAction({
+    name: "auction_details",
+    description: `
+  This tool will Return the current state of the Placeholder Ads auction.
+  
+  It returns the following details:
+  - isActive: Whether the auction is active or not
+  - currentDisplay: The current display number
+  - maxDisplays: The maximum display number
+  - startPrice: The starting price of the auction
+  - endPrice: The ending price of the auction
+  - startTime: The start time of the auction
+  - duration: The duration of the auction
+  - lastSuccessfulBid: The last successful bid
+  - lastFailedBid: The last failed bid
+  
+  It takes no inputs.
+  `,
+    schema: z.object({}),
+  })
+  /**
+   * Returns the current state of the Placeholder Ads auction.
+   * @param - No inputs
+   * @returns A string containing the auction state, with the following format:
+   * "isActive:" boolean
+   * "currentDisplay:" number
+   * "maxDisplays:" number
+   * "startPrice:" bigint
+   * "endPrice:" bigint
+   * "startTime:" bigint
+   * "duration in seconds:" bigint
+   * "lastSuccessfulBid:" number
+   * "lastFailedBid:" number
+   */
+  // eslint-disable-next-line jsdoc/require-jsdoc
+  async getAuctionDetails(): Promise<string> {
+    const response: string = `Auction Details
+    "isActive:" ${this.auctionState.isActive}
+    "currentDisplay:" ${this.auctionState.currentDisplay}
+    "maxDisplays:" ${this.auctionState.maxDisplays}
+    "startPrice:" ${this.auctionState.startPrice}
+    "endPrice:" ${this.auctionState.endPrice}
+    "startTime:" ${this.auctionState.startTime}
+    "duration in seconds:" ${this.auctionState.duration}
+    "lastSuccessfulBid:" ${this.auctionState.lastSuccessfulBid}
+    "lastFailedBid:" ${this.auctionState.lastFailedBid}
+    `;
+    return response;
+  }
   /**
    * Places a bid in the auction for a specific token.
    *
@@ -78,7 +132,15 @@ export class PlaceholderActionProvider
       const isActive = await this.getAuctionState();
       if (!isActive) {
         console.log("Auction is not active");
-        return "Auction is not active";
+        return `Auction is not active yet.
+        Auction State Details
+         "isActive:" ${this.auctionState.isActive}
+         "currentDisplay:" ${this.auctionState.currentDisplay}
+         "maxDisplays:" ${this.auctionState.maxDisplays}
+         "startPrice:" ${ethers.formatUnits(this.auctionState.startPrice, 18)}
+         "endPrice:" ${ethers.formatUnits(this.auctionState.endPrice, 18)}
+         "startTime:"  ${new Date(Number(this.auctionState.startTime) * 1000).toLocaleString()}
+         "duration:" ${Number(this.auctionState.duration)} seconds} `;
       }
       const parsedAmount = parseUnits(args.bidAmount, 18);
 
@@ -95,14 +157,27 @@ export class PlaceholderActionProvider
         value: 0n,
       });
 
-      await walletProvider.waitForTransactionReceipt(hash);
-      // sleep for 5 seconds
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      console.log(
-        `Bid placed successfully for token ${args.tokenId} with stable coin amount ${args.bidAmount}.\nTransaction hash: https://sepolia.basescan.org/tx/${hash}`,
-      );
+      const receipt = await walletProvider.waitForTransactionReceipt(hash);
+      if (receipt.status === "success") {
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        console.log("Transaction executed successfully.");
+        console.log(
+          `Auction won for token ${args.bidAmount}.\nTransaction hash: https://sepolia.basescan.org/tx/${hash}`,
+        );
+        await this.auctionState.currentDisplay++;
+        this.auctionState.lastSuccessfulBid = Number(args.bidAmount);
 
-      return `Bid placed successfully for token ${args.tokenId} with ${args.bidAmount} USD.`;
+        return `Auction won for token id ${args.tokenId} with ${args.bidAmount} USD.
+        Auction State Details
+         "currentDisplay:" ${this.auctionState.currentDisplay}
+         "maxDisplays:" ${this.auctionState.maxDisplays}
+         "Last Successful Bid:" ${this.auctionState.lastSuccessfulBid}
+        `;
+      } else {
+        console.log("Transaction failed or reverted.");
+        return `Error placing bid: ${Error}`;
+      }
+      // sleep for 5 seconds
     } catch (error) {
       return `Error placing bid: ${error}`;
     }
@@ -129,8 +204,7 @@ export class PlaceholderActionProvider
     }
 
     this.activeWalletProvider = walletProvider;
-    this.wssProvider = new WebSocketProvider(process.env.WS_RPC_URL);
-    this.httpProvider = new JsonRpcProvider(process.env.HTTP_RPC_URL);
+
     const contract = new ethers.Contract(this.contractAddress, abi, this.wssProvider);
 
     await this.setupEventListeners(contract);
@@ -171,8 +245,7 @@ export class PlaceholderActionProvider
             startTime,
             duration,
           };
-          console.log("Auction state updated:", this.auctionState);
-
+          await this.getAuctionDetails();
           await this.executeStrategy();
         },
       );
@@ -180,7 +253,7 @@ export class PlaceholderActionProvider
       contract.on(
         "AuctionEnded",
         // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
-        (winner: string, winningBid: bigint, tokenId: bigint, event: any) => {
+        async (winner: string, winningBid: bigint, tokenId: bigint, event: any) => {
           console.log("------------🔚-----------------");
           console.log("Auction Ended Event Received");
           console.log(`  Winner:       ${winner}`);
@@ -190,10 +263,8 @@ export class PlaceholderActionProvider
           this.auctionState.isActive = false;
           if (winner === "0xbb02a9D6A71A847D587cE4Dbb92F32f79c2EfB2a") {
             console.log("Auction won!");
-            this.auctionState.currentDisplay++;
-            console.log(
-              `Updated display count: ${this.auctionState.currentDisplay}/${this.auctionState.maxDisplays}`,
-            );
+            await this.getAuctionDetails();
+
             this.evaluateAndUpdateStrategy(true);
           } else {
             console.log("Auction lost!");
@@ -228,12 +299,42 @@ export class PlaceholderActionProvider
     }
     const bidAmount = await this.currentStrategy.calculateBid(currentPrice, this.auctionState);
 
-    if (bidAmount > BigInt(0)) {
-      await this.placeBid(this.activeWalletProvider, {
-        tokenId: "5", // You'll need to determine the correct tokenId
-        bidAmount: formatUnits(bidAmount, 18),
-      });
-    }
+    // if (bidAmount > BigInt(0)) {
+    //   const httpProvider = new JsonRpcProvider(process.env.HTTP_RPC_URL);
+    //   const minimalAbi = [
+    //     {
+    //       inputs: [
+    //         {
+    //           internalType: "address",
+    //           name: "owner",
+    //           type: "address",
+    //         },
+    //       ],
+    //       name: "getOwnedTokens",
+    //       outputs: [
+    //         {
+    //           internalType: "uint256[]",
+    //           name: "",
+    //           type: "uint256[]",
+    //         },
+    //       ],
+    //       stateMutability: "view",
+    //       type: "function",
+    //     },
+    //   ];
+    //   const placeholderNFT = new ethers.Contract(
+    //     process.env.PLACEHOLDER_NFT_CONTRACT_ADDRESS!,
+    //     minimalAbi,
+    //     httpProvider,
+    //   );
+    //   const tokenIds = await placeholderNFT.getOwnedTokens(process.env.WALLET_ADDRESS!);
+
+    //   const lastTokenId = tokenIds.length - 1;
+    //   await this.placeBid(this.activeWalletProvider, {
+    //     tokenId: lastTokenId.toString(), // You'll need to determine the correct tokenId
+    //     bidAmount: formatUnits(bidAmount, 18),
+    //   });
+    // }
   }
 
   /**
