@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable multiline-comment-style */
 import { z } from "zod";
 import { ActionProvider } from "../actionProvider";
