@@ -3,7 +3,7 @@ import { z } from "zod";
 import { ActionProvider } from "../actionProvider";
 import { Network } from "../../network";
 import { CreateAction } from "../actionDecorator";
-import { PlaceBidSchema } from "./schemas";
+import { PlaceBidSchema, SelectPriceSchema, SelectStrategySchema } from "./schemas";
 import { abi } from "./constants";
 import { encodeFunctionData, formatUnits, Hex, parseUnits } from "viem";
 import { EvmWalletProvider } from "../../wallet-providers";
@@ -29,6 +29,7 @@ export class PlaceholderActionProvider
     : undefined;
   private httpProvider? = new JsonRpcProvider(process.env.HTTP_RPC_URL);
   private activeWalletProvider?: EvmWalletProvider;
+  private lastSuggestedPrice: string | null = null;
 
   /**
    * Constructor for the PlaceholderActionProvider.
@@ -51,7 +52,44 @@ export class PlaceholderActionProvider
       lastSuccessfulBid: 0,
       lastFailedBid: 0,
       lastAuctionStatus: "",
+      needsStrategyUpdate: true,
+      lastStrategySuccess: true,
     };
+  }
+  @CreateAction({
+    name: "select_strategy",
+    description: `
+    Select a bidding strategy based on current market conditions and past performance.
+    Available strategies:
+    - aggressive: Bids at current price immediately
+    - patient: Waits for price to drop 50% from start to end price
+    - conservative: Waits for price to drop 80% from start to end price
+    `,
+    schema: SelectStrategySchema,
+  })
+  async selectStrategy(
+    _walletProvider: EvmWalletProvider,
+    args: z.infer<typeof SelectStrategySchema>,
+  ): Promise<string> {
+    this.currentStrategy = strategies[args.strategy];
+    return `Strategy updated to ${args.strategy}. Reason: ${args.reason}`;
+  }
+
+  @CreateAction({
+    name: "select_price",
+    description: `
+    Determine the optimal bid price based on the current strategy and market conditions.
+    Returns a suggested bid price and explanation.
+    The price should follow the current strategy's guidelines.
+    `,
+    schema: SelectPriceSchema,
+  })
+  async selectPrice(
+    _walletProvider: EvmWalletProvider,
+    args: z.infer<typeof SelectPriceSchema>,
+  ): Promise<string> {
+    this.lastSuggestedPrice = args.suggestedPrice;
+    return `Selected bid price of ${args.suggestedPrice} USD.\nReason: ${args.reason}`;
   }
   @CreateAction({
     name: "auction_details",
@@ -112,14 +150,14 @@ export class PlaceholderActionProvider
   @CreateAction({
     name: "place_bid",
     description: `
-    This tool will place a bid in the Placeholder Ads auction for a specific token using stable coin.
+    This tool will place a bid in the Placeholder Ads auction for a specific price inUSD.
     
     It takes the following inputs:
     - tokenId: The ID of the token to bid on
     - bidAmount: The amount to bid in USD  values.
     
     The bid amount should be in USD  values.
-    Example: To bid 100 stable coins, use "100".
+    Example: To bid 100 USD, use "100".
     `,
     schema: PlaceBidSchema,
   })
@@ -128,23 +166,15 @@ export class PlaceholderActionProvider
     args: z.infer<typeof PlaceBidSchema>,
   ): Promise<string> {
     try {
-      // Parse amount with 18 decimals for stable coin
       const isActive = await this.getAuctionState();
       if (!isActive) {
         console.log("Auction is not active");
         return `Auction is not active yet.
-        Auction State Details
-         "isActive:" ${this.auctionState.isActive}
-         "currentDisplay:" ${this.auctionState.currentDisplay}
-         "maxDisplays:" ${this.auctionState.maxDisplays}
-         "startPrice:" ${ethers.formatUnits(this.auctionState.startPrice, 18)}
-         "endPrice:" ${ethers.formatUnits(this.auctionState.endPrice, 18)}
-         "startTime:"  ${new Date(Number(this.auctionState.startTime) * 1000).toLocaleString()}
-         "duration:" ${Number(this.auctionState.duration)} seconds} `;
+         `;
       }
       const parsedAmount = parseUnits(args.bidAmount, 18);
 
-      console.log("Placing bid for token", args.tokenId, "with stable coin amount", args.bidAmount);
+      console.log("Placing bid for token", args.tokenId, "with USD amount", args.bidAmount);
       const txData = encodeFunctionData({
         abi,
         functionName: "placeBid",
@@ -246,7 +276,7 @@ export class PlaceholderActionProvider
             duration,
           };
           await this.getAuctionDetails();
-          await this.executeStrategy();
+          // await this.executeStrategy();
         },
       );
       // AuctionStarted event
@@ -263,11 +293,21 @@ export class PlaceholderActionProvider
           this.auctionState.isActive = false;
           if (winner === "0xbb02a9D6A71A847D587cE4Dbb92F32f79c2EfB2a") {
             console.log("Auction won!");
+            this.auctionState = {
+              ...this.auctionState,
+              needsStrategyUpdate: true,
+              lastStrategySuccess: true,
+            };
             await this.getAuctionDetails();
 
             this.evaluateAndUpdateStrategy(true);
           } else {
             console.log("Auction lost!");
+            this.auctionState = {
+              ...this.auctionState,
+              needsStrategyUpdate: true,
+              lastStrategySuccess: false,
+            };
             this.evaluateAndUpdateStrategy(false);
           }
         },
@@ -297,7 +337,9 @@ export class PlaceholderActionProvider
     if (currentPrice === BigInt(0)) {
       return;
     }
-    const bidAmount = await this.currentStrategy.calculateBid(currentPrice, this.auctionState);
+    const bidAmount =
+      this.lastSuggestedPrice ||
+      this.currentStrategy.calculateBid(currentPrice, this.auctionState).toString();
 
     // if (bidAmount > BigInt(0)) {
     //   const httpProvider = new JsonRpcProvider(process.env.HTTP_RPC_URL);
@@ -393,25 +435,32 @@ export class PlaceholderActionProvider
    *
    * @param wasSuccessful - Whether the last bid was successful
    */
-  private evaluateAndUpdateStrategy(wasSuccessful: boolean) {
+  private async evaluateAndUpdateStrategy(wasSuccessful: boolean) {
     if (wasSuccessful) {
       // If current strategy is working, stick with it
       return;
     }
 
     // Simple strategy rotation on failure
-    const strategyNames = Object.keys(strategies);
-    const currentIndex = strategyNames.indexOf(this.currentStrategy.name);
-    const nextIndex = (currentIndex + 1) % strategyNames.length;
-    this.currentStrategy = strategies[strategyNames[nextIndex]];
+    const currentPrice = await this.getCurrentPrice();
+    console.log(
+      `Strategy evaluation triggered: Current strategy ${this.currentStrategy.name} ${wasSuccessful ? "succeeded" : "failed"}`,
+    );
+    console.log(
+      `Current price: ${currentPrice}, Display count: ${this.auctionState.currentDisplay}/${this.auctionState.maxDisplays}`,
+    );
+    this.auctionState = {
+      ...this.auctionState,
+      needsStrategyUpdate: true,
+      lastStrategySuccess: wasSuccessful,
+    };
+
+    /**
+     * Checks if the Placeholder action provider supports the given network.
+     *
+     * @param _ - The network to check.
+     * @returns True if the Placeholder action provider supports the network, false otherwise.
+     */
   }
-
-  /**
-   * Checks if the Placeholder action provider supports the given network.
-   *
-   * @param _ - The network to check.
-   * @returns True if the Placeholder action provider supports the network, false otherwise.
-   */
 }
-
 export const placeholderActionProvider = () => new PlaceholderActionProvider();

@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import {
   AgentKit,
   CdpWalletProvider,
@@ -17,7 +19,6 @@ import * as dotenv from "dotenv";
 import { ethers, formatUnits, JsonRpcProvider } from "ethers";
 import * as fs from "fs";
 import * as readline from "readline";
-
 dotenv.config();
 
 /**
@@ -26,6 +27,7 @@ dotenv.config();
  * @throws {Error} - If required environment variables are missing
  * @returns {void}
  */
+
 function validateEnvironment(): void {
   const missingVars: string[] = [];
 
@@ -143,7 +145,6 @@ async function initializeAgent() {
       httpProvider,
     );
     const tokenIds = await placeholderNFT.getOwnedTokens(process.env.WALLET_ADDRESS!);
-
     const lastTokenId = tokenIds.length - 1;
 
     const tools = await getLangChainTools(agentkit);
@@ -163,34 +164,38 @@ async function initializeAgent() {
       tools,
       checkpointSaver: memory,
       messageModifier: `
-    You are an autonomous agent managing bids in a Placeholder Ads auction system using USD. Your primary goals are:
-    1. Monitor auction events and respond to them
-    2. Place bids using different strategies depending on market conditions
-    3. Track successful display acquisitions (target: 5 displays)
-    4. Adapt bidding strategy based on outcomes
+   You are an autonomous agent managing bids in a Placeholder Ads auction system using USD coin.
+    Your goal is to acquire 5 displays efficiently.
 
-    You have access to the following key functions:
-    - place_bid: Place a bid in USD for a specific token ID ${lastTokenId}
-    - Always use the same token ID ${lastTokenId}
-    - Monitor auction events through the placeholder provider
-  
-    
-    Important: All bids must be in in USD For example:
-    - To bid 100 USD, use "100"
-    Bidding Strategy Guidelines:
-        - Start with conservative bids around $50-100 USD
-        - If a bid fails, try increasing by 10-20%
-        - Track successful bid amounts to inform future bids
-        - Consider auction start and end prices when bidding
-    
-    You should:
-    - Actively participate in auctions when they start
-    - Adjust your bidding strategy based on success/failure
-    - Track your progress towards the 5 display goal
-    - Provide clear updates on your actions and reasoning
+    You have three actions available:
 
-    If you encounter any errors or limitations, explain them clearly and try to adapt your strategy.
-`,
+    1. select_strategy: Choose bidding approach
+       - aggressive: Bid at current price
+       - patient: Wait for 50% price drop
+       - conservative: Wait for 80% price drop
+
+    2. select_price: Set the bid amount
+       - Consider current price and strategy
+       - Provide reasoning for the price
+
+    3. Always use ${lastTokenId} as token Id for calling place bid and Price in USD
+     place_bid: Execute the bid by calling the placeBid function with ${lastTokenId} as first argument and the bid amount in USD as second argument
+
+    Process for each auction:
+    1. First select strategy based on:
+       - Past performance
+       - Current market price
+       - Remaining display target
+
+    2. Then select price based on:
+       - Chosen strategy
+       - Current market conditions
+       - Budget efficiency
+
+    3. Finally place bid if conditions are right
+
+    Always explain your reasoning for each decision.
+    `,
     });
 
     // Save wallet data
@@ -213,81 +218,112 @@ async function initializeAgent() {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function runAutonomousMode(agent: any, config: any, interval = 10) {
-  console.log("Starting autonomous auction bidding mode...");
+  console.log("Starting optimized autonomous auction bidding mode...");
 
   let displayCount = 0;
   const maxDisplays = 5;
   let consecutiveErrors = 0;
   const maxConsecutiveErrors = 5;
-  let auctionState = await config.configurable.placeholder_provider.auctionState.isActive;
-  let currentPrice = await config.configurable.placeholder_provider.fetchCurrentPrice();
-  let currentPriceInStableCoin = formatUnits(currentPrice, 18);
-  let thought = `
-        Monitor auction activity and execute bidding strategy.
-        Current displays acquired: ${displayCount}/${maxDisplays}.
-        Auction active: ${auctionState.isActive}
-        Current price: ${currentPriceInStableCoin} USD)
-        Last strategy used: ${config.configurable.placeholder_provider.currentStrategy?.name || "none"}
-        Evaluate market conditions and adjust strategy as needed.
-      `;
+  const provider = config.configurable.placeholder_provider;
+
+  // eslint-disable-next-line jsdoc/require-jsdoc
+  async function updateMarketState() {
+    const currentPrice = await provider.getCurrentPrice();
+    return {
+      isActive: provider.auctionState.isActive,
+      currentPrice: formatUnits(currentPrice, 18),
+      startPrice: formatUnits(provider.auctionState.startPrice || 0n, 18),
+      endPrice: formatUnits(provider.auctionState.endPrice || 0n, 18),
+      timeRemaining: provider.auctionState.duration || 0n,
+      currentStrategy: provider.currentStrategy?.name || "none",
+      displayCount: provider.auctionState.currentDisplay,
+    };
+  }
+  // eslint-disable-next-line jsdoc/require-jsdoc
+  function generateAgentThought(marketState: any, context: string = "") {
+    return `
+      Current Market Analysis:
+      - Displays acquired: ${marketState.displayCount}/${maxDisplays}
+      - Auction active: ${marketState.isActive}
+      - Current price: ${marketState.currentPrice} USD
+      - Price range: ${marketState.startPrice} to ${marketState.endPrice} USD
+      - Time remaining: ${marketState.timeRemaining} seconds
+      - Current strategy: ${marketState.currentStrategy}
+
+      Tasks:
+      1. If strategy needs updating, select new strategy based on performance
+      2. If auction active, determine optimal bid price for current conditions
+      3. If price is favorable, execute bid with selected strategy
+      
+      Make decisions considering:
+      - Progress towards ${maxDisplays} display goal
+      - Current market conditions
+      - Previous strategy performance
+      - Price trends and timing
+    `;
+  }
+
   while (displayCount < maxDisplays) {
     try {
-      // Get current auction state
-      auctionState = config.configurable.placeholder_provider.auctionState.isActive;
-      currentPrice = await config.configurable.placeholder_provider.fetchCurrentPrice();
-      currentPriceInStableCoin = formatUnits(currentPrice, 18);
-      thought = `
-        Monitor auction activity and execute bidding strategy.
-        Current displays acquired: ${displayCount}/${maxDisplays}.
-        Auction active: ${auctionState.isActive}
-        Current price: ${currentPriceInStableCoin} USD)
-        Last strategy used: ${config.configurable.placeholder_provider.currentStrategy?.name || "none"}
-        Evaluate market conditions and adjust strategy as needed.
-      `;
+      // Get current market state
+      const marketState = await updateMarketState();
+      displayCount = marketState.displayCount;
 
-      const auctionActive = config.configurable.placeholder_provider.auctionState.isActive;
+      // Generate initial thought
+      let thought = generateAgentThought(marketState);
 
-      const strategyName = config.configurable.placeholder_provider.currentStrategy?.name || "none";
+      // Check if auction is active
+      if (!marketState.isActive) {
+        console.log("Waiting for next auction to start...");
+        await new Promise(resolve => setTimeout(resolve, interval * 3000));
+        continue;
+      }
 
-      console.log(
-        `Auction Active: ${auctionActive}, Current Price: ${currentPriceInStableCoin}, Strategy: ${strategyName}`,
-      );
+      console.log(`
+Market Status:
+- Auction Active: ${marketState.isActive}
+- Current Price: ${marketState.currentPrice} USD
+- Strategy: ${marketState.currentStrategy}
+- Displays: ${displayCount}/${maxDisplays}
+`);
 
       const stream = await agent.stream({ messages: [new HumanMessage(thought)] }, config);
 
       for await (const chunk of stream) {
         if ("agent" in chunk) {
-          // console.log("Agent", chunk.agent);
-          console.log("Agent Thought:", chunk.agent.messages[0].content);
+          console.log("Agent Reasoning:", chunk.agent.messages[0].content);
         } else if ("tools" in chunk) {
-          // console.log("Tools", chunk.tools);
-          console.log("Action Taken:", chunk.tools.messages[0].content);
+          const action = chunk.tools.messages[0].content;
+          console.log("Action Taken:", action);
 
-          if (chunk.tools.messages[0].content.includes("Auction won")) {
+          // Handle different action responses
+          if (action.includes("Strategy updated to")) {
+            thought = generateAgentThought(
+              await updateMarketState(),
+              "Strategy updated. Determining optimal bid price...",
+            );
+          } else if (action.includes("Selected bid price")) {
+            thought = generateAgentThought(
+              await updateMarketState(),
+              "Price selected. Evaluating bid execution...",
+            );
+          } else if (action.includes("Bid placed successfully")) {
             // Reset error counter on successful bid
             consecutiveErrors = 0;
-            // Update display count from provider state
-            displayCount =
-              await config.configurable.placeholder_provider.auctionState.currentDisplay;
-            // Update auction state from provider
-            auctionState = await config.configurable.placeholder_provider.auctionState.isActive;
+            // Wait for transaction confirmation
+            await new Promise(resolve => setTimeout(resolve, interval * 1000));
+            // Update market state after bid
+            const newState = await updateMarketState();
+            displayCount = newState.displayCount;
 
-            console.log(`Updated display count: ${displayCount}/${maxDisplays}`);
-            console.log("Updated auction state:", auctionState);
-            thought = `
-        I won the auction. Must wait for new auction to start.
-        One more display count is acquired.
-        Current displays acquired: ${displayCount}
-        Last strategy used: ${config.configurable.placeholder_provider.currentStrategy?.name || "none"}
-        Evaluate market conditions and adjust strategy as needed.
-      `;
+            thought = generateAgentThought(newState, "Bid executed. Monitoring auction result...");
           }
         }
         console.log("-------------------");
       }
 
       // Add a dynamic delay based on auction state
-      const delayTime = auctionState.isActive ? interval * 1000 : interval * 3000;
+      const delayTime = marketState.isActive ? interval * 1000 : interval * 3000;
       await new Promise(resolve => setTimeout(resolve, delayTime));
     } catch (error) {
       consecutiveErrors++;
@@ -304,14 +340,12 @@ async function runAutonomousMode(agent: any, config: any, interval = 10) {
       await new Promise(resolve => setTimeout(resolve, backoffDelay));
     }
   }
-
+  const finalState = await updateMarketState();
   console.log("\nTarget number of displays achieved. Autonomous mode completed.");
   console.log("Final Statistics:");
   console.log("- Total displays acquired:", displayCount);
-  console.log(
-    "- Final strategy used:",
-    config.configurable.placeholder_provider.currentStrategy?.name,
-  );
+  console.log("- Final strategy used:", finalState.currentStrategy);
+  console.log("- Total auctions participated:", provider.auctionState.currentDisplay);
 }
 
 /**

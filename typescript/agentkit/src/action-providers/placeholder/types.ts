@@ -9,6 +9,8 @@ export interface AuctionState {
   lastSuccessfulBid: number;
   lastFailedBid: number;
   lastAuctionStatus: string;
+  needsStrategyUpdate: boolean;
+  lastStrategySuccess: boolean;
 }
 
 export interface BiddingStrategy {
