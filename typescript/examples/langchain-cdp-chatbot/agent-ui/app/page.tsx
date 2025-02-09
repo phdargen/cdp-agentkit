@@ -1,3 +1,4 @@
+/* eslint-disable jsdoc/require-jsdoc */
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -11,7 +12,6 @@ import {
 import { Address, Avatar, Name, Identity, EthBalance } from "@coinbase/onchainkit/identity";
 import { Terminal } from "lucide-react";
 
-// eslint-disable-next-line jsdoc/require-jsdoc
 export default function App() {
   const [messages, setMessages] = useState<Array<{ message: string; timestamp: number }>>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -33,7 +33,7 @@ export default function App() {
 
   return (
     <div className="flex flex-col min-h-screen font-sans dark:bg-background dark:text-white bg-white text-black">
-      <header className="pt-4 pr-4">
+      <header className="py-2 px-4">
         <div className="flex justify-end">
           <div className="wallet-container">
             <Wallet>
@@ -63,16 +63,16 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-grow flex items-center justify-center">
-        <div className="max-w-4xl w-full p-4">
+      <main className="flex-grow flex items-center justify-center p-4">
+        <div className="w-full max-w-[95%] h-full">
           {/* Agent Console Section */}
-          <div className="mb-8">
-            <div className="bg-gray-900 rounded-lg p-4 shadow-lg">
+          <div className="h-[calc(100vh-6rem)]">
+            <div className="bg-gray-900 rounded-lg p-4 shadow-lg h-full">
               <div className="flex items-center gap-2 mb-4 text-white">
                 <Terminal className="h-6 w-6" />
                 <h2 className="text-xl font-bold">Agent Console</h2>
               </div>
-              <div className="bg-black rounded-lg p-4 h-[800px] overflow-y-auto font-mono text-sm">
+              <div className="bg-black rounded-lg p-4 h-[calc(100%-4rem)] overflow-y-auto font-mono text-sm">
                 {messages.map((msg, i) => (
                   <div key={i} className="text-green-400 mb-2">
                     <span className="text-gray-500">
