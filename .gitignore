@@ -131,3 +131,4 @@ api.json
 # TS Docs
 **/typescript/docs/
 docs/
+typescript/examples/langchain-cdp-chatbot/agent-ui
