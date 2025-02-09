@@ -25,13 +25,16 @@ dotenv.config();
 
 async function sendToUI(message: string) {
   try {
-    const response = await fetch("http://localhost:3000/api/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    const response = await fetch(
+      "https://agent-ui-0xgeorgemathew-0xgeorgemathews-projects.vercel.app/api/messages",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ message, timestamp: Date.now() }),
       },
-      body: JSON.stringify({ message, timestamp: Date.now() }),
-    });
+    );
 
     if (!response.ok) {
       console.error(`Failed to send to UI: ${response.status} ${response.statusText}`);
