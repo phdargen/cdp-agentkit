@@ -35,8 +35,8 @@ export interface SafeApiActionProviderConfig {
  * This provider is used for any action that uses the Safe API, but does not require a connected Safe Wallet.
  */
 export class SafeApiActionProvider extends ActionProvider<EvmWalletProvider> {
-  private readonly chain: Chain;
-  private apiKit: SafeApiKit;
+  #chain: Chain;
+  #apiKit: SafeApiKit;
 
   /**
    * Constructor for the SafeActionProvider class.
@@ -47,12 +47,12 @@ export class SafeApiActionProvider extends ActionProvider<EvmWalletProvider> {
     super("safe", []);
 
     // Initialize chain
-    this.chain = NETWORK_ID_TO_VIEM_CHAIN[config.networkId || "base-sepolia"];
-    if (!this.chain) throw new Error(`Unsupported network: ${config.networkId}`);
+    this.#chain = NETWORK_ID_TO_VIEM_CHAIN[config.networkId || "base-sepolia"];
+    if (!this.#chain) throw new Error(`Unsupported network: ${config.networkId}`);
 
     // Initialize apiKit with chain ID from Viem chain
-    this.apiKit = new SafeApiKit({
-      chainId: BigInt(this.chain.id),
+    this.#apiKit = new SafeApiKit({
+      chainId: BigInt(this.#chain.id),
     });
   }
 
@@ -81,9 +81,7 @@ Important notes:
   ): Promise<string> {
     try {
       // Get Safe info
-      console.log("Getting Safe info for address:", args.safeAddress);
-      const safeInfo = await this.apiKit.getSafeInfo(args.safeAddress);
-      console.log("Safe info:", safeInfo);
+      const safeInfo = await this.#apiKit.getSafeInfo(args.safeAddress);
 
       const owners = safeInfo.owners;
       const threshold = safeInfo.threshold;
@@ -96,7 +94,7 @@ Important notes:
       );
 
       // Get pending transactions
-      const pendingTransactions = await this.apiKit.getPendingTransactions(args.safeAddress);
+      const pendingTransactions = await this.#apiKit.getPendingTransactions(args.safeAddress);
       const pendingTxDetails = pendingTransactions.results
         .filter(tx => !tx.isExecuted)
         .map(tx => {
@@ -109,7 +107,7 @@ Important notes:
 
       return `Safe info:
 - Safe at address: ${args.safeAddress}
-- Chain: ${this.chain.name}
+- Chain: ${this.#chain.name}
 - ${owners.length} owners: ${owners.join(", ")}
 - Threshold: ${threshold}
 - Nonce: ${nonce}
@@ -149,7 +147,7 @@ Important notes:
   ): Promise<string> {
     try {
       // Get allowance module for current chain
-      const chainId = this.chain.id.toString();
+      const chainId = this.#chain.id.toString();
       const allowanceModule = getAllowanceModuleDeployment({ network: chainId });
       if (!allowanceModule) {
         throw new Error(`Allowance module not found for chainId [${chainId}]`);
@@ -198,7 +196,7 @@ Important notes:
               functionName: "decimals",
             })) as number;
 
-            // Get the Safe's current balance of this token
+            // Get Safe balance for this token
             safeBalance = (await walletProvider.readContract({
               address: tokenAddress,
               abi: ERC20_ABI,
@@ -281,6 +279,7 @@ Important notes:
 - Allowance module must be enabled
 - Must have sufficient allowance
 - Amount must be within allowance limit
+- Safe must have sufficient token balance
 `,
     schema: WithdrawAllowanceSchema,
   })
@@ -290,7 +289,7 @@ Important notes:
   ): Promise<string> {
     try {
       // Get allowance module for current chain
-      const chainId = this.chain.id.toString();
+      const chainId = this.#chain.id.toString();
       const allowanceModule = getAllowanceModuleDeployment({ network: chainId });
       if (!allowanceModule) {
         throw new Error(`Allowance module not found for chainId [${chainId}]`);
@@ -322,6 +321,20 @@ Important notes:
 
       // Convert amount to token decimals
       const amount = parseUnits(args.amount, Number(tokenDecimals));
+
+      // Check if Safe has sufficient token balance
+      const safeBalance = (await walletProvider.readContract({
+        address: args.tokenAddress as Hex,
+        abi: ERC20_ABI,
+        functionName: "balanceOf",
+        args: [args.safeAddress],
+      })) as bigint;
+
+      if (safeBalance < amount) {
+        throw new Error(
+          `Insufficient token balance. Safe has ${formatUnits(safeBalance, Number(tokenDecimals))} ${tokenSymbol}, but ${args.amount} ${tokenSymbol} was requested.`,
+        );
+      }
 
       // Generate transfer hash
       const hash = await walletProvider.readContract({

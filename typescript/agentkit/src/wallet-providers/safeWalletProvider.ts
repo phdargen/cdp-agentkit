@@ -24,16 +24,15 @@ import { PublicClient } from "viem";
 import { abi as ERC20_ABI } from "../action-providers/erc20/constants";
 
 // Safe SDK imports
-import Safe, { EthSafeSignature } from "@safe-global/protocol-kit";
+import Safe from "@safe-global/protocol-kit";
 import SafeApiKit from "@safe-global/api-kit";
 import { getAllowanceModuleDeployment } from "@safe-global/safe-modules-deployments";
-import SafeTransaction from "@safe-global/protocol-kit/dist/src/utils/transactions/SafeTransaction";
 /**
  * Configuration options for the SafeWalletProvider.
  */
 export interface SafeWalletProviderConfig {
   /**
-   * Private key of the signer that controls (or co-controls) the Safe.
+   * Private key of the signer that (co-)owns the Safe.
    */
   privateKey: string;
 
@@ -44,7 +43,7 @@ export interface SafeWalletProviderConfig {
 
   /**
    * Optional existing Safe address. If provided, will connect to that Safe;
-   * otherwise, this provider will deploy a new Safe.
+   * otherwise, this provider will deploy a new Safe with the private key as one the only owner.
    */
   safeAddress?: string;
 }
@@ -221,7 +220,8 @@ export class SafeWalletProvider extends EvmWalletProvider {
   }
 
   /**
-   * Signs a hash using the private key of the account that controls the Safe.
+   * Signs a hash using the private key of the account that is co-owner of the Safe.
+   * Note: This signs with the owner's key, not through the Safe itself.
    *
    * @param hash - The hash to sign.
    * @returns The signature as a hex string.
@@ -235,12 +235,13 @@ export class SafeWalletProvider extends EvmWalletProvider {
   }
 
   /**
-   * Signs a message using the private key of the account that controls the Safe.
+   * Signs a message using the private key of the account that is co-owner of the Safe.
+   * Note: This signs with the owner's key, not through the Safe itself.
    *
    * @param message - The message to sign.
    * @returns The signature as a hex string.
    */
-  async signMessage(message: string | Uint8Array): Promise<`0x${string}`> {
+  async signMessage(message: string | Uint8Array): Promise<Hex> {
     if (!this.#account) {
       throw new Error("Account not initialized");
     }
@@ -249,14 +250,14 @@ export class SafeWalletProvider extends EvmWalletProvider {
   }
 
   /**
-   * Signs typed data using the private key of the account that controls the Safe.
+   * Signs typed data using the private key of the account that is co-owner of the Safe.
    * Note: This signs with the owner's key, not through the Safe itself.
    *
    * @param typedData - The typed data to sign.
    * @returns The signature as a hex string.
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async signTypedData(typedData: any): Promise<`0x${string}`> {
+  async signTypedData(typedData: any): Promise<Hex> {
     if (!this.#account) {
       throw new Error("Account not initialized");
     }
@@ -276,7 +277,7 @@ export class SafeWalletProvider extends EvmWalletProvider {
    * @param transaction - The transaction to sign.
    * @returns The signature as a hex string.
    */
-  async signTransaction(transaction: TransactionRequest): Promise<`0x${string}`> {
+  async signTransaction(transaction: TransactionRequest): Promise<Hex> {
     if (!this.#safeClient) {
       throw new Error("Safe client is not set");
     }
@@ -295,11 +296,9 @@ export class SafeWalletProvider extends EvmWalletProvider {
 
       // Sign the transaction hash
       const signature = await this.#safeClient.signTransaction(safeTx);
-      console.log("signature", signature);
 
       // Return the signature
-      return signature as unknown as `0x${string}`;
-      // return signature.data.data as `0x${string}`;
+      return signature as unknown as Hex;
     } catch (error) {
       throw new Error(
         `Failed to sign transaction: ${error instanceof Error ? error.message : String(error)}`,
@@ -315,7 +314,7 @@ export class SafeWalletProvider extends EvmWalletProvider {
    * @param transaction - The transaction to send
    * @returns The transaction hash if executed immediately, or the Safe transaction hash if proposed
    */
-  async sendTransaction(transaction: TransactionRequest): Promise<`0x${string}`> {
+  async sendTransaction(transaction: TransactionRequest): Promise<Hex> {
     if (!this.#safeClient) throw new Error("Safe client is not set.");
 
     try {
@@ -330,15 +329,6 @@ export class SafeWalletProvider extends EvmWalletProvider {
         ],
       });
 
-      // signTransaction
-      const safeTransaction = (await this.signTransaction(
-        transaction,
-      )) as unknown as SafeTransaction;
-      console.log("signature from signTransaction", safeTransaction);
-      const signatureOwner1 = safeTransaction.getSignature(
-        this.#account.address,
-      ) as EthSafeSignature;
-      console.log("signatureOwner1", signatureOwner1);
       // Get current threshold
       const threshold = await this.#safeClient.getThreshold();
 
@@ -346,7 +336,6 @@ export class SafeWalletProvider extends EvmWalletProvider {
         // Multi-sig flow: propose transaction
         const safeTxHash = await this.#safeClient.getTransactionHash(safeTx);
         const signature = await this.#safeClient.signHash(safeTxHash);
-        console.log("signature from signHash", signature);
 
         // Propose the transaction
         await this.#apiKit.proposeTransaction({
@@ -357,14 +346,13 @@ export class SafeWalletProvider extends EvmWalletProvider {
           senderAddress: this.#account.address,
         });
 
-        console.log(`Transaction proposed with Safe transaction hash: ${safeTxHash}`);
-        return safeTxHash as `0x${string}`;
+        return safeTxHash as Hex;
       } else {
         // Single-sig flow: execute immediately
         const response = await this.#safeClient.executeTransaction(safeTx);
 
         await this.waitForTransactionReceipt(response.hash as Hex);
-        return response.hash as `0x${string}`;
+        return response.hash as Hex;
       }
     } catch (error) {
       throw new Error(
@@ -644,7 +632,7 @@ export class SafeWalletProvider extends EvmWalletProvider {
         }`;
       }
 
-      // If agent has already signed and we have enough confirmations, execute if requested
+      // If agent has already signed and there are enough confirmations, execute if requested
       if (confirmations >= tx.confirmationsRequired && executeImmediately) {
         const executedTx = await this.#safeClient.executeTransaction(tx);
         return `Successfully executed transaction. Safe transaction hash: ${safeTxHash}. Execution transaction hash: ${executedTx.hash}`;
@@ -688,7 +676,6 @@ export class SafeWalletProvider extends EvmWalletProvider {
       // Create transaction to enable module
       const safeTransaction = await this.#safeClient.createEnableModuleTx(moduleAddress);
       const currentThreshold = await this.#safeClient.getThreshold();
-      console.log("currentThreshold", currentThreshold);
 
       if (currentThreshold > 1) {
         // Multi-sig flow: propose transaction
@@ -720,7 +707,7 @@ export class SafeWalletProvider extends EvmWalletProvider {
    * Sets an allowance for a delegate to spend tokens from the Safe.
    *
    * @param delegateAddress - Address that will receive the allowance
-   * @param tokenAddress - Address of the ERC20 token (optional, defaults to Sepolia WETH)
+   * @param tokenAddress - Address of the ERC20 token
    * @param amount - Amount of tokens to allow (e.g. '1.5' for 1.5 tokens)
    * @param resetTimeInMinutes - Time in minutes after which the allowance resets, e.g 1440 for 24 hours (optional, defaults to 0 for one-time allowance)
    * @returns A message containing the allowance setting details
@@ -749,19 +736,16 @@ export class SafeWalletProvider extends EvmWalletProvider {
         throw new Error("Allowance module is not enabled for this Safe. Enable it first.");
       }
 
-      // Default to WETH if no token address provided
-      const tokenAddress_ = tokenAddress || "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9"; // Sepolia WETH
-
       // Get token symbol
       const tokenSymbol = await this.readContract({
-        address: tokenAddress_ as Hex,
+        address: tokenAddress as Hex,
         abi: ERC20_ABI,
         functionName: "symbol",
       });
 
       // Get token decimals and convert amount
       const tokenDecimals = await this.readContract({
-        address: tokenAddress_ as Hex,
+        address: tokenAddress as Hex,
         abi: ERC20_ABI,
         functionName: "decimals",
       });
@@ -789,7 +773,6 @@ export class SafeWalletProvider extends EvmWalletProvider {
         // If the call fails, assume not a delegate
         isDelegate = false;
       }
-      console.log("isDelegate", isDelegate);
 
       // Add delegate (if not already a delegate)
       const addDelegateData = encodeFunctionData({
@@ -804,7 +787,7 @@ export class SafeWalletProvider extends EvmWalletProvider {
         functionName: "setAllowance",
         args: [
           delegateAddress,
-          tokenAddress_,
+          tokenAddress,
           amountBigInt,
           BigInt(resetTimeInMinutes || 0), // Use 0 for one-time allowance if not specified
           BigInt(0), // resetBaseMin (0 is fine as default)
@@ -860,11 +843,11 @@ export class SafeWalletProvider extends EvmWalletProvider {
           senderAddress: this.#account.address,
         });
 
-        return `Successfully proposed ${delegateMsg}setting allowance of ${amount} ${tokenSymbol} (${tokenAddress_})${resetTimeMsg} for delegate ${delegateAddress}. Safe transaction hash: ${safeTxHash}. The other signers will need to confirm the transaction before it can be executed.`;
+        return `Successfully proposed ${delegateMsg}setting allowance of ${amount} ${tokenSymbol} (${tokenAddress})${resetTimeMsg} for delegate ${delegateAddress}. Safe transaction hash: ${safeTxHash}. The other signers will need to confirm the transaction before it can be executed.`;
       } else {
         // Single-sig flow: execute immediately
         const tx = await this.#safeClient.executeTransaction(safeTransaction);
-        return `Successfully ${delegateMsg}set allowance of ${amount} ${tokenSymbol} (${tokenAddress_})${resetTimeMsg} for delegate ${delegateAddress}. Transaction hash: ${tx.hash}.`;
+        return `Successfully ${delegateMsg}set allowance of ${amount} ${tokenSymbol} (${tokenAddress})${resetTimeMsg} for delegate ${delegateAddress}. Transaction hash: ${tx.hash}.`;
       }
     } catch (error) {
       throw new Error(
@@ -924,15 +907,13 @@ export class SafeWalletProvider extends EvmWalletProvider {
         data: deploymentTx.data as Hex,
         chain: this.#publicClient.chain,
       });
-      const receipt = await this.waitForTransactionReceipt(hash as Hex);
+      await this.waitForTransactionReceipt(hash as Hex);
 
       // Reconnect to the deployed Safe
       const safeAddress = await safeSdk.getAddress();
       const reconnected = await safeSdk.connect({ safeAddress });
       this.#safeClient = reconnected;
       this.#safeAddress = safeAddress;
-
-      console.log("Safe deployed at:", safeAddress, "Receipt:", receipt.transactionHash);
 
       return safeAddress;
     } else {

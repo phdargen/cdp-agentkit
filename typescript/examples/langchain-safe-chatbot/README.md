@@ -1,11 +1,12 @@
 # Safe AgentKit LangChain Extension Example - Chatbot
 
-This example demonstrates an agent using a Safe-based wallet provider, which allows interactions onchain from a multi-sig Safe. By default, it can create or connect to a Safe on the specified network via a private key.
+This example demonstrates an agent using a Safe multi-signature wallet provider.
+It can connect to a deployed Safe or create a new one on the specified network.
 
 ## Environment Variables
 
-- **OPENAI_API_KEY**: Your OpenAI API key
-- **SAFE_AGENT_PRIVATE_KEY**: The private key that controls the Safe
+- **OPENAI_API_KEY**: OpenAI API key
+- **SAFE_AGENT_PRIVATE_KEY**: The private key that is one owner of the Safe
 - **NETWORK_ID**: The network ID, e.g., "base-sepolia", "ethereum-mainnet", etc.
 - **SAFE_ADDRESS** (optional): If already deployed, specify your existing Safe address. Otherwise, a new Safe is deployed.
 

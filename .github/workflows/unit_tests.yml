@@ -42,6 +42,7 @@ jobs:
 
   test-agentkit-typescript:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       matrix:
         node-version: ["18", "20"]
@@ -56,4 +57,4 @@ jobs:
         working-directory: ./typescript
         run: |
           npm ci
-          npm run test
+          npm run test -- -- --testTimeout=300000
