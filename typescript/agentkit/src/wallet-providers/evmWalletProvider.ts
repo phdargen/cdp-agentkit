@@ -19,6 +19,14 @@ import {
  */
 export abstract class EvmWalletProvider extends WalletProvider {
   /**
+   * Sign a hash.
+   *
+   * @param hash - The hash to sign.
+   * @returns The signed hash.
+   */
+  abstract signHash(hash: `0x${string}`): Promise<`0x${string}`>;
+
+  /**
    * Sign a message.
    *
    * @param message - The message to sign.

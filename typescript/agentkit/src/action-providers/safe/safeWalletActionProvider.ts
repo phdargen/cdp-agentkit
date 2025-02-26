@@ -8,6 +8,7 @@ import {
   ChangeThresholdSchema,
   ApprovePendingTransactionSchema,
   EnableAllowanceModuleSchema,
+  SetAllowanceSchema,
 } from "./schemas";
 import { Network } from "../../network";
 
@@ -164,6 +165,44 @@ Important notes:
   })
   async enableAllowanceModule(walletProvider: SafeWalletProvider): Promise<string> {
     return await walletProvider.enableAllowanceModule();
+  }
+
+  /**
+   * Sets an allowance for a delegate to spend tokens from the Safe.
+   *
+   * @param walletProvider - The wallet provider to connect to the Safe.
+   * @param args - The input arguments for setting the allowance.
+   * @returns A message containing the allowance setting details.
+   */
+  @CreateAction({
+    name: "set_allowance",
+    description: `
+Sets a token spending allowance for a delegate address.
+Takes the following inputs:
+- delegateAddress: Address that will receive the allowance
+- tokenAddress: (Optional) Address of the ERC20 token (defaults to Sepolia WETH)
+- amount: Amount of tokens to allow (e.g. '1.5' for 1.5 tokens)
+- resetTimeInMinutes: Time in minutes after which the allowance resets
+
+Important notes:
+- Requires an existing Safe
+- Must be called by an existing signer
+- Allowance module must be enabled first
+- Amount is in human-readable format (e.g. '1.5' for 1.5 tokens)
+- Requires confirmation from other signers if threshold > 1
+`,
+    schema: SetAllowanceSchema,
+  })
+  async setAllowance(
+    walletProvider: SafeWalletProvider,
+    args: z.infer<typeof SetAllowanceSchema>,
+  ): Promise<string> {
+    return await walletProvider.setAllowance(
+      args.delegateAddress,
+      args.tokenAddress,
+      args.amount,
+      args.resetTimeInMinutes,
+    );
   }
 
   /**
