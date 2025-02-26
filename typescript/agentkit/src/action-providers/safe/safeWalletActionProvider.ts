@@ -121,14 +121,12 @@ Important notes:
   @CreateAction({
     name: "approve_pending",
     description: `
-Approves and optionally executes a pending transaction for a Safe.
+Approves and optionally executes a pending transaction for connected Safe.
 Takes the following inputs:
-- safeAddress: Address of the Safe
 - safeTxHash: Transaction hash to approve/execute
 - executeImmediately: (Optional) Whether to execute the transaction immediately if all signatures are collected (default: true)
 
 Important notes:
-- Requires an existing Safe
 - Must be called by an existing signer
 - Will approve the transaction if not already approved
 - Will execute the transaction if all required signatures are collected and executeImmediately is true
@@ -152,11 +150,8 @@ Important notes:
     name: "enable_allowance_module",
     description: `
 Enables the allowance module for a Safe, allowing for token spending allowances.
-Takes the following input:
-- safeAddress: Address of the Safe
 
 Important notes:
-- Requires an existing Safe
 - Must be called by an existing signer
 - Requires confirmation from other signers if threshold > 1
 - Module can only be enabled once
@@ -180,14 +175,13 @@ Important notes:
 Sets a token spending allowance for a delegate address.
 Takes the following inputs:
 - delegateAddress: Address that will receive the allowance
-- tokenAddress: (Optional) Address of the ERC20 token (defaults to Sepolia WETH)
+- tokenAddress:  Address of the ERC20 token
 - amount: Amount of tokens to allow (e.g. '1.5' for 1.5 tokens)
-- resetTimeInMinutes: Time in minutes after which the allowance resets
+- resetTimeInMinutes: Time in minutes after which the allowance resets, e.g 1440 for 24 hours (optional, defaults to 0 for one-time allowance)
 
 Important notes:
-- Requires an existing Safe
 - Must be called by an existing signer
-- Allowance module must be enabled first
+- Allowance module must be enabled 
 - Amount is in human-readable format (e.g. '1.5' for 1.5 tokens)
 - Requires confirmation from other signers if threshold > 1
 `,
@@ -201,7 +195,7 @@ Important notes:
       args.delegateAddress,
       args.tokenAddress,
       args.amount,
-      args.resetTimeInMinutes,
+      args.resetTimeInMinutes || 0,
     );
   }
 

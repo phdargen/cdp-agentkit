@@ -26,8 +26,8 @@ function validateEnv() {
   if (!process.env.OPENAI_API_KEY) {
     missing.push("OPENAI_API_KEY");
   }
-  if (!process.env.SAFE_AGENT_PRIVATE_KEY) {
-    missing.push("SAFE_AGENT_PRIVATE_KEY");
+  if (!process.env.SAFE_OWNER_PRIVATE_KEY) {
+    missing.push("SAFE_OWNER_PRIVATE_KEY");
   }
   if (missing.length > 0) {
     console.error("Missing required environment variables:", missing.join(", "));
@@ -77,13 +77,13 @@ async function chooseMode(): Promise<"chat" | "auto"> {
  * @returns Agent executor and config
  */
 async function initializeAgent() {
-  // 1) Create an LLM
+  // Initialize LLM
   const llm = new ChatOpenAI({
     model: "gpt-4o-mini", // example model name
   });
 
-  // 2) Configure SafeWalletProvider
-  const privateKey = process.env.SAFE_AGENT_PRIVATE_KEY as string;
+  // Configure SafeWalletProvider
+  const privateKey = process.env.SAFE_OWNER_PRIVATE_KEY as string;
   const networkId = process.env.NETWORK_ID || "base-sepolia";
   const safeAddress = process.env.SAFE_ADDRESS;
   const safeWallet = new SafeWalletProvider({
@@ -93,7 +93,7 @@ async function initializeAgent() {
   });
   await safeWallet.waitForInitialization();
 
-  // 3) Initialize AgentKit with the Safe wallet and some typical action providers
+  // Initialize AgentKit with the Safe wallet and some typical action providers
   const agentkit = await AgentKit.from({
     walletProvider: safeWallet,
     actionProviders: [
@@ -104,24 +104,29 @@ async function initializeAgent() {
     ],
   });
 
-  // 4) Convert to LangChain tools
   const tools = await getLangChainTools(agentkit);
 
-  // 5) Wrap in a memory saver for conversation
+  // Store buffered conversation history in memory
   const memory = new MemorySaver();
   const agentConfig = { configurable: { thread_id: "Safe AgentKit Chatbot Example!" } };
 
-  // 6) Create the agent
+  // Create the agent
   const agent = createReactAgent({
     llm,
     tools,
     checkpointSaver: memory,
     messageModifier: `
-      You are an agent with a Safe-based wallet. You can propose or execute actions
-      on the Safe. If threshold > 1, you may need confirmations from other signers
-      or to propose transactions. If threshold=1, you can execute immediately.
-      Be concise and helpful. If you cannot fulfill a request with your current tools,
-      apologize and suggest the user implement it themselves. 
+      You are a helpful agent with a Safe multi-sig wallet that can interact onchain using the Coinbase Developer
+      Platform AgentKit. You are empowered to interact onchain using your tools. 
+      If there are multiple owners (signers) and threshold > 1, you can propose transactions that need confirmations from other signers before they can be executed.
+      If threshold=1, you can execute immediately. You can also approve (and eventually execute) pending transactions proposed by other owners.
+      If you ever need funds, you can request them from the faucet if you are on network ID 'base-sepolia'. If not, you can provide your wallet
+      details and request funds from the user. 
+      Before executing your first action, get the wallet details to see what network you're on. If there is a 5XX (internal) HTTP error code, ask the user to try again later. 
+      If someone asks you to do something you can't do with your currently available tools, you must say so, and
+      encourage them to implement it themselves using the CDP SDK + Agentkit, recommend they go to
+      docs.cdp.coinbase.com for more information. Be concise and helpful with your responses. Refrain from
+      restating your tools' descriptions unless it is explicitly requested.
     `,
   });
 

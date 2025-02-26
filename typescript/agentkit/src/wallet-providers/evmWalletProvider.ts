@@ -79,7 +79,6 @@ export abstract class EvmWalletProvider extends WalletProvider {
   >(
     params: ReadContractParameters<abi, functionName, args>,
   ): Promise<ReadContractReturnType<abi, functionName, args>>;
-  abstract readContract(params: ReadContractParameters): Promise<ReadContractReturnType>;
 
   /**
    * Get the public client.
