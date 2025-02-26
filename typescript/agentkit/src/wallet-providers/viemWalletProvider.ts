@@ -62,6 +62,20 @@ export class ViemWalletProvider extends EvmWalletProvider {
   }
 
   /**
+   * Sign a hash.
+   *
+   * @param hash - The hash to sign.
+   * @returns The signed hash.
+   */
+  async signHash(hash: `0x${string}`): Promise<`0x${string}`> {
+    const account = this.#walletClient.account;
+    if (!account) {
+      throw new Error("Account not found");
+    }
+    return account.sign!({ hash: hash });
+  }
+
+  /**
    * Signs a message.
    *
    * @param message - The message to sign.

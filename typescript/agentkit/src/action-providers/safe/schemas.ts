@@ -53,3 +53,57 @@ export const ApprovePendingTransactionSchema = z.object({
 });
 
 export const EnableAllowanceModuleSchema = z.object({});
+
+export const SetAllowanceSchema = z.object({
+  safeAddress: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address format")
+    .describe("Address of the Safe"),
+  delegateAddress: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address format")
+    .describe("Address of the delegate who will receive the allowance"),
+  tokenAddress: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address format")
+    .optional()
+    .describe("Address of the ERC20 token (defaults to Sepolia WETH)")
+    .default("0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9"),
+  amount: z.string().describe("Amount of tokens to allow (e.g. '1.5' for 1.5 tokens)"),
+  resetTimeInMinutes: z
+    .number()
+    .optional()
+    .describe(
+      "One time allowance by default. If larger than zero, time in minutes after which the allowance resets",
+    )
+    .default(0),
+});
+
+export const GetAllowanceInfoSchema = z.object({
+  safeAddress: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address format")
+    .describe("Address of the Safe"),
+  delegateAddress: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address format")
+    .describe("Address of the delegate to check allowance for"),
+});
+
+export const WithdrawAllowanceSchema = z.object({
+  safeAddress: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address format")
+    .describe("Address of the Safe"),
+  delegateAddress: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address format")
+    .describe("Address of the delegate to withdraw allowance for"),
+  tokenAddress: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address format")
+    .describe("Address of the ERC20 token"),
+  amount: z
+    .string()
+    .describe("Amount of tokens to withdraw in whole units (e.g. 1.5 WETH, 10 USDC)"),
+});

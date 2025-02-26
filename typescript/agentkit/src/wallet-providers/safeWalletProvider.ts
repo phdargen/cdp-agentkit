@@ -1,4 +1,4 @@
-import { WalletProvider } from "./walletProvider";
+import { EvmWalletProvider } from "./evmWalletProvider";
 import { Network } from "../network";
 import {
   Account,
@@ -6,18 +6,28 @@ import {
   createPublicClient,
   http,
   parseEther,
+  parseUnits,
   ReadContractParameters,
   ReadContractReturnType,
+  encodeFunctionData,
+  Hex,
+  TransactionRequest,
+  SignableMessage,
+  ContractFunctionArgs,
+  ContractFunctionName,
+  Abi,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { CHAIN_ID_TO_NETWORK_ID, NETWORK_ID_TO_VIEM_CHAIN } from "../network/network";
 import { PublicClient } from "viem";
 
+import { abi as ERC20_ABI } from "../action-providers/erc20/constants";
+
 // Safe SDK imports
-import Safe from "@safe-global/protocol-kit";
+import Safe, { EthSafeSignature } from "@safe-global/protocol-kit";
 import SafeApiKit from "@safe-global/api-kit";
 import { getAllowanceModuleDeployment } from "@safe-global/safe-modules-deployments";
-
+import SafeTransaction from "@safe-global/protocol-kit/dist/src/utils/transactions/SafeTransaction";
 /**
  * Configuration options for the SafeWalletProvider.
  */
@@ -43,7 +53,7 @@ export interface SafeWalletProviderConfig {
  * SafeWalletProvider is a wallet provider implementation that uses Safe multi-signature accounts.
  * When instantiated, this provider can either connect to an existing Safe or deploy a new one.
  */
-export class SafeWalletProvider extends WalletProvider {
+export class SafeWalletProvider extends EvmWalletProvider {
   #privateKey: string;
   #account: Account;
   #chain: Chain;
@@ -79,7 +89,7 @@ export class SafeWalletProvider extends WalletProvider {
 
     // Connect to an existing Safe or deploy a new one with account of private key as single owner
     this.#privateKey = config.privateKey;
-    this.#account = privateKeyToAccount(this.#privateKey as `0x${string}`);
+    this.#account = privateKeyToAccount(this.#privateKey as Hex);
 
     this.#initializationPromise = this.initializeSafe(config.safeAddress).then(
       address => {
@@ -139,27 +149,6 @@ export class SafeWalletProvider extends WalletProvider {
   }
 
   /**
-   * Waits for a transaction receipt.
-   *
-   * @param txHash - The hash of the transaction to wait for.
-   * @returns The transaction receipt from the network.
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async waitForTransactionReceipt(txHash: `0x${string}`): Promise<any> {
-    return await this.#publicClient.waitForTransactionReceipt({ hash: txHash });
-  }
-
-  /**
-   * Reads data from a contract.
-   *
-   * @param params - The parameters to read the contract.
-   * @returns The response from the contract.
-   */
-  async readContract(params: ReadContractParameters): Promise<ReadContractReturnType> {
-    return this.#publicClient.readContract(params);
-  }
-
-  /**
    * Queries the current Safe balance.
    *
    * @returns The balance in wei.
@@ -168,7 +157,7 @@ export class SafeWalletProvider extends WalletProvider {
   async getBalance(): Promise<bigint> {
     if (!this.#safeAddress) throw new Error("Safe address is not set.");
     const balance = await this.#publicClient.getBalance({
-      address: this.#safeAddress as `0x${string}`,
+      address: this.#safeAddress as Hex,
     });
     return balance;
   }
@@ -193,7 +182,7 @@ export class SafeWalletProvider extends WalletProvider {
       const safeTx = await this.#safeClient.createTransaction({
         transactions: [
           {
-            to: to as `0x${string}`,
+            to: to as Hex,
             data: "0x",
             value: ethAmountInWei.toString(),
           },
@@ -221,7 +210,7 @@ export class SafeWalletProvider extends WalletProvider {
       } else {
         // Single-sig flow: execute immediately
         const response = await this.#safeClient.executeTransaction(safeTx);
-        const receipt = await this.waitForTransactionReceipt(response.hash as `0x${string}`);
+        const receipt = await this.waitForTransactionReceipt(response.hash as Hex);
         return `Successfully transferred ${value} ETH to ${to}. Transaction hash: ${receipt.transactionHash}`;
       }
     } catch (error) {
@@ -229,6 +218,195 @@ export class SafeWalletProvider extends WalletProvider {
         `Failed to transfer: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
+  }
+
+  /**
+   * Signs a hash using the private key of the account that controls the Safe.
+   *
+   * @param hash - The hash to sign.
+   * @returns The signature as a hex string.
+   */
+  async signHash(hash: Hex): Promise<Hex> {
+    if (!this.#account) {
+      throw new Error("Account not initialized");
+    }
+
+    return this.#account.sign!({ hash });
+  }
+
+  /**
+   * Signs a message using the private key of the account that controls the Safe.
+   *
+   * @param message - The message to sign.
+   * @returns The signature as a hex string.
+   */
+  async signMessage(message: string | Uint8Array): Promise<`0x${string}`> {
+    if (!this.#account) {
+      throw new Error("Account not initialized");
+    }
+
+    return this.#account.signMessage!({ message: message as SignableMessage });
+  }
+
+  /**
+   * Signs typed data using the private key of the account that controls the Safe.
+   * Note: This signs with the owner's key, not through the Safe itself.
+   *
+   * @param typedData - The typed data to sign.
+   * @returns The signature as a hex string.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async signTypedData(typedData: any): Promise<`0x${string}`> {
+    if (!this.#account) {
+      throw new Error("Account not initialized");
+    }
+
+    return this.#account.signTypedData!({
+      domain: typedData.domain,
+      types: typedData.types,
+      primaryType: typedData.primaryType,
+      message: typedData.message,
+    });
+  }
+
+  /**
+   * Signs a transaction using the Safe protocol.
+   * This creates a Safe transaction and returns the signature, but doesn't execute it.
+   *
+   * @param transaction - The transaction to sign.
+   * @returns The signature as a hex string.
+   */
+  async signTransaction(transaction: TransactionRequest): Promise<`0x${string}`> {
+    if (!this.#safeClient) {
+      throw new Error("Safe client is not set");
+    }
+
+    try {
+      // Create a Safe transaction object
+      const safeTx = await this.#safeClient.createTransaction({
+        transactions: [
+          {
+            to: transaction.to as Hex,
+            data: (transaction.data as Hex) || "0x",
+            value: transaction.value?.toString() || "0",
+          },
+        ],
+      });
+
+      // Sign the transaction hash
+      const signature = await this.#safeClient.signTransaction(safeTx);
+      console.log("signature", signature);
+
+      // Return the signature
+      return signature as unknown as `0x${string}`;
+      // return signature.data.data as `0x${string}`;
+    } catch (error) {
+      throw new Error(
+        `Failed to sign transaction: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  /**
+   * Sends a transaction through the Safe.
+   * For single-owner Safes, executes immediately.
+   * For multi-owner Safes, proposes the transaction for other owners to confirm.
+   *
+   * @param transaction - The transaction to send
+   * @returns The transaction hash if executed immediately, or the Safe transaction hash if proposed
+   */
+  async sendTransaction(transaction: TransactionRequest): Promise<`0x${string}`> {
+    if (!this.#safeClient) throw new Error("Safe client is not set.");
+
+    try {
+      // Create the Safe transaction
+      const safeTx = await this.#safeClient.createTransaction({
+        transactions: [
+          {
+            to: transaction.to as Hex,
+            data: (transaction.data as Hex) || "0x",
+            value: transaction.value?.toString() || "0",
+          },
+        ],
+      });
+
+      // signTransaction
+      const safeTransaction = (await this.signTransaction(
+        transaction,
+      )) as unknown as SafeTransaction;
+      console.log("signature from signTransaction", safeTransaction);
+      const signatureOwner1 = safeTransaction.getSignature(
+        this.#account.address,
+      ) as EthSafeSignature;
+      console.log("signatureOwner1", signatureOwner1);
+      // Get current threshold
+      const threshold = await this.#safeClient.getThreshold();
+
+      if (threshold > 1) {
+        // Multi-sig flow: propose transaction
+        const safeTxHash = await this.#safeClient.getTransactionHash(safeTx);
+        const signature = await this.#safeClient.signHash(safeTxHash);
+        console.log("signature from signHash", signature);
+
+        // Propose the transaction
+        await this.#apiKit.proposeTransaction({
+          safeAddress: this.getAddress(),
+          safeTransactionData: safeTx.data,
+          safeTxHash,
+          senderSignature: signature.data,
+          senderAddress: this.#account.address,
+        });
+
+        console.log(`Transaction proposed with Safe transaction hash: ${safeTxHash}`);
+        return safeTxHash as `0x${string}`;
+      } else {
+        // Single-sig flow: execute immediately
+        const response = await this.#safeClient.executeTransaction(safeTx);
+
+        await this.waitForTransactionReceipt(response.hash as Hex);
+        return response.hash as `0x${string}`;
+      }
+    } catch (error) {
+      throw new Error(
+        `Failed to send transaction: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  /**
+   * Waits for a transaction receipt.
+   *
+   * @param txHash - The hash of the transaction to wait for.
+   * @returns The transaction receipt from the network.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async waitForTransactionReceipt(txHash: Hex): Promise<any> {
+    return await this.#publicClient.waitForTransactionReceipt({ hash: txHash });
+  }
+
+  /**
+   * Reads a contract.
+   *
+   * @param params - The parameters to read the contract.
+   * @returns The response from the contract.
+   */
+  async readContract<
+    const abi extends Abi | readonly unknown[],
+    functionName extends ContractFunctionName<abi, "pure" | "view">,
+    const args extends ContractFunctionArgs<abi, "pure" | "view", functionName>,
+  >(
+    params: ReadContractParameters<abi, functionName, args>,
+  ): Promise<ReadContractReturnType<abi, functionName, args>> {
+    return this.#publicClient.readContract<abi, functionName, args>(params);
+  }
+
+  /**
+   * Gets the public client instance.
+   *
+   * @returns The Viem PublicClient instance.
+   */
+  getPublicClient(): PublicClient {
+    return this.#publicClient;
   }
 
   /**
@@ -510,6 +688,7 @@ export class SafeWalletProvider extends WalletProvider {
       // Create transaction to enable module
       const safeTransaction = await this.#safeClient.createEnableModuleTx(moduleAddress);
       const currentThreshold = await this.#safeClient.getThreshold();
+      console.log("currentThreshold", currentThreshold);
 
       if (currentThreshold > 1) {
         // Multi-sig flow: propose transaction
@@ -538,12 +717,160 @@ export class SafeWalletProvider extends WalletProvider {
   }
 
   /**
-   * Gets the public client instance.
+   * Sets an allowance for a delegate to spend tokens from the Safe.
    *
-   * @returns The Viem PublicClient instance.
+   * @param delegateAddress - Address that will receive the allowance
+   * @param tokenAddress - Address of the ERC20 token (optional, defaults to Sepolia WETH)
+   * @param amount - Amount of tokens to allow (e.g. '1.5' for 1.5 tokens)
+   * @param resetTimeInMinutes - Time in minutes after which the allowance resets, e.g 1440 for 24 hours (optional, defaults to 0 for one-time allowance)
+   * @returns A message containing the allowance setting details
    */
-  getPublicClient(): PublicClient {
-    return this.#publicClient;
+  async setAllowance(
+    delegateAddress: string,
+    tokenAddress: string | undefined,
+    amount: string,
+    resetTimeInMinutes: number | undefined,
+  ): Promise<string> {
+    if (!this.#safeClient) throw new Error("Safe client is not set.");
+
+    try {
+      // Get allowance module for current chain
+      const chainId = this.#chain.id.toString();
+      const allowanceModule = getAllowanceModuleDeployment({ network: chainId });
+      if (!allowanceModule) {
+        throw new Error(`Allowance module not found for chainId [${chainId}]`);
+      }
+
+      const moduleAddress = allowanceModule.networkAddresses[chainId];
+
+      // Check if module is enabled
+      const isModuleEnabled = await this.#safeClient.isModuleEnabled(moduleAddress);
+      if (!isModuleEnabled) {
+        throw new Error("Allowance module is not enabled for this Safe. Enable it first.");
+      }
+
+      // Default to WETH if no token address provided
+      const tokenAddress_ = tokenAddress || "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9"; // Sepolia WETH
+
+      // Get token symbol
+      const tokenSymbol = await this.readContract({
+        address: tokenAddress_ as Hex,
+        abi: ERC20_ABI,
+        functionName: "symbol",
+      });
+
+      // Get token decimals and convert amount
+      const tokenDecimals = await this.readContract({
+        address: tokenAddress_ as Hex,
+        abi: ERC20_ABI,
+        functionName: "decimals",
+      });
+
+      // Convert amount to token decimals
+      const amountBigInt = parseUnits(amount, Number(tokenDecimals));
+
+      // Check if the address is already a delegate
+      let isDelegate = false;
+      try {
+        // Use getDelegates function to get the list of delegates
+        const [delegates] = (await this.readContract({
+          address: moduleAddress as Hex,
+          abi: allowanceModule.abi,
+          functionName: "getDelegates",
+          args: [this.getAddress(), 0, 100], // Start from 0, get up to 100 delegates
+        })) as [string[], bigint];
+
+        // Check if delegateAddress is in the list of delegates
+        isDelegate = delegates.some(
+          delegate => delegate.toLowerCase() === delegateAddress.toLowerCase(),
+        );
+      } catch (error) {
+        console.log("Error checking delegates:", error);
+        // If the call fails, assume not a delegate
+        isDelegate = false;
+      }
+      console.log("isDelegate", isDelegate);
+
+      // Add delegate (if not already a delegate)
+      const addDelegateData = encodeFunctionData({
+        abi: allowanceModule.abi,
+        functionName: "addDelegate",
+        args: [delegateAddress],
+      });
+
+      // Prepare the setAllowance transaction data
+      const setAllowanceData = encodeFunctionData({
+        abi: allowanceModule.abi,
+        functionName: "setAllowance",
+        args: [
+          delegateAddress,
+          tokenAddress_,
+          amountBigInt,
+          BigInt(resetTimeInMinutes || 0), // Use 0 for one-time allowance if not specified
+          BigInt(0), // resetBaseMin (0 is fine as default)
+        ],
+      });
+
+      // Create transaction
+      const safeTransaction = await this.#safeClient.createTransaction({
+        transactions: isDelegate
+          ? [
+              // If already a delegate, only set allowance
+              {
+                to: moduleAddress,
+                value: "0",
+                data: setAllowanceData,
+              },
+            ]
+          : [
+              // If not a delegate, first add as delegate then set allowance
+              {
+                to: moduleAddress,
+                value: "0",
+                data: addDelegateData,
+              },
+              {
+                to: moduleAddress,
+                value: "0",
+                data: setAllowanceData,
+              },
+            ],
+      });
+
+      const currentThreshold = await this.#safeClient.getThreshold();
+
+      // Update success message to include reset time info
+      const resetTimeMsg =
+        resetTimeInMinutes && resetTimeInMinutes > 0
+          ? ` (resets every ${resetTimeInMinutes} minutes)`
+          : ` (one-time allowance)`;
+
+      const delegateMsg = !isDelegate ? "adding delegate and " : "";
+
+      if (currentThreshold > 1) {
+        // Multi-sig flow: propose transaction
+        const safeTxHash = await this.#safeClient.getTransactionHash(safeTransaction);
+        const signature = await this.#safeClient.signHash(safeTxHash);
+
+        await this.#apiKit.proposeTransaction({
+          safeAddress: this.getAddress(),
+          safeTransactionData: safeTransaction.data,
+          safeTxHash,
+          senderSignature: signature.data,
+          senderAddress: this.#account.address,
+        });
+
+        return `Successfully proposed ${delegateMsg}setting allowance of ${amount} ${tokenSymbol} (${tokenAddress_})${resetTimeMsg} for delegate ${delegateAddress}. Safe transaction hash: ${safeTxHash}. The other signers will need to confirm the transaction before it can be executed.`;
+      } else {
+        // Single-sig flow: execute immediately
+        const tx = await this.#safeClient.executeTransaction(safeTransaction);
+        return `Successfully ${delegateMsg}set allowance of ${amount} ${tokenSymbol} (${tokenAddress_})${resetTimeMsg} for delegate ${delegateAddress}. Transaction hash: ${tx.hash}.`;
+      }
+    } catch (error) {
+      throw new Error(
+        `Error setting allowance: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   /**
@@ -594,10 +921,10 @@ export class SafeWalletProvider extends WalletProvider {
       const hash = await externalSigner?.sendTransaction({
         to: deploymentTx.to,
         value: BigInt(deploymentTx.value),
-        data: deploymentTx.data as `0x${string}`,
+        data: deploymentTx.data as Hex,
         chain: this.#publicClient.chain,
       });
-      const receipt = await this.waitForTransactionReceipt(hash as `0x${string}`);
+      const receipt = await this.waitForTransactionReceipt(hash as Hex);
 
       // Reconnect to the deployed Safe
       const safeAddress = await safeSdk.getAddress();

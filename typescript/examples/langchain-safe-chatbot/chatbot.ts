@@ -9,6 +9,7 @@ import {
   SafeWalletProvider,
   safeWalletActionProvider,
   safeApiActionProvider,
+  erc20ActionProvider,
 } from "@coinbase/agentkit";
 import { getLangChainTools } from "@coinbase/agentkit-langchain";
 
@@ -99,6 +100,7 @@ async function initializeAgent() {
       walletActionProvider(),
       safeWalletActionProvider(),
       safeApiActionProvider({ networkId: networkId }),
+      erc20ActionProvider(),
     ],
   });
 
