@@ -54,7 +54,6 @@
 
 ### Added
 
-- Added `openseaActionProvider` to list NFTs on OpenSea.
 - Added `alchemyTokenPricesActionProvider` to fetch token prices from Alchemy.
 - Added `token_prices_by_symbol` action to fetch token prices by symbol.
 - Added `token_prices_by_address` action to fetch token prices by network and address pairs.
@@ -63,7 +62,6 @@
 
 ### Fixed
 
-- Fixed mint function definition in ERC721_ABI.
 - Added account argument in call to estimateGas in CdpWalletProvider
 - Added explicit template type arguments for `ActionProvider` extensions
 
