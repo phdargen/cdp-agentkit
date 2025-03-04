@@ -23,6 +23,7 @@ describe("OpenSea Action Provider", () => {
       createListing: jest.fn(),
       api: {
         apiBaseUrl: MOCK_OPENSEA_BASE_URL,
+        getNFTsByAccount: jest.fn(),
       },
       chain: MOCK_OPENSEA_CHAIN,
     }));
@@ -108,6 +109,113 @@ describe("OpenSea Action Provider", () => {
 
       const response = await actionProvider.listNft(args);
       expect(response).toContain(`Error listing NFT ${MOCK_CONTRACT} token ${MOCK_TOKEN_ID}`);
+      expect(response).toContain(error.message);
+    });
+  });
+
+  describe("getNftsByAccount", () => {
+    const MOCK_WALLET_ADDRESS = "0xabcdef1234567890abcdef1234567890abcdef12";
+    const MOCK_NFTS = [
+      {
+        identifier: "1",
+        contract: MOCK_CONTRACT,
+        name: "Test NFT 1",
+      },
+      {
+        identifier: "2",
+        contract: MOCK_CONTRACT,
+        name: "Test NFT 2",
+      },
+    ];
+
+    it("should successfully fetch NFTs for the specified account", async () => {
+      const mockGetNFTsByAccount = jest.fn().mockResolvedValue({ nfts: MOCK_NFTS });
+
+      // Update the mock implementation with the mock function
+      (OpenSeaSDK as jest.Mock).mockImplementation(() => ({
+        createListing: jest.fn(),
+        api: {
+          apiBaseUrl: MOCK_OPENSEA_BASE_URL,
+          getNFTsByAccount: mockGetNFTsByAccount,
+        },
+        chain: MOCK_OPENSEA_CHAIN,
+      }));
+
+      // Re-create provider with new mock
+      actionProvider = openseaActionProvider({
+        apiKey: MOCK_API_KEY,
+        privateKey: MOCK_PRIVATE_KEY,
+        networkId: "base-sepolia",
+      });
+
+      const args = {
+        accountAddress: MOCK_WALLET_ADDRESS,
+      };
+
+      const response = await actionProvider.getNftsByAccount(args);
+
+      expect(mockGetNFTsByAccount).toHaveBeenCalledWith(MOCK_WALLET_ADDRESS);
+      expect(response).toBe(JSON.stringify(MOCK_NFTS));
+    });
+
+    it("should use connected wallet address when no account is specified", async () => {
+      const mockGetNFTsByAccount = jest.fn().mockResolvedValue({ nfts: MOCK_NFTS });
+
+      // Update the mock implementation with the mock function
+      (OpenSeaSDK as jest.Mock).mockImplementation(() => ({
+        createListing: jest.fn(),
+        api: {
+          apiBaseUrl: MOCK_OPENSEA_BASE_URL,
+          getNFTsByAccount: mockGetNFTsByAccount,
+        },
+        chain: MOCK_OPENSEA_CHAIN,
+      }));
+
+      // Re-create provider with new mock
+      actionProvider = openseaActionProvider({
+        apiKey: MOCK_API_KEY,
+        privateKey: MOCK_PRIVATE_KEY,
+        networkId: "base-sepolia",
+      });
+
+      const args = {}; // No accountAddress provided
+
+      const response = await actionProvider.getNftsByAccount(args);
+
+      // Should use the wallet address from the provider
+      expect(mockGetNFTsByAccount).toHaveBeenCalled();
+      expect(response).toBe(JSON.stringify(MOCK_NFTS));
+    });
+
+    it("should handle errors when fetching NFTs", async () => {
+      const error = new Error("Failed to fetch NFTs");
+      const mockGetNFTsByAccount = jest.fn().mockRejectedValue(error);
+
+      // Update the mock implementation with the mock function
+      (OpenSeaSDK as jest.Mock).mockImplementation(() => ({
+        createListing: jest.fn(),
+        api: {
+          apiBaseUrl: MOCK_OPENSEA_BASE_URL,
+          getNFTsByAccount: mockGetNFTsByAccount,
+        },
+        chain: MOCK_OPENSEA_CHAIN,
+      }));
+
+      // Re-create provider with new mock
+      actionProvider = openseaActionProvider({
+        apiKey: MOCK_API_KEY,
+        privateKey: MOCK_PRIVATE_KEY,
+        networkId: "base-sepolia",
+      });
+
+      const args = {
+        accountAddress: MOCK_WALLET_ADDRESS,
+      };
+
+      const response = await actionProvider.getNftsByAccount(args);
+
+      expect(mockGetNFTsByAccount).toHaveBeenCalledWith(MOCK_WALLET_ADDRESS);
+      expect(response).toContain(`Error fetching NFTs for account ${MOCK_WALLET_ADDRESS}`);
       expect(response).toContain(error.message);
     });
   });

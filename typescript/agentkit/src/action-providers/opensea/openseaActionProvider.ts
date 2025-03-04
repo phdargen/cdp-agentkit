@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ActionProvider } from "../actionProvider";
 import { CreateAction } from "../actionDecorator";
-import { ListNftSchema } from "./schemas";
+import { ListNftSchema, GetNftsByAccountSchema } from "./schemas";
 import { OpenSeaSDK } from "opensea-js";
 import { Network, NETWORK_ID_TO_CHAIN_ID } from "../../network";
 import { Wallet, ethers } from "ethers";
@@ -102,7 +102,7 @@ Important notes:
         startAmount: args.price,
         quantity: 1,
         paymentTokenAddress: "0x0000000000000000000000000000000000000000", // ETH
-        expirationTime: expirationTime,
+        expirationTime,
         accountAddress: this.walletWithProvider.address,
       });
 
@@ -114,12 +114,42 @@ Important notes:
   }
 
   /**
+   * Fetch NFTs of a specific wallet address.
+   *
+   * @param args - The input arguments for the action.
+   * @returns A JSON string containing the NFTs or error message
+   */
+  @CreateAction({
+    name: "get_nfts_by_account",
+    description: `
+This tool will fetch NFTs owned by a specific wallet address on OpenSea.
+
+It takes the following inputs:
+- accountAddress: (Optional) The wallet address to fetch NFTs for. If not provided, uses the connected wallet address.
+
+The tool will return a JSON string containing the NFTs owned by the specified address.
+    `,
+    schema: GetNftsByAccountSchema,
+  })
+  async getNftsByAccount(args: z.infer<typeof GetNftsByAccountSchema>): Promise<string> {
+    try {
+      const address = args.accountAddress || this.walletWithProvider.address;
+      const { nfts } = await this.openseaSDK.api.getNFTsByAccount(address);
+      return JSON.stringify(nfts);
+    } catch (error) {
+      const address = args.accountAddress || this.walletWithProvider.address;
+      return `Error fetching NFTs for account ${address}: ${error}`;
+    }
+  }
+
+  /**
    * Checks if the Opensea action provider supports the given network.
    *
    * @param network - The network to check.
    * @returns True if the Opensea action provider supports the network, false otherwise.
    */
-  supportsNetwork = (network: Network) => supportedChains[network!.chainId!] !== undefined;
+  supportsNetwork = (network: Network) =>
+    network.chainId !== undefined && supportedChains[network.chainId] !== undefined;
 }
 
 export const openseaActionProvider = (config?: OpenseaActionProviderConfig) =>
