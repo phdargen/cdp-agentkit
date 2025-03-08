@@ -33,7 +33,21 @@ export class SafeWalletActionProvider extends ActionProvider<SafeWalletProvider>
    */
   @CreateAction({
     name: "add_signer",
-    description: "Add a new signer to the Safe multi-sig wallet",
+    description: `
+Add a new signer to the Safe multi-sig wallet
+
+Takes the following inputs:
+- newSigner: Address of the new signer to add
+- newThreshold: (Optional) New threshold after adding signer
+
+Important notes:
+- Must be called by an existing signer
+- Requires confirmation from other signers if current threshold > 1
+- New signer must not already be in the Safe
+- New threshold cannot exceed number of signers
+- If newThreshold not provided, keeps existing threshold if valid, otherwise reduces it
+
+    `,
     schema: AddSignerSchema,
   })
   async addSigner(
@@ -150,6 +164,12 @@ Important notes:
     name: "enable_allowance_module",
     description: `
 Enables the allowance module for a Safe, allowing for token spending allowances.
+
+Takes the following inputs:
+- delegateAddress: Address that will receive the allowance
+- tokenAddress:  Address of the ERC20 token
+- amount: Amount of tokens to allow (e.g. '1.5' for 1.5 tokens)
+- resetTimeInMinutes: Time in minutes after which the allowance resets, e.g 1440 for 24 hours (optional, defaults to 0 for one-time allowance)
 
 Important notes:
 - Must be called by an existing signer
