@@ -123,7 +123,10 @@ async function initializeAgent() {
             ]
           : []),
         alloraActionProvider(),
-        acrossActionProvider(),
+        acrossActionProvider({
+          networkId: walletProvider.getNetwork().networkId,
+          privateKey: await (await walletProvider.getWallet().getDefaultAddress()).export(),
+        }),
       ],
     });
 

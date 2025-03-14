@@ -5,11 +5,25 @@ import { z } from "zod";
  */
 export const BridgeTokenSchema = z
   .object({
-    destinationChainId: z.number().describe("The chain ID of the destination chain"),
-    inputToken: z.string().describe("The address of the token to bridge from the origin chain").default("0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"),
-    outputToken: z.string().describe("The address of the token to receive on the destination chain").default("0x4200000000000000000000000000000000000006"),
-    amount: z.string().describe("The amount of tokens to bridge (in token's smallest unit)"),
-    recipient: z.string().optional().describe("The recipient address on the destination chain (defaults to sender)"),
+    destinationChainId: z
+      .string()
+      .describe("The chain ID of the destination chain (e.g. 11155111 for base-sepolia)"),
+    inputTokenSymbol: z
+      .string()
+      .describe("The symbol of the token to bridge (e.g., 'ETH', 'WETH', 'USDC')")
+      .default("ETH"),
+    amount: z
+      .string()
+      .describe("The amount of tokens to bridge in whole units (e.g. 1.5 WETH, 10 USDC)"),
+    recipient: z
+      .string()
+      .optional()
+      .describe("The recipient address on the destination chain (defaults to sender)"),
+    maxSplippage: z
+      .number()
+      .optional()
+      .describe("The maximum slippage percentage (e.g. 10 for 10%)")
+      .default(1.5),
   })
   .strip()
-  .describe("Instructions for bridging tokens across chains using Across Protocol"); 
+  .describe("Instructions for bridging tokens across chains using Across Protocol");
