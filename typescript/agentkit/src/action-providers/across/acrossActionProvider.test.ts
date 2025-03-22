@@ -127,6 +127,9 @@ const defaultClientImplementation = () => ({
       args: [],
     },
   }),
+  waitForDepositTx: jest.fn().mockResolvedValue({
+    depositId: "123456",
+  }),
 });
 
 // Set the default implementation
@@ -259,6 +262,9 @@ describe("Across Action Provider", () => {
             args: [],
           },
         }),
+        waitForDepositTx: jest.fn().mockResolvedValue({
+          depositId: "123456",
+        }),
       }));
 
       // Set a low max slippage
@@ -293,6 +299,73 @@ describe("Across Action Provider", () => {
 
       expect(response).toContain("Error with Across SDK");
       expect(response).toContain(error.message);
+    });
+  });
+
+  describe("checkDepositStatus", () => {
+    beforeEach(() => {
+      global.fetch = jest.fn();
+    });
+
+    it("should successfully check deposit status", async () => {
+      // Mock successful API response
+      const mockApiResponse = {
+        status: "filled",
+        originChainId: 1,
+        destinationChainId: 10,
+        depositTxHash: "0xdepositTxHash",
+        fillTx: "0xfillTxHash",
+      };
+
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockApiResponse,
+      });
+
+      const args = {
+        originChainId: "1",
+        depositId: "123456",
+      };
+
+      const response = await actionProvider.checkDepositStatus(mockWallet, args);
+      const parsedResponse = JSON.parse(response);
+
+      expect(parsedResponse.status).toEqual("filled");
+      expect(parsedResponse.depositTxInfo.txHash).toEqual("0xdepositTxHash");
+      expect(parsedResponse.fillTxInfo.txHash).toEqual("0xfillTxHash");
+    });
+
+    it("should handle API errors", async () => {
+      // Mock API error
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+      });
+
+      const args = {
+        originChainId: "1",
+        depositId: "123456",
+      };
+
+      const response = await actionProvider.checkDepositStatus(mockWallet, args);
+
+      expect(response).toContain("Error checking deposit status");
+      expect(response).toContain("404");
+    });
+
+    it("should handle network errors", async () => {
+      // Mock network error
+      (global.fetch as jest.Mock).mockRejectedValueOnce(new Error("Network error"));
+
+      const args = {
+        originChainId: "1",
+        depositId: "123456",
+      };
+
+      const response = await actionProvider.checkDepositStatus(mockWallet, args);
+
+      expect(response).toContain("Error checking deposit status");
+      expect(response).toContain("Network error");
     });
   });
 

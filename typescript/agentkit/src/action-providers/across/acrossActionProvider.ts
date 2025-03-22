@@ -10,9 +10,9 @@ import {
   createPublicClient,
 } from "viem";
 import { ActionProvider } from "../actionProvider";
-import { CHAIN_ID_TO_NETWORK_ID, Network, NETWORK_ID_TO_VIEM_CHAIN } from "../../network";
+import { CHAIN_ID_TO_NETWORK_ID, Network, NETWORK_ID_TO_VIEM_CHAIN, getChain } from "../../network";
 import { CreateAction } from "../actionDecorator";
-import { BridgeTokenSchema } from "./schemas";
+import { BridgeTokenSchema, CheckDepositStatusSchema } from "./schemas";
 import { EvmWalletProvider } from "../../wallet-providers";
 import { isTestnet } from "./utils";
 import { privateKeyToAccount } from "viem/accounts";
@@ -90,14 +90,6 @@ export class AcrossActionProvider extends ActionProvider<EvmWalletProvider> {
       const acrossModule = await import("@across-protocol/app-sdk");
       const createAcrossClient = acrossModule.createAcrossClient;
 
-      // Create wallet client
-      const account = privateKeyToAccount(this.#privateKey as Hex);
-      const walletClient = createWalletClient({
-        account,
-        chain: this.#chain,
-        transport: http(),
-      });
-
       // Get recipient address if provided, otherwise use sender
       const recipient = (args.recipient || walletProvider.getAddress()) as Hex;
 
@@ -107,6 +99,14 @@ export class AcrossActionProvider extends ActionProvider<EvmWalletProvider> {
       if (!destinationChain) {
         throw new Error(`Unsupported destination chain: ${args.destinationChainId}`);
       }
+
+      // Create wallet client
+      const account = privateKeyToAccount(this.#privateKey as Hex);
+      const walletClient = createWalletClient({
+        account,
+        chain: this.#chain,
+        transport: http(),
+      });
 
       // Create Across client
       const acrossClient = createAcrossClient({
@@ -230,7 +230,7 @@ export class AcrossActionProvider extends ActionProvider<EvmWalletProvider> {
         );
       }
 
-      // Approve ERC20 token if needed
+      //Approve ERC20 token if needed
       let approvalTxHash;
       if (!isNative) {
         const approvalAmount = quote.deposit.inputAmount;
@@ -252,6 +252,12 @@ export class AcrossActionProvider extends ActionProvider<EvmWalletProvider> {
       // Execute the deposit transaction
       const transactionHash = await walletClient.writeContract(request);
 
+      // Wait for tx to be mined
+      const { depositId } = await acrossClient.waitForDepositTx({
+        transactionHash,
+        originChainId: this.#chain.id,
+      });
+
       return `
 Successfully deposited tokens:
 - From: Chain ${this.#chain.id} (${this.#chain.name})
@@ -262,10 +268,91 @@ Successfully deposited tokens:
 - Recipient: ${recipient}
 ${!isNative ? `- Transaction Hash for approval: ${approvalTxHash}\n` : ""}
 - Transaction Hash for deposit: ${transactionHash}
+- Deposit ID: ${depositId}
         `;
     } catch (error) {
-      // Handle SDK-specific errors
       return `Error with Across SDK: ${error}`;
+    }
+  }
+
+  /**
+   * Checks the status of a bridge deposit via Across Protocol.
+   *
+   * @param walletProvider - The wallet provider to use for the transaction.
+   * @param args - The input arguments for the action.
+   * @returns A message containing the deposit status details.
+   */
+  @CreateAction({
+    name: "check_deposit_status",
+    description: `
+    This tool will check the status of a cross-chain bridge deposit on the Across Protocol.
+    
+    It takes the following inputs:
+    - originChainId: The chain ID of the origin chain (defaults to the current chain)
+    - depositId: The ID of the deposit to check (returned by the bridge deposit transaction)
+    `,
+    schema: CheckDepositStatusSchema,
+  })
+  async checkDepositStatus(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof CheckDepositStatusSchema>,
+  ): Promise<string> {
+    const originChainId = Number(args.originChainId) || this.#chain.id;
+
+    if (isTestnet(originChainId)) {
+      throw new Error(
+        "Checking deposit status on testnets is currently not supported by the Across API",
+      );
+    }
+
+    try {
+      const response = await fetch(
+        `https://app.across.to/api/deposit/status?originChainId=${originChainId}&depositId=${args.depositId}`,
+        {
+          method: "GET",
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`Across API request failed with status ${response.status}`);
+      }
+
+      const apiData = await response.json();
+
+      // Get chain names
+      const originChainName = getChain(String(apiData.originChainId))?.name || "Unknown Chain";
+      const destinationChainName =
+        getChain(String(apiData.destinationChainId))?.name || "Unknown Chain";
+
+      // Create structured response
+      const structuredResponse = {
+        status: apiData.status || "unknown",
+        depositTxInfo: apiData.depositTxHash
+          ? {
+              txHash: apiData.depositTxHash,
+              chainId: apiData.originChainId,
+              chainName: originChainName,
+            }
+          : null,
+        fillTxInfo: apiData.fillTx
+          ? {
+              txHash: apiData.fillTx,
+              chainId: apiData.destinationChainId,
+              chainName: destinationChainName,
+            }
+          : null,
+        depositRefundTxInfo: apiData.depositRefundTxHash
+          ? {
+              txHash: apiData.depositRefundTxHash,
+              chainId: apiData.originChainId,
+              chainName: originChainName,
+            }
+          : null,
+      };
+
+      return JSON.stringify(structuredResponse, null, 2);
+    } catch (error) {
+      return `Error checking deposit status: ${error}`;
     }
   }
 

@@ -7,7 +7,7 @@ export const BridgeTokenSchema = z
   .object({
     destinationChainId: z
       .string()
-      .describe("The chain ID of the destination chain (e.g. 11155111 for base-sepolia)"),
+      .describe("The chain ID of the destination chain (e.g. 11155111 for ethereum-sepolia)"),
     inputTokenSymbol: z
       .string()
       .describe("The symbol of the token to bridge (e.g., 'ETH', 'WETH', 'USDC')")
@@ -27,3 +27,19 @@ export const BridgeTokenSchema = z
   })
   .strip()
   .describe("Instructions for bridging tokens across chains using Across Protocol");
+
+/**
+ * Input schema for check deposit status action.
+ */
+export const CheckDepositStatusSchema = z
+  .object({
+    originChainId: z
+      .string()
+      .optional()
+      .describe("The chain ID of the origin chain (defaults to the current chain)"),
+    depositId: z
+      .string()
+      .describe("The ID of the deposit to check (returned by the bridge deposit transaction)"),
+  })
+  .strip()
+  .describe("Instructions for checking the status of a deposit on Across Protocol");
