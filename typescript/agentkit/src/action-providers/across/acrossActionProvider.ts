@@ -234,31 +234,69 @@ export class AcrossActionProvider extends ActionProvider<EvmWalletProvider> {
       }
 
       //Approve ERC20 token if needed
-      let approvalTxHash;
-      if (!isNative) {
-        const approvalAmount = quote.deposit.inputAmount;
-        approvalTxHash = await walletClient.writeContract({
-          address: inputToken,
-          abi: ERC20_ABI,
-          functionName: "approve",
-          args: [quote.deposit.spokePoolAddress, approvalAmount],
-        });
-        await this.#publicClient.waitForTransactionReceipt({ hash: approvalTxHash });
-      }
+      // let approvalTxHash;
+      // if (!isNative) {
+      //   const approvalAmount = quote.deposit.inputAmount;
+      //   approvalTxHash = await walletClient.writeContract({
+      //     address: inputToken,
+      //     abi: ERC20_ABI,
+      //     functionName: "approve",
+      //     args: [quote.deposit.spokePoolAddress, approvalAmount],
+      //   });
+      //   await this.#publicClient.waitForTransactionReceipt({ hash: approvalTxHash });
+      // }
 
-      // Simulate the deposit transaction
-      const { request } = await acrossClient.simulateDepositTx({
-        walletClient: walletClient,
-        deposit: quote.deposit,
+      // // Simulate the deposit transaction
+      // const { request } = await acrossClient.simulateDepositTx({
+      //   walletClient: walletClient,
+      //   deposit: quote.deposit,
+      // });
+
+      // // Execute the deposit transaction
+      // const transactionHash = await walletClient.writeContract(request);
+
+      // // Wait for tx to be mined
+      // const { depositId } = await acrossClient.waitForDepositTx({
+      //   transactionHash,
+      //   originChainId: this.#chain.id,
+      // });
+
+      const destinationClient = createPublicClient({
+        chain: destinationChain,
+        transport: http(),
       });
 
-      // Execute the deposit transaction
-      const transactionHash = await walletClient.writeContract(request);
-
-      // Wait for tx to be mined
-      const { depositId } = await acrossClient.waitForDepositTx({
-        transactionHash,
-        originChainId: this.#chain.id,
+      let approvalTxHash;
+      let depositTxId;
+      let depositTxHash;
+      let fillTxHash;
+      let success;
+      const progress = await acrossClient.executeQuote({
+        walletClient: walletClient,
+        destinationClient: destinationClient,
+        deposit: quote.deposit,
+        onProgress: (progress) => {
+          if (progress.step === "approve" && progress.status === "txSuccess") {
+            const { txReceipt } = progress;
+            approvalTxHash= txReceipt.transactionHash;
+            console.log("approvalTxHash", approvalTxHash);
+          }
+          if (progress.step === "deposit" && progress.status === "txSuccess") {
+            const { depositId, txReceipt } = progress;
+            depositTxId = depositId;
+            depositTxHash = txReceipt.transactionHash;
+            console.log("depositTxId", depositTxId);
+            console.log("depositTxHash", depositTxHash);
+          }
+          if (progress.step === "fill" && progress.status === "txSuccess") {
+            const { fillTxTimestamp, txReceipt, actionSuccess } = progress;
+            fillTxHash = txReceipt.transactionHash;
+            success = actionSuccess;
+            console.log("fillTxHash", fillTxHash);
+          }
+        },
+        infiniteApproval: false,
+        throwOnError: true,
       });
 
       return `
@@ -270,8 +308,10 @@ Successfully deposited tokens:
 - Output Amount: ${formattedInfo.outputAmount} ${args.inputTokenSymbol}
 - Recipient: ${recipient}
 ${!isNative ? `- Transaction Hash for approval: ${approvalTxHash}\n` : ""}
-- Transaction Hash for deposit: ${transactionHash}
-- Deposit ID: ${depositId}
+- Transaction Hash for deposit: ${depositTxHash}
+- Deposit ID: ${depositTxId}
+- Transaction Hash for fill: ${fillTxHash}
+- Success: ${success}
         `;
     } catch (error) {
       return `Error with Across SDK: ${error}`;
