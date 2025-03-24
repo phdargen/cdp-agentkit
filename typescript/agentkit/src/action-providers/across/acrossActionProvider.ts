@@ -69,14 +69,17 @@ export class AcrossActionProvider extends ActionProvider<EvmWalletProvider> {
     name: "bridge_token",
     description: `
     This tool will bridge tokens from the current chain to another chain using the Across Protocol.
-    
+    Supports testnet to testnet (e.g. ethereum-sepolia to base-sepolia) or mainnet to mainnet (e.g. ethereum-mainnet to base-mainnet) bridging.
+
     It takes the following inputs:
-    - destinationChainId: The chain ID of the destination chain
-    - inputTokenSymbol: The symbol of the token to bridge (e.g., 'ETH', 'WETH', 'USDC')
+    - destinationChainId: The chain ID of the destination chain (e.g. 84532 for base-sepolia, 1 for ethereum-mainnet)
+    - inputTokenSymbol: The symbol of the token to bridge (e.g., 'ETH', 'USDC')
     - amount: The amount of tokens to bridge in whole units (e.g. 1.5 WETH, 10 USDC)
     - recipient: (Optional) The recipient address on the destination chain (defaults to sender)
     - maxSplippage: (Optional) The maximum slippage percentage (defaults to 1.5%)
     Important notes:
+    - Origin chain is the currently connected chain of the wallet provider (e.g. base-sepolia, ethereum-mainnet)
+    - Testnet deposits are not be refunded if not filled on destination chain
     - Ensure sufficient balance of the input token before bridging
     `,
     schema: BridgeTokenSchema,
