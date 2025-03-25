@@ -1,7 +1,7 @@
 import { acrossActionProvider } from "./acrossActionProvider";
 import { EvmWalletProvider } from "../../wallet-providers";
 import { Network } from "../../network";
-import { createPublicClient, createWalletClient, PublicClient } from "viem";
+import { createPublicClient, PublicClient } from "viem";
 
 // Mock the necessary imports and modules
 jest.mock("viem", () => {
@@ -9,7 +9,7 @@ jest.mock("viem", () => {
     ...jest.requireActual("viem"),
     createPublicClient: jest.fn(),
     createWalletClient: jest.fn(() => ({
-      writeContract: jest.fn().mockResolvedValue("0xmocktxhash"),
+      writeContract: jest.fn().mockResolvedValue("0xdepositTxHash"),
     })),
     http: jest.fn(),
     formatUnits: jest.fn().mockImplementation((value, decimals) => {
@@ -45,14 +45,17 @@ jest.mock("../../network", () => {
       "ethereum-mainnet": {
         id: 1,
         name: "Ethereum",
+        network: "mainnet",
       },
       optimism: {
         id: 10,
         name: "Optimism",
+        network: "optimism",
       },
       "base-sepolia": {
         id: 84532,
         name: "Base Sepolia",
+        network: "base-sepolia",
       },
     },
     CHAIN_ID_TO_NETWORK_ID: {
@@ -74,6 +77,8 @@ const defaultClientImplementation = () => ({
   getSupportedChains: jest.fn().mockResolvedValue([
     {
       chainId: 1, // Ethereum
+      name: "Ethereum",
+      network: "mainnet",
       inputTokens: [
         {
           symbol: "ETH",
@@ -89,6 +94,8 @@ const defaultClientImplementation = () => ({
     },
     {
       chainId: 10, // Optimism
+      name: "Optimism",
+      network: "optimism",
       inputTokens: [
         {
           symbol: "ETH",
@@ -133,16 +140,33 @@ const defaultClientImplementation = () => ({
 });
 
 // Set the default implementation
-mockCreateAcrossClient.mockImplementation(defaultClientImplementation);
+mockCreateAcrossClient.mockImplementation(() => {
+  const client = defaultClientImplementation();
+  // Add the chains property to match what the code expects
+  return {
+    ...client,
+    chains: [
+      {
+        id: 1,
+        name: "Ethereum",
+        network: "mainnet",
+      },
+      {
+        id: 10,
+        name: "Optimism",
+        network: "optimism",
+      },
+    ],
+  };
+});
 
 // Mock the isTestnet function
 jest.mock("./utils", () => ({
-  isTestnet: jest.fn().mockReturnValue(false),
+  isAcrossSupportedTestnet: jest.fn().mockReturnValue(false),
 }));
 
 describe("Across Action Provider", () => {
   const MOCK_PRIVATE_KEY = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
-  const MOCK_NETWORK_ID = "ethereum-mainnet";
   const MOCK_INPUT_TOKEN_SYMBOL = "ETH";
   const MOCK_AMOUNT = "1.0";
   const MOCK_DESTINATION_CHAIN_ID = "10"; // Optimism
@@ -156,7 +180,25 @@ describe("Across Action Provider", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // Reset to default implementation
-    mockCreateAcrossClient.mockImplementation(defaultClientImplementation);
+    mockCreateAcrossClient.mockImplementation(() => {
+      const client = defaultClientImplementation();
+      // Add the chains property to match what the code expects
+      return {
+        ...client,
+        chains: [
+          {
+            id: 1,
+            name: "Ethereum",
+            network: "mainnet",
+          },
+          {
+            id: 10,
+            name: "Optimism",
+            network: "optimism",
+          },
+        ],
+      };
+    });
 
     mockPublicClient = {
       getBalance: jest.fn().mockResolvedValue(BigInt("2000000000000000000")), // 2 ETH
@@ -168,13 +210,19 @@ describe("Across Action Provider", () => {
 
     mockWallet = {
       getAddress: jest.fn().mockReturnValue(MOCK_RECIPIENT),
-      sendTransaction: jest.fn(),
+      sendTransaction: jest.fn().mockResolvedValue("0xmocktxhash"),
       waitForTransactionReceipt: jest.fn(),
+      getNetwork: jest.fn().mockReturnValue({
+        chainId: "1", // Ethereum mainnet
+        networkId: "ethereum-mainnet",
+        protocolFamily: "evm",
+      }),
+      getBalance: jest.fn().mockResolvedValue(BigInt("2000000000000000000")), // 2 ETH
+      readContract: jest.fn().mockResolvedValue(BigInt("2000000000000000000")), // 2 ETH/USDC
     } as unknown as jest.Mocked<EvmWalletProvider>;
 
     actionProvider = acrossActionProvider({
       privateKey: MOCK_PRIVATE_KEY,
-      networkId: MOCK_NETWORK_ID,
     });
   });
 
@@ -193,7 +241,7 @@ describe("Across Action Provider", () => {
       // Verify the SDK interactions and response
       expect(response).toContain("Successfully deposited tokens");
       expect(response).toContain(`Token: ${MOCK_INPUT_TOKEN_SYMBOL}`);
-      expect(response).toContain("Transaction Hash for deposit: 0xmocktxhash");
+      expect(response).toContain("Transaction Hash for deposit: 0xdepositTxHash");
     });
 
     it("should successfully bridge ERC20 tokens", async () => {
@@ -205,13 +253,10 @@ describe("Across Action Provider", () => {
         maxSplippage: MOCK_MAX_SLIPPAGE,
       };
 
-      // Mock the wallet client for the approval transaction
-      (createWalletClient as jest.Mock).mockReturnValue({
-        writeContract: jest
-          .fn()
-          .mockResolvedValueOnce("0xapprovalTxHash") // First call for approval
-          .mockResolvedValueOnce("0xdepositTxHash"), // Second call for deposit
-      });
+      // Set up mock for approval and deposit transactions
+      mockWallet.sendTransaction
+        .mockResolvedValueOnce("0xapprovalTxHash")
+        .mockResolvedValueOnce("0xdepositTxHash");
 
       const response = await actionProvider.bridgeToken(mockWallet, args);
 
@@ -285,7 +330,8 @@ describe("Across Action Provider", () => {
 
     it("should handle errors in bridging", async () => {
       const error = new Error("Insufficient balance");
-      (mockPublicClient.getBalance as jest.Mock).mockRejectedValue(error);
+      mockWallet.getBalance.mockRejectedValueOnce(error);
+      mockWallet.sendTransaction.mockRejectedValueOnce(error);
 
       const args = {
         inputTokenSymbol: MOCK_INPUT_TOKEN_SYMBOL,

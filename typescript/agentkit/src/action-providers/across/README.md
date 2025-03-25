@@ -7,7 +7,7 @@ This directory contains the **AcrossActionProvider** implementation, which provi
 ```
 across/
 ├── acrossActionProvider.ts        # Main provider with Across Protocol functionality
-├── acrossActionProvider.test.ts        # Tests
+├── acrossActionProvider.test.ts   # Tests
 ├── schemas.ts                     # Bridge token schema
 ├── utils.ts                       # Utility functions for Across integration
 ├── index.ts                       # Main exports
@@ -17,6 +17,7 @@ across/
 ## Actions
 
 - `bridge_token`: Bridge tokens from one chain to another using the Across Protocol
+- `check_deposit_status`: Check the status of a cross-chain bridge deposit on the Across Protocol 
 
 ## Adding New Actions
 
@@ -28,15 +29,15 @@ To add new Across actions:
 
 ## Network Support
 
-The Across provider supports EVM-compatible chains, for example:
-- Ethereum Mainnet and Sepolia
-- Base Mainnet and Sepolia
+The Across provider supports cross-chain transfers between EVM-compatible chains, for example:
+- Ethereum Mainnet to Base Mainnet
+- Base Sepolia to Ethereum Sepolia
+The status of bridge deposit can only be checked on Mainnets.
 
 ## Configuration
 
 The provider requires the following configuration:
-- `privateKey`: Private key of the signer
-- `networkId`: (Optional) Network ID to use, e.g., "base-sepolia" or "ethereum-mainnet"
+- `privateKey`: Private key of the wallet provider
 
 ## Notes
 

@@ -1,10 +1,10 @@
 /**
- * Checks if a chain ID corresponds to a testnet network
+ * Checks if a chain ID corresponds to a testnet network supported by Across
  *
  * @param chainId - The blockchain network chain ID
- * @returns true if the chain ID corresponds to a testnet, false otherwise
+ * @returns true if the chain ID corresponds to a testnet network supported by Across, false otherwise
  */
-export function isTestnet(chainId: number): boolean {
+export function isAcrossSupportedTestnet(chainId: number): boolean {
   // List of testnet chain IDs
   const testnetChainIds = [
     11155111, // Sepolia

@@ -1,20 +1,11 @@
 import { z } from "zod";
-import {
-  parseUnits,
-  Hex,
-  createWalletClient,
-  http,
-  Chain,
-  formatUnits,
-  PublicClient,
-  createPublicClient,
-} from "viem";
+import { parseUnits, Hex, createWalletClient, http, formatUnits, encodeFunctionData } from "viem";
 import { ActionProvider } from "../actionProvider";
 import { CHAIN_ID_TO_NETWORK_ID, Network, NETWORK_ID_TO_VIEM_CHAIN, getChain } from "../../network";
 import { CreateAction } from "../actionDecorator";
 import { BridgeTokenSchema, CheckDepositStatusSchema } from "./schemas";
 import { EvmWalletProvider } from "../../wallet-providers";
-import { isTestnet } from "./utils";
+import { isAcrossSupportedTestnet } from "./utils";
 import { privateKeyToAccount } from "viem/accounts";
 import { abi as ERC20_ABI } from "../erc20/constants";
 /**
@@ -22,13 +13,9 @@ import { abi as ERC20_ABI } from "../erc20/constants";
  */
 export interface AcrossActionProviderConfig {
   /**
-   * Private key of the signer that (co-)owns the Safe.
+   * Private key of the wallet provider
    */
   privateKey: string;
-  /**
-   * Network ID, for example "base-sepolia" or "ethereum-mainnet".
-   */
-  networkId?: string;
 }
 
 /**
@@ -36,8 +23,6 @@ export interface AcrossActionProviderConfig {
  */
 export class AcrossActionProvider extends ActionProvider<EvmWalletProvider> {
   #privateKey: string;
-  #chain: Chain;
-  #publicClient: PublicClient;
   /**
    * Constructor for the AcrossActionProvider.
    *
@@ -48,14 +33,6 @@ export class AcrossActionProvider extends ActionProvider<EvmWalletProvider> {
     this.#privateKey = config.privateKey;
     const account = privateKeyToAccount(this.#privateKey as Hex);
     if (!account) throw new Error("Invalid private key");
-
-    this.#chain = NETWORK_ID_TO_VIEM_CHAIN[config.networkId || "base-sepolia"];
-    if (!this.#chain) throw new Error(`Unsupported network: ${config.networkId}`);
-
-    this.#publicClient = createPublicClient({
-      chain: this.#chain,
-      transport: http(),
-    });
   }
 
   /**
@@ -69,18 +46,20 @@ export class AcrossActionProvider extends ActionProvider<EvmWalletProvider> {
     name: "bridge_token",
     description: `
     This tool will bridge tokens from the current chain to another chain using the Across Protocol.
-    Supports testnet to testnet (e.g. ethereum-sepolia to base-sepolia) or mainnet to mainnet (e.g. ethereum-mainnet to base-mainnet) bridging.
 
     It takes the following inputs:
-    - destinationChainId: The chain ID of the destination chain (e.g. 84532 for base-sepolia, 1 for ethereum-mainnet)
-    - inputTokenSymbol: The symbol of the token to bridge (e.g., 'ETH', 'USDC')
+    - destinationChainId: The chain ID of the destination chain (e.g. 8453 for base-mainnet)
+    - inputTokenSymbol: The symbol of the token to bridge (e.g. 'ETH', 'USDC')
     - amount: The amount of tokens to bridge in whole units (e.g. 1.5 WETH, 10 USDC)
     - recipient: (Optional) The recipient address on the destination chain (defaults to sender)
     - maxSplippage: (Optional) The maximum slippage percentage (defaults to 1.5%)
+
     Important notes:
-    - Origin chain is the currently connected chain of the wallet provider (e.g. base-sepolia, ethereum-mainnet)
-    - Testnet deposits are not be refunded if not filled on destination chain
+    - Origin chain is the currently connected chain of the wallet provider 
+    - Supports cross-chain transfers between EVM-compatible chains for both mainnets and test networks
+    - Testnet deposits are not refunded if not filled on destination chain
     - Ensure sufficient balance of the input token before bridging
+    - Returns deposit ID that can be used to check the status of the deposit
     `,
     schema: BridgeTokenSchema,
   })
@@ -94,7 +73,14 @@ export class AcrossActionProvider extends ActionProvider<EvmWalletProvider> {
       const createAcrossClient = acrossModule.createAcrossClient;
 
       // Get recipient address if provided, otherwise use sender
-      const recipient = (args.recipient || walletProvider.getAddress()) as Hex;
+      const address = walletProvider.getAddress() as Hex;
+      const recipient = (args.recipient || address) as Hex;
+
+      // Get origin chain
+      const originChain = getChain(walletProvider.getNetwork().chainId as string);
+      if (!originChain) {
+        throw new Error(`Unsupported origin chain: ${walletProvider.getNetwork()}`);
+      }
 
       // Get destination chain
       const destinationNetworkId = CHAIN_ID_TO_NETWORK_ID[Number(args.destinationChainId)];
@@ -103,40 +89,52 @@ export class AcrossActionProvider extends ActionProvider<EvmWalletProvider> {
         throw new Error(`Unsupported destination chain: ${args.destinationChainId}`);
       }
 
+      // Sanity checks
+      if (originChain.id === destinationChain.id) {
+        throw new Error("Origin and destination chains cannot be the same");
+      }
+      const useTestnet = isAcrossSupportedTestnet(originChain.id);
+      if (useTestnet !== isAcrossSupportedTestnet(destinationChain.id)) {
+        throw new Error(`Cross-chain transfers between ${originChain.name} and ${destinationChain.name} are not supported.
+           Origin and destination chains must either be both testnets or both mainnets.`);
+      }
+
       // Create wallet client
       const account = privateKeyToAccount(this.#privateKey as Hex);
+      if (account.address !== walletProvider.getAddress()) {
+        throw new Error("Private key does not match wallet provider address");
+      }
       const walletClient = createWalletClient({
         account,
-        chain: this.#chain,
+        chain: originChain,
         transport: http(),
       });
 
       // Create Across client
       const acrossClient = createAcrossClient({
-        //integratorId: INTEGRATOR_ID,
-        chains: [this.#chain, destinationChain],
-        useTestnet: isTestnet(this.#chain.id),
+        chains: [originChain, destinationChain],
+        useTestnet,
       });
 
       // Get chain details to find token information
       const chainDetails = await acrossClient.getSupportedChains({});
-      const originChainDetails = chainDetails.find(chain => chain.chainId === this.#chain.id);
+      const originChainDetails = chainDetails.find(chain => chain.chainId === originChain.id);
 
       if (!originChainDetails) {
-        throw new Error(`Origin chain ${this.#chain.id} not supported by Across Protocol`);
+        throw new Error(`Origin chain ${originChain.id} not supported by Across Protocol`);
       }
 
       // Find token by symbol on the origin chain
       const inputTokens = originChainDetails.inputTokens;
       if (!inputTokens || inputTokens.length === 0) {
-        throw new Error(`No input tokens available on chain ${this.#chain.id}`);
+        throw new Error(`No input tokens available on chain ${originChain.id}`);
       }
       const tokenInfo = inputTokens.find(
         token => token.symbol.toUpperCase() === args.inputTokenSymbol.toUpperCase(),
       );
       if (!tokenInfo) {
         throw new Error(
-          `Token ${args.inputTokenSymbol} not found on chain ${this.#chain.id}. Available tokens: ${inputTokens.map(t => t.symbol).join(", ")}`,
+          `Token ${args.inputTokenSymbol} not found on chain ${originChain.id}. Available tokens: ${inputTokens.map(t => t.symbol).join(", ")}`,
         );
       }
 
@@ -149,9 +147,7 @@ export class AcrossActionProvider extends ActionProvider<EvmWalletProvider> {
       const isNative = args.inputTokenSymbol.toUpperCase() === "ETH";
       if (isNative) {
         // Check native ETH balance
-        const ethBalance = await this.#publicClient.getBalance({
-          address: account.address,
-        });
+        const ethBalance = await walletProvider.getBalance();
         if (ethBalance < inputAmount) {
           throw new Error(
             `Insufficient balance. Requested to bridge ${formatUnits(inputAmount, decimals)} ${args.inputTokenSymbol} but balance is only ${formatUnits(ethBalance, decimals)} ${args.inputTokenSymbol}`,
@@ -159,11 +155,11 @@ export class AcrossActionProvider extends ActionProvider<EvmWalletProvider> {
         }
       } else {
         // Check ERC20 token balance
-        const tokenBalance = (await this.#publicClient.readContract({
+        const tokenBalance = (await walletProvider.readContract({
           address: inputToken,
           abi: ERC20_ABI,
           functionName: "balanceOf",
-          args: [account.address],
+          args: [address],
         })) as bigint;
         if (tokenBalance < inputAmount) {
           throw new Error(
@@ -174,30 +170,23 @@ export class AcrossActionProvider extends ActionProvider<EvmWalletProvider> {
 
       // Get available routes
       const routeInfo = await acrossClient.getAvailableRoutes({
-        originChainId: this.#chain.id,
+        originChainId: originChain.id,
         destinationChainId: destinationChain.id,
         originToken: inputToken,
       });
 
       // Select the appropriate route for native ETH or ERC20 token
-      let route;
-      for (let i = 0; i < routeInfo.length; i++) {
-        if (routeInfo[i].isNative === isNative) {
-          route = routeInfo[i];
-          break;
-        }
-      }
-
+      const route = routeInfo.find(route => route.isNative === isNative);
       if (!route) {
         throw new Error(
-          `No routes available from chain ${this.#chain.name} to chain ${destinationChain.name} for token ${args.inputTokenSymbol}`,
+          `No routes available from chain ${originChain.name} to chain ${destinationChain.name} for token ${args.inputTokenSymbol}`,
         );
       }
 
       // Get quote
       const quote = await acrossClient.getQuote({
         route,
-        inputAmount: inputAmount,
+        inputAmount,
         recipient,
       });
 
@@ -236,14 +225,15 @@ export class AcrossActionProvider extends ActionProvider<EvmWalletProvider> {
       //Approve ERC20 token if needed
       let approvalTxHash;
       if (!isNative) {
-        const approvalAmount = quote.deposit.inputAmount;
-        approvalTxHash = await walletClient.writeContract({
-          address: inputToken,
-          abi: ERC20_ABI,
-          functionName: "approve",
-          args: [quote.deposit.spokePoolAddress, approvalAmount],
+        approvalTxHash = await walletProvider.sendTransaction({
+          to: inputToken,
+          data: encodeFunctionData({
+            abi: ERC20_ABI,
+            functionName: "approve",
+            args: [quote.deposit.spokePoolAddress, quote.deposit.inputAmount],
+          }),
         });
-        await this.#publicClient.waitForTransactionReceipt({ hash: approvalTxHash });
+        await walletProvider.waitForTransactionReceipt(approvalTxHash);
       }
 
       // Simulate the deposit transaction
@@ -258,12 +248,12 @@ export class AcrossActionProvider extends ActionProvider<EvmWalletProvider> {
       // Wait for tx to be mined
       const { depositId } = await acrossClient.waitForDepositTx({
         transactionHash,
-        originChainId: this.#chain.id,
+        originChainId: originChain.id,
       });
 
       return `
 Successfully deposited tokens:
-- From: Chain ${this.#chain.id} (${this.#chain.name})
+- From: Chain ${originChain.id} (${originChain.name})
 - To: Chain ${destinationChain.id} (${destinationChain.name})
 - Token: ${args.inputTokenSymbol} (${inputToken})
 - Input Amount: ${formattedInfo.inputAmount} ${args.inputTokenSymbol}
@@ -300,9 +290,9 @@ ${!isNative ? `- Transaction Hash for approval: ${approvalTxHash}\n` : ""}
     walletProvider: EvmWalletProvider,
     args: z.infer<typeof CheckDepositStatusSchema>,
   ): Promise<string> {
-    const originChainId = Number(args.originChainId) || this.#chain.id;
+    const originChainId = Number(args.originChainId) || Number(walletProvider.getNetwork().chainId);
 
-    if (isTestnet(originChainId)) {
+    if (isAcrossSupportedTestnet(originChainId)) {
       throw new Error(
         "Checking deposit status on testnets is currently not supported by the Across API",
       );
