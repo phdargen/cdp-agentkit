@@ -123,7 +123,9 @@ async function initializeAgent() {
             ]
           : []),
         alloraActionProvider(),
-        truemarketsActionProvider(),
+        truemarketsActionProvider({
+          RPC_URL: process.env.RPC_URL,
+        }),
       ],
     });
 

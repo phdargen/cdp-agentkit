@@ -3,10 +3,18 @@ import { ActionProvider } from "../actionProvider";
 import { Network } from "../../network";
 import { CreateAction } from "../actionDecorator";
 import { GetActiveTruthMarketsSchema, GetMarketDetailsSchema } from "./schemas";
-import { TruthMarketABI, TruthMarketManagerABI, TruthMarketManager_ADDRESS, USDC_ADDRESS, USDC_DECIMALS, UniswapV3PoolABI, YESNO_DECIMALS } from "./constants";
+import {
+  TruthMarketABI,
+  TruthMarketManagerABI,
+  TruthMarketManager_ADDRESS,
+  USDC_ADDRESS,
+  USDC_DECIMALS,
+  UniswapV3PoolABI,
+  YESNO_DECIMALS,
+} from "./constants";
 import { abi as ERC20ABI } from "../erc20/constants";
 import { EvmWalletProvider } from "../../wallet-providers";
-import { Hex, formatUnits } from "viem";
+import { Hex, formatUnits, createPublicClient, http, PublicClient } from "viem";
 import { GetMarketStatus } from "./utils";
 /**
  * Interface representing a TruthMarket
@@ -18,14 +26,31 @@ interface TruthMarket {
 }
 
 /**
+ * Configuration options for the TrueMarketsActionProvider.
+ */
+export interface TrueMarketsActionProviderConfig {
+  /**
+   * RPC URL for creating the Viem public client
+   */
+  RPC_URL?: string;
+}
+
+/**
  * TrueMarketsActionProvider provides actions to interact with TrueMarkets contracts.
  */
 export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider> {
+  #publicClient: PublicClient;
+
   /**
    * Constructor for the TrueMarketsActionProvider.
+   *
+   * @param config - The configuration options for the TrueMarketsActionProvider.
    */
-  constructor() {
+  constructor(config?: TrueMarketsActionProviderConfig) {
     super("truemarkets", []);
+    this.#publicClient = createPublicClient({
+      transport: config?.RPC_URL ? http(config.RPC_URL) : http(),
+    });
   }
 
   /**
@@ -52,27 +77,31 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
       const limit = args.limit || 10;
       const offset = args.offset || 0;
       const sortOrder = args.sortOrder || "desc";
-      
+
       // Get total number of active markets
       const numMarkets = await walletProvider.readContract({
         address: TruthMarketManager_ADDRESS as Hex,
         abi: TruthMarketManagerABI,
         functionName: "numberOfActiveMarkets",
       });
-      
+
       if (numMarkets === 0n) {
         return "No active markets found.";
       }
-      
+
       const totalMarkets = Number(numMarkets);
       const adjustedOffset = Math.min(offset, totalMarkets - 1);
       const adjustedLimit = Math.min(limit, totalMarkets - adjustedOffset);
-      
+
       // Create an array of indices to fetch based on sort order
-      let indices: number[] = [];
+      const indices: number[] = [];
       if (sortOrder === "desc") {
         // For descending order, start from the end
-        for (let i = totalMarkets - 1 - adjustedOffset; i >= Math.max(0, totalMarkets - adjustedOffset - adjustedLimit); i--) {
+        for (
+          let i = totalMarkets - 1 - adjustedOffset;
+          i >= Math.max(0, totalMarkets - adjustedOffset - adjustedLimit);
+          i--
+        ) {
           indices.push(i);
         }
       } else {
@@ -81,40 +110,42 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
           indices.push(i);
         }
       }
-      
+
       // Fetch market addresses
       const marketAddresses = await Promise.all(
-        indices.map(index => 
+        indices.map(index =>
           walletProvider.readContract({
             address: TruthMarketManager_ADDRESS as Hex,
             abi: TruthMarketManagerABI,
             functionName: "getActiveMarketAddress",
             args: [BigInt(index)],
-          })
-        )
+          }),
+        ),
       );
-      
+
       // Fetch market questions
       const marketQuestions = await Promise.all(
-        marketAddresses.map(address => 
-          walletProvider.readContract({
-            address: address as Hex,
-            abi: TruthMarketABI,
-            functionName: "marketQuestion",
-          }).catch(() => "Failed to retrieve question")
-        )
+        marketAddresses.map(address =>
+          walletProvider
+            .readContract({
+              address: address as Hex,
+              abi: TruthMarketABI,
+              functionName: "marketQuestion",
+            })
+            .catch(() => "Failed to retrieve question"),
+        ),
       );
-      
+
       // Combine results into market objects
       const markets: TruthMarket[] = indices.map((id, idx) => ({
         id,
         address: marketAddresses[idx] as string,
         marketQuestion: marketQuestions[idx] as string,
       }));
-      
+
       // Format the results
       let result = `Found ${markets.length} active markets (out of ${totalMarkets} total):\n\n`;
-      
+
       markets.forEach((market, idx) => {
         result += `Market #${market.id}:\n`;
         result += `Address: ${market.address}\n`;
@@ -123,7 +154,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
           result += "-------------------\n";
         }
       });
-      
+
       return result;
     } catch (error) {
       return `Error retrieving active markets: ${error}`;
@@ -153,7 +184,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
   ): Promise<string> {
     try {
       const marketAddress = args.marketAddress as Hex;
-      
+
       // Get basic market info
       const [question, additionalInfo, source, statusNum, endOfTrading, pools] = await Promise.all([
         walletProvider.readContract({
@@ -212,7 +243,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
           address: noPool,
           abi: UniswapV3PoolABI,
           functionName: "token1",
-        })
+        }),
       ]);
 
       // Determine which token is the YES/NO token and which is USDC in each pool
@@ -222,45 +253,36 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
       const isNoToken0 = noToken0 === noToken;
 
       // Get pool balances
-      const [yesPoolUsdcBalance, yesPoolTokenBalance, noPoolUsdcBalance, noPoolTokenBalance] = await Promise.all([
-        walletProvider.readContract({
-          address: USDC_ADDRESS,
-          abi: ERC20ABI,
-          functionName: "balanceOf",
-          args: [yesPool],
-        }),
-        walletProvider.readContract({
-          address: yesToken,
-          abi: ERC20ABI,
-          functionName: "balanceOf",
-          args: [yesPool],
-        }),
-        walletProvider.readContract({
-          address: USDC_ADDRESS,
-          abi: ERC20ABI,
-          functionName: "balanceOf",
-          args: [noPool],
-        }),
-        walletProvider.readContract({
-          address: noToken,
-          abi: ERC20ABI,
-          functionName: "balanceOf",
-          args: [noPool],
-        })
-      ]);
+      const [yesPoolUsdcBalance, yesPoolTokenBalance, noPoolUsdcBalance, noPoolTokenBalance] =
+        await Promise.all([
+          walletProvider.readContract({
+            address: USDC_ADDRESS,
+            abi: ERC20ABI,
+            functionName: "balanceOf",
+            args: [yesPool],
+          }),
+          walletProvider.readContract({
+            address: yesToken,
+            abi: ERC20ABI,
+            functionName: "balanceOf",
+            args: [yesPool],
+          }),
+          walletProvider.readContract({
+            address: USDC_ADDRESS,
+            abi: ERC20ABI,
+            functionName: "balanceOf",
+            args: [noPool],
+          }),
+          walletProvider.readContract({
+            address: noToken,
+            abi: ERC20ABI,
+            functionName: "balanceOf",
+            args: [noPool],
+          }),
+        ]);
 
       // Get liquidity and price data
-      const [yesLiquidity, noLiquidity, yesSlot0, noSlot0] = await Promise.all([
-        walletProvider.readContract({
-          address: yesPool,
-          abi: UniswapV3PoolABI,
-          functionName: "liquidity",
-        }),
-        walletProvider.readContract({
-          address: noPool,
-          abi: UniswapV3PoolABI,
-          functionName: "liquidity",
-        }),
+      const [yesSlot0, noSlot0] = await Promise.all([
         walletProvider.readContract({
           address: yesPool,
           abi: UniswapV3PoolABI,
@@ -270,18 +292,23 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
           address: noPool,
           abi: UniswapV3PoolABI,
           functionName: "slot0",
-        })
+        }),
       ]);
 
       // Calculate prices from slot0 data
-      const calculatePrice = (sqrtPriceX96: bigint, isTokenZero: boolean, usdcDecimals_: number, tokenDecimals_: number) => {
+      const calculatePrice = (
+        sqrtPriceX96: bigint,
+        isTokenZero: boolean,
+        usdcDecimals_: number,
+        tokenDecimals_: number,
+      ) => {
         const Q96 = 2n ** 96n;
         const sqrtPrice = Number(sqrtPriceX96) / Number(Q96);
         const price = sqrtPrice * sqrtPrice;
-        
+
         // Decimal adjustment between USDC and YES/NO tokens
         const decimalAdjustment = 10 ** (Number(tokenDecimals_) - Number(usdcDecimals_));
-        
+
         if (isTokenZero) {
           // If YES/NO token is token0, price = price * decimalAdjustment
           return price * decimalAdjustment;
@@ -298,22 +325,38 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
       const yesSlot0Data = yesSlot0 as [bigint, number, number, number, number, number, boolean];
       const noSlot0Data = noSlot0 as [bigint, number, number, number, number, number, boolean];
 
-      const yesPrice = calculatePrice(yesSlot0Data[0], isYesToken0, usdcDecimals_, yesNoTokenDecimals_);
-      const noPrice = calculatePrice(noSlot0Data[0], isNoToken0, usdcDecimals_, yesNoTokenDecimals_);
+      const yesPrice = calculatePrice(
+        yesSlot0Data[0],
+        isYesToken0,
+        usdcDecimals_,
+        yesNoTokenDecimals_,
+      );
+      const noPrice = calculatePrice(
+        noSlot0Data[0],
+        isNoToken0,
+        usdcDecimals_,
+        yesNoTokenDecimals_,
+      );
 
       // Calculate TVL using token balances
-      const yesPoolUsdcValue = Number(formatUnits(yesPoolUsdcBalance as bigint || 0n, usdcDecimals_));
-      const yesPoolTokenValue = Number(formatUnits(yesPoolTokenBalance as bigint || 0n, yesNoTokenDecimals_)) * yesPrice;
-      const noPoolUsdcValue = Number(formatUnits(noPoolUsdcBalance as bigint || 0n, usdcDecimals_));
-      const noPoolTokenValue = Number(formatUnits(noPoolTokenBalance as bigint || 0n, yesNoTokenDecimals_)) * noPrice;
+      const yesPoolUsdcValue = Number(
+        formatUnits((yesPoolUsdcBalance as bigint) || 0n, usdcDecimals_),
+      );
+      const yesPoolTokenValue =
+        Number(formatUnits((yesPoolTokenBalance as bigint) || 0n, yesNoTokenDecimals_)) * yesPrice;
+      const noPoolUsdcValue = Number(
+        formatUnits((noPoolUsdcBalance as bigint) || 0n, usdcDecimals_),
+      );
+      const noPoolTokenValue =
+        Number(formatUnits((noPoolTokenBalance as bigint) || 0n, yesNoTokenDecimals_)) * noPrice;
 
       const yesTVL = yesPoolUsdcValue + yesPoolTokenValue;
       const noTVL = noPoolUsdcValue + noPoolTokenValue;
       const totalTVL = yesTVL + noTVL;
 
       // Format the status
-      const status = GetMarketStatus[Number(statusNum)] || 'Unknown';
-      
+      const status = GetMarketStatus[Number(statusNum)] || "Unknown";
+
       // Format the end of trading time
       const endOfTradingTime = new Date(Number(endOfTrading) * 1000).toISOString();
 
@@ -324,7 +367,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
       result += `Source: ${source}\n`;
       result += `Status: ${status}\n`;
       result += `End of Trading: ${endOfTradingTime}\n\n`;
-      
+
       result += `YES: $${yesPrice.toFixed(2)}\n`;
       result += `NO: $${noPrice.toFixed(2)}\n\n`;
       result += `TVL: $${totalTVL.toFixed(2)}`;
@@ -332,7 +375,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
       result += `Pool Addresses:\n`;
       result += `- YES Pool: ${yesPool} (Pool Size: $${yesTVL.toFixed(2)})\n`;
       result += `- NO Pool: ${noPool} (Pool Size: $${noTVL.toFixed(2)})\n\n`;
-      
+
       return result;
     } catch (error) {
       return `Error retrieving market details: ${error}`;
@@ -349,4 +392,5 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
   supportsNetwork = (network: Network) => network.networkId === "base-mainnet";
 }
 
-export const truemarketsActionProvider = () => new TrueMarketsActionProvider();
+export const truemarketsActionProvider = (config?: TrueMarketsActionProviderConfig) =>
+  new TrueMarketsActionProvider(config);
