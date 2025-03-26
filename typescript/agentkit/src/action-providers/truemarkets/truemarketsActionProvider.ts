@@ -16,6 +16,7 @@ import { abi as ERC20ABI } from "../erc20/constants";
 import { EvmWalletProvider } from "../../wallet-providers";
 import { Hex, formatUnits, createPublicClient, http, PublicClient } from "viem";
 import { GetMarketStatus } from "./utils";
+import { base } from "viem/chains";
 /**
  * Interface representing a TruthMarket
  */
@@ -49,8 +50,9 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
   constructor(config?: TrueMarketsActionProviderConfig) {
     super("truemarkets", []);
     this.#publicClient = createPublicClient({
+      chain: base,
       transport: config?.RPC_URL ? http(config.RPC_URL) : http(),
-    });
+    }) as PublicClient;
   }
 
   /**
@@ -64,8 +66,9 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
     name: "get_active_markets",
     description: `
     This tool will retrieve active markets from the Truemarkets platform.
-    It returns a list of markets with their ID, contract address, and market question.
+    It returns a list of markets with their ID, contract address and market question.
     You can paginate results using limit and offset parameters, and sort them in ascending or descending order.
+    Market IDs are sorted by their creation date, with the oldest market having ID 0.
     `,
     schema: GetActiveTruthMarketsSchema,
   })
@@ -74,9 +77,9 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
     args: z.infer<typeof GetActiveTruthMarketsSchema>,
   ): Promise<string> {
     try {
-      const limit = args.limit || 10;
-      const offset = args.offset || 0;
-      const sortOrder = args.sortOrder || "desc";
+      const limit = args.limit;
+      const offset = args.offset;
+      const sortOrder = args.sortOrder;
 
       // Get total number of active markets
       const numMarkets = await walletProvider.readContract({
@@ -111,48 +114,55 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
         }
       }
 
-      // Fetch market addresses
-      const marketAddresses = await Promise.all(
-        indices.map(index =>
-          walletProvider.readContract({
-            address: TruthMarketManager_ADDRESS as Hex,
-            abi: TruthMarketManagerABI,
-            functionName: "getActiveMarketAddress",
-            args: [BigInt(index)],
-          }),
-        ),
-      );
-
-      // Fetch market questions
-      const marketQuestions = await Promise.all(
-        marketAddresses.map(address =>
-          walletProvider
-            .readContract({
-              address: address as Hex,
-              abi: TruthMarketABI,
-              functionName: "marketQuestion",
-            })
-            .catch(() => "Failed to retrieve question"),
-        ),
-      );
-
-      // Combine results into market objects
-      const markets: TruthMarket[] = indices.map((id, idx) => ({
-        id,
-        address: marketAddresses[idx] as string,
-        marketQuestion: marketQuestions[idx] as string,
+      // Use multicall to fetch all market addresses in a single call
+      const addressCalls = indices.map(index => ({
+        address: TruthMarketManager_ADDRESS as Hex,
+        abi: TruthMarketManagerABI,
+        functionName: "getActiveMarketAddress",
+        args: [BigInt(index)],
       }));
+
+      const marketAddresses = await this.#publicClient.multicall({
+        contracts: addressCalls,
+      });
+
+      // Filter out errors and extract results
+      const validAddresses = marketAddresses
+        .filter(result => result.status === "success")
+        .map(result => result.result as unknown as Hex);
+
+      if (validAddresses.length === 0) {
+        return "Failed to retrieve market addresses.";
+      }
+
+      // Use multicall to fetch all market questions in a single call
+      const questionCalls = validAddresses.map(address => ({
+        address,
+        abi: TruthMarketABI,
+        functionName: "marketQuestion",
+      }));
+
+      const marketQuestionsResult = await this.#publicClient.multicall({
+        contracts: questionCalls,
+      });
+
+      // Create market objects mapping indices to addresses and questions
+      const markets: TruthMarket[] = indices
+        .filter((_, idx) => idx < validAddresses.length)
+        .map((id, idx) => ({
+          id,
+          address: validAddresses[idx],
+          marketQuestion:
+            marketQuestionsResult[idx].status === "success"
+              ? (marketQuestionsResult[idx].result as string)
+              : "Failed to retrieve question",
+        }));
 
       // Format the results
       let result = `Found ${markets.length} active markets (out of ${totalMarkets} total):\n\n`;
 
-      markets.forEach((market, idx) => {
-        result += `Market #${market.id}:\n`;
-        result += `Address: ${market.address}\n`;
-        result += `Question: ${market.marketQuestion}\n`;
-        if (idx < markets.length - 1) {
-          result += "-------------------\n";
-        }
+      markets.forEach(market => {
+        result += `Market #${market.id} (${market.address}): ${market.marketQuestion}\n`;
       });
 
       return result;
@@ -366,7 +376,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
       result += `Additional Info: ${additionalInfo}\n`;
       result += `Source: ${source}\n`;
       result += `Status: ${status}\n`;
-      result += `End of Trading: ${endOfTradingTime}\n\n`;
+      result += `Earliest possible resolution: ${endOfTradingTime}\n\n`;
 
       result += `YES: $${yesPrice.toFixed(2)}\n`;
       result += `NO: $${noPrice.toFixed(2)}\n\n`;
