@@ -27,6 +27,12 @@ export const TwitterAccountMentionsSchema = z
 export const TwitterPostTweetSchema = z
   .object({
     tweet: z.string().max(280, "Tweet must be a maximum of 280 characters."),
+    mediaIds: z.tuple([z.string()])
+      .or(z.tuple([z.string(), z.string()]))
+      .or(z.tuple([z.string(), z.string(), z.string()]))
+      .or(z.tuple([z.string(), z.string(), z.string(), z.string()]))
+      .optional()
+      .describe("Optional array of 1-4 media IDs to attach to the tweet"),
   })
   .strip()
   .describe("Input schema for posting a tweet");
@@ -40,6 +46,25 @@ export const TwitterPostTweetReplySchema = z
     tweetReply: z
       .string()
       .max(280, "The reply to the tweet which must be a maximum of 280 characters."),
+    mediaIds: z.tuple([z.string()])
+      .or(z.tuple([z.string(), z.string()]))
+      .or(z.tuple([z.string(), z.string(), z.string()]))
+      .or(z.tuple([z.string(), z.string(), z.string(), z.string()]))
+      .optional()
+      .describe("Optional array of 1-4 media IDs to attach to the tweet"),
   })
   .strip()
   .describe("Input schema for posting a tweet reply");
+
+/**
+ * Input schema for uploading media.
+ */
+export const TwitterUploadMediaSchema = z
+  .object({
+    filePath: z
+      .string()
+      .min(1, "File path is required.")
+      .describe("The path to the media file to upload"),
+  })
+  .strip()
+  .describe("Input schema for uploading media to Twitter");
