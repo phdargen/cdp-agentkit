@@ -309,7 +309,7 @@ describe("PrivyEvmWalletProvider", () => {
 
     it("should transfer native tokens", async () => {
       const result = await provider.nativeTransfer(
-        "0x1234567890123456789012345678901234567890" as Address,
+        "0x1234567890123456789012345678901234567890" as `0x${string}`,
         "1.0",
       );
 
