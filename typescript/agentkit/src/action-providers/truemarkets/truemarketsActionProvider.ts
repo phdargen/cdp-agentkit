@@ -499,8 +499,8 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
         status,
         resolutionTime: endOfTradingTime,
         prices: {
-          yes: parseFloat(yesPrice.toFixed(2)),
-          no: parseFloat(noPrice.toFixed(2))
+          yes: parseFloat(yesPrice.toFixed(6)),
+          no: parseFloat(noPrice.toFixed(6))
         },
         tokens: {
           yes: {
