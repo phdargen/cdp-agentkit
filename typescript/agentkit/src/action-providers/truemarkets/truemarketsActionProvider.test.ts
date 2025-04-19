@@ -79,13 +79,13 @@ describe("TrueMarketsActionProvider", () => {
         // First call: numberOfActiveMarkets
         .mockResolvedValueOnce(2n);
 
-      // Mock the implementation to directly return the expected results
-      // Create a spy on the actual implementation
+      // Mock the implementation to return a JSON string
       const getActiveMarketsSpy = jest.spyOn(provider, "getActiveMarkets");
 
-      // Replace the original implementation with our mocked version to return JSON
+      // Replace the original implementation with our mocked version
       getActiveMarketsSpy.mockImplementation(async () => {
-        return {
+        return JSON.stringify({
+          success: true,
           totalMarkets: 2,
           markets: [
             {
@@ -99,7 +99,7 @@ describe("TrueMarketsActionProvider", () => {
               marketQuestion: "Will this other test pass?",
             },
           ],
-        };
+        });
       });
 
       const args = {
@@ -108,9 +108,10 @@ describe("TrueMarketsActionProvider", () => {
         sortOrder: "desc" as "desc" | "asc",
       };
 
-      const response = await provider.getActiveMarkets(mockWallet, args);
+      const responseString = await provider.getActiveMarkets(mockWallet, args);
+      const response = JSON.parse(responseString);
 
-      // Verify response contains expected data in JSON format
+      // Verify response contains expected data
       expect(response.totalMarkets).toBe(2);
       expect(response.markets.length).toBe(2);
       expect(response.markets[0].marketQuestion).toBe(MOCK_MARKET_QUESTION);
@@ -129,7 +130,8 @@ describe("TrueMarketsActionProvider", () => {
         sortOrder: "desc" as "desc" | "asc",
       };
 
-      const response = await provider.getActiveMarkets(mockWallet, args);
+      const responseString = await provider.getActiveMarkets(mockWallet, args);
+      const response = JSON.parse(responseString);
 
       expect(response.totalMarkets).toBe(0);
       expect(response.markets.length).toBe(0);
@@ -145,11 +147,11 @@ describe("TrueMarketsActionProvider", () => {
         sortOrder: "desc" as "desc" | "asc",
       };
 
-      const response = await provider.getActiveMarkets(mockWallet, args);
+      const responseString = await provider.getActiveMarkets(mockWallet, args);
+      const response = JSON.parse(responseString);
 
       expect(response.error).toBe("Error retrieving active markets: Error: Failed to fetch active markets");
-      expect(response.totalMarkets).toBe(0);
-      expect(response.markets.length).toBe(0);
+      expect(response.success).toBe(false);
     });
   });
 
@@ -194,9 +196,10 @@ describe("TrueMarketsActionProvider", () => {
         marketAddress: MOCK_MARKET_ADDRESS,
       };
 
-      const response = await provider.getMarketDetails(mockWallet, args);
+      const responseString = await provider.getMarketDetails(mockWallet, args);
+      const response = JSON.parse(responseString);
 
-      // Verify the expected JSON structure
+      // Verify the expected structure
       expect(response.marketAddress).toBe(MOCK_MARKET_ADDRESS);
       expect(response.question).toBe(MOCK_MARKET_QUESTION);
       expect(response.additionalInfo).toBe(MOCK_ADDITIONAL_INFO);
@@ -224,15 +227,30 @@ describe("TrueMarketsActionProvider", () => {
         marketAddress: MOCK_MARKET_ADDRESS,
       };
 
-      const response = await provider.getMarketDetails(mockWallet, args);
+      const responseString = await provider.getMarketDetails(mockWallet, args);
+      const response = JSON.parse(responseString);
 
       expect(response.error).toBe("Error retrieving market details: Error: Failed to fetch market details");
+      expect(response.success).toBe(false);
+    });
+
+    it("should fetch market details by id", async () => {
+      // Mock the readContract for getActiveMarketAddress
+      mockWallet.readContract.mockResolvedValueOnce(MOCK_MARKET_ADDRESS);
+
+      const args = {
+        id: 42,
+      };
+
+      const responseString = await provider.getMarketDetails(mockWallet, args);
+      const response = JSON.parse(responseString);
+
+      // Verify the request worked and used the correct address
       expect(response.marketAddress).toBe(MOCK_MARKET_ADDRESS);
-      expect(response.question).toBe("");
-      expect(response.tokens.yes.tokenAddress).toBe("");
-      expect(response.tokens.yes.lpAddress).toBe("");
-      expect(response.tokens.no.tokenAddress).toBe("");
-      expect(response.tokens.no.lpAddress).toBe("");
+      expect(mockWallet.readContract).toHaveBeenCalledWith(expect.objectContaining({
+        functionName: "getActiveMarketAddress",
+        args: [BigInt(42)],
+      }));
     });
   });
 

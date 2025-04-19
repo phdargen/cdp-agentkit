@@ -27,45 +27,6 @@ interface TruthMarket {
 }
 
 /**
- * Interface for the active markets response
- */
-interface ActiveMarketsResponse {
-  totalMarkets: number;
-  markets: TruthMarket[];
-  error?: string;
-}
-
-/**
- * Interface for market details response
- */
-interface MarketDetailsResponse {
-  marketAddress: string;
-  question: string;
-  additionalInfo: string;
-  source: string;
-  status: string;
-  resolutionTime: string;
-  prices: {
-    yes: number;
-    no: number;
-  };
-  tokens: {
-    yes: {
-      tokenAddress: string;
-      lpAddress: string;
-      poolSize: number;
-    };
-    no: {
-      tokenAddress: string;
-      lpAddress: string;
-      poolSize: number;
-    };
-  };
-  tvl: number;
-  error?: string;
-}
-
-/**
  * Configuration options for the TrueMarketsActionProvider.
  */
 export interface TrueMarketsActionProviderConfig {
@@ -95,14 +56,14 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
   }
 
   /**
-   * Gets active markets from the TruthMarketManager contract.
+   * Gets markets from the TruthMarketManager contract.
    *
    * @param walletProvider - The wallet provider to use for contract interactions.
    * @param args - The input arguments for the action, including pagination and sorting options.
-   * @returns JSON object containing the active markets information.
+   * @returns JSON string containing the active markets information.
    */
   @CreateAction({
-    name: "get_active_markets",
+    name: "get_markets",
     description: `
     This tool will retrieve active markets from the Truemarkets platform.
     It returns a list of markets with their ID, contract address and market question.
@@ -114,7 +75,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
   async getActiveMarkets(
     walletProvider: EvmWalletProvider,
     args: z.infer<typeof GetActiveTruthMarketsSchema>,
-  ): Promise<ActiveMarketsResponse> {
+  ): Promise<string> {
     try {
       const limit = args.limit;
       const offset = args.offset;
@@ -128,7 +89,11 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
       });
 
       if (numMarkets === 0n) {
-        return { totalMarkets: 0, markets: [] };
+        return JSON.stringify({
+          success: true,
+          totalMarkets: 0,
+          markets: []
+        });
       }
 
       const totalMarkets = Number(numMarkets);
@@ -171,11 +136,10 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
         .map(result => result.result as unknown as Hex);
 
       if (validAddresses.length === 0) {
-        return { 
-          totalMarkets,
-          markets: [],
+        return JSON.stringify({
+          success: false,
           error: "Failed to retrieve market addresses"
-        };
+        });
       }
 
       // Use multicall to fetch all market questions in a single call
@@ -201,16 +165,16 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
               : "Failed to retrieve question",
         }));
 
-      return {
+      return JSON.stringify({
+        success: true,
         totalMarkets,
         markets
-      };
+      });
     } catch (error) {
-      return {
-        totalMarkets: 0,
-        markets: [],
+      return JSON.stringify({
+        success: false,
         error: `Error retrieving active markets: ${error}`
-      };
+      });
     }
   }
 
@@ -219,7 +183,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
    *
    * @param walletProvider - The wallet provider to use for contract interactions.
    * @param args - The input arguments for the action, containing the market address.
-   * @returns JSON object containing detailed market information.
+   * @returns JSON string containing detailed market information.
    */
   @CreateAction({
     name: "get_market_details",
@@ -228,15 +192,45 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
     It returns comprehensive data including market question, status, pool information, liquidity, 
     prices for YES/NO tokens, and Total Value Locked (TVL).
     If the price of YES tokens is larger than of NO tokens, the market favors a YES outcome and vice versa.
+    You can query using either:
+    - marketAddress: The direct contract address of the market
+    - id: The market ID (numeric identifier of the market)
     `,
     schema: GetMarketDetailsSchema,
   })
   async getMarketDetails(
     walletProvider: EvmWalletProvider,
     args: z.infer<typeof GetMarketDetailsSchema>,
-  ): Promise<MarketDetailsResponse> {
+  ): Promise<string> {
     try {
-      const marketAddress = args.marketAddress as Hex;
+      let marketAddress: Hex;
+
+      // Determine the market address based on input
+      if (args.marketAddress) {
+        // Direct address provided
+        marketAddress = args.marketAddress as Hex;
+      } else if (args.id !== undefined) {
+        // ID provided, need to get the address
+        try {
+          marketAddress = await this.#publicClient.readContract({
+            address: TruthMarketManager_ADDRESS as Hex,
+            abi: TruthMarketManagerABI,
+            functionName: "getActiveMarketAddress",
+            args: [BigInt(args.id)],
+          }) as Hex;
+        } catch (error) {
+          return JSON.stringify({
+            success: false,
+            error: `Error retrieving market address for ID ${args.id}: ${error}`
+          });
+        }
+      } else {
+        // This should never happen due to schema validation
+        return JSON.stringify({
+          success: false,
+          error: "Either marketAddress or id must be provided"
+        });
+      }
 
       // Get basic market info using multicall
       const basicInfoCalls = [
@@ -278,21 +272,10 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
 
       // Extract results, handling potential errors
       if (basicInfoResults.some(result => result.status === "failure")) {
-        return {
-          marketAddress,
-          question: "",
-          additionalInfo: "",
-          source: "",
-          status: "",
-          resolutionTime: "",
-          prices: { yes: 0, no: 0 },
-          tokens: {
-            yes: { tokenAddress: "", lpAddress: "", poolSize: 0 },
-            no: { tokenAddress: "", lpAddress: "", poolSize: 0 }
-          },
-          tvl: 0,
+        return JSON.stringify({
+          success: false,
           error: "Error retrieving basic market information"
-        };
+        });
       }
 
       const question = basicInfoResults[0].result as string;
@@ -344,21 +327,10 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
       });
 
       if (poolInfoResults.some(result => result.status === "failure")) {
-        return {
-          marketAddress,
-          question,
-          additionalInfo,
-          source,
-          status: GetMarketStatus[Number(statusNum)] || "Unknown",
-          resolutionTime: new Date(Number(endOfTrading) * 1000).toISOString(),
-          prices: { yes: 0, no: 0 },
-          tokens: {
-            yes: { tokenAddress: "", lpAddress: yesPool, poolSize: 0 },
-            no: { tokenAddress: "", lpAddress: noPool, poolSize: 0 }
-          },
-          tvl: 0,
+        return JSON.stringify({
+          success: false,
           error: "Error retrieving pool information"
-        };
+        });
       }
 
       const yesToken0 = poolInfoResults[0].result as Hex;
@@ -407,21 +379,10 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
       });
 
       if (balanceResults.some(result => result.status === "failure")) {
-        return {
-          marketAddress,
-          question,
-          additionalInfo,
-          source,
-          status: GetMarketStatus[Number(statusNum)] || "Unknown",
-          resolutionTime: new Date(Number(endOfTrading) * 1000).toISOString(),
-          prices: { yes: 0, no: 0 },
-          tokens: {
-            yes: { tokenAddress: "", lpAddress: yesPool, poolSize: 0 },
-            no: { tokenAddress: "", lpAddress: noPool, poolSize: 0 }
-          },
-          tvl: 0,
+        return JSON.stringify({
+          success: false,
           error: "Error retrieving token balances"
-        };
+        });
       }
 
       const yesPoolUsdcBalance = balanceResults[0].result as bigint;
@@ -486,18 +447,19 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
       const totalTVL = yesTVL + noTVL;
 
       // Format the status
-      const status = GetMarketStatus[Number(statusNum)] || "Unknown";
+      //const status = GetMarketStatus[Number(statusNum)] || "Unknown";
 
       // Format the end of trading time
-      const endOfTradingTime = new Date(Number(endOfTrading) * 1000).toISOString();
+      //const endOfTradingTime = new Date(Number(endOfTrading) * 1000).toISOString();
 
-      return {
+      return JSON.stringify({
+        success: true,
         marketAddress,
         question,
         additionalInfo,
         source,
-        status,
-        resolutionTime: endOfTradingTime,
+        status: Number(statusNum),
+        resolutionTime: Number(endOfTrading),
         prices: {
           yes: parseFloat(yesPrice.toFixed(6)),
           no: parseFloat(noPrice.toFixed(6))
@@ -515,23 +477,12 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
           }
         },
         tvl: parseFloat(totalTVL.toFixed(2)),
-      };
+      });
     } catch (error) {
-      return {
-        marketAddress: args.marketAddress,
-        question: "",
-        additionalInfo: "",
-        source: "",
-        status: "",
-        resolutionTime: "",
-        prices: { yes: 0, no: 0 },
-        tokens: {
-          yes: { tokenAddress: "", lpAddress: "", poolSize: 0 },
-          no: { tokenAddress: "", lpAddress: "", poolSize: 0 }
-        },
-        tvl: 0,
+      return JSON.stringify({
+        success: false,
         error: `Error retrieving market details: ${error}`
-      };
+      });
     }
   }
 

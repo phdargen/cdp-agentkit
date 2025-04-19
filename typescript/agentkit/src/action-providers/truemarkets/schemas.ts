@@ -28,7 +28,17 @@ export const GetMarketDetailsSchema = z
     marketAddress: z
       .string()
       .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address format")
-      .describe("Address of the market to retrieve details for"),
+      .describe("Address of the market to retrieve details for")
+      .optional(),
+    id: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe("ID of the market to retrieve details for")
+      .optional(),
   })
   .strip()
+  .refine(data => data.marketAddress !== undefined || data.id !== undefined, {
+    message: "Either marketAddress or id must be provided",
+  })
   .describe("Instructions for getting detailed information about a specific market on Truemarkets");
