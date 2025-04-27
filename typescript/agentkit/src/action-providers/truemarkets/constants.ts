@@ -9,6 +9,7 @@ export const TruthMarketABI = [
   parseAbiItem("function getPoolAddresses() view returns (address yesPool, address noPool)"),
   parseAbiItem("function paymentToken() view returns (address)"),
   parseAbiItem("function additionalInfo() view returns (string)"),
+  parseAbiItem("function winningPosition() view returns (uint256)"),
 ];
 
 export const TruthMarketManagerABI = [

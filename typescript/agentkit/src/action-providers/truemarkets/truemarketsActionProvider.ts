@@ -263,6 +263,11 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
           address: marketAddress,
           abi: TruthMarketABI,
           functionName: "getPoolAddresses",
+        },
+        {
+          address: marketAddress,
+          abi: TruthMarketABI,
+          functionName: "winningPosition",
         }
       ];
 
@@ -284,6 +289,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
       const statusNum = basicInfoResults[3].result as bigint;
       const endOfTrading = basicInfoResults[4].result as bigint;
       const pools = basicInfoResults[5].result as [Hex, Hex];
+      const marketWinningPosition = Number(basicInfoResults[6].result as bigint);
 
       // Get pool addresses
       const [yesPool, noPool] = pools;
@@ -452,6 +458,25 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
       // Format the end of trading time
       //const endOfTradingTime = new Date(Number(endOfTrading) * 1000).toISOString();
 
+      // Check if market is finalized (status 7)
+      const isFinalized = Number(statusNum) === 7;
+
+      // Map winning position to string
+      let winningPositionString = "Open";
+      switch (marketWinningPosition) {
+        case 1:
+          winningPositionString = "Yes";
+          break;
+        case 2:
+          winningPositionString = "No";
+          break;
+        case 3:
+          winningPositionString = "Canceled";
+          break;
+        default:
+          winningPositionString = "Open";
+      }
+
       return JSON.stringify({
         success: true,
         marketAddress,
@@ -477,6 +502,8 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
           }
         },
         tvl: parseFloat(totalTVL.toFixed(2)),
+        winningPosition: marketWinningPosition,
+        winningPositionString
       });
     } catch (error) {
       return JSON.stringify({

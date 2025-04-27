@@ -70,7 +70,7 @@ async function initializeAgent() {
   try {
     // Initialize LLM
     const llm = new ChatOpenAI({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
     });
 
     let walletDataStr: string | null = null;
