@@ -6,7 +6,10 @@ import { CreateAction } from "../actionDecorator";
 import { Hex, createPublicClient, http, createWalletClient, parseUnits } from "viem";
 import { Network, NETWORK_ID_TO_VIEM_CHAIN } from "../../network";
 import { privateKeyToAccount } from "viem/accounts";
-import { generateZoraTokenUri } from "./utils";
+import { 
+  generateZoraTokenUri, 
+  checkPinataPin
+} from "./utils";
 
 const SUPPORTED_NETWORKS = ["base-mainnet", "base-sepolia"];
 
@@ -24,6 +27,13 @@ export interface ZoraActionProviderConfig {
    */
   pinataJwt?: string;
 }
+
+/**
+ * Schema for IPFS debugging
+ */
+const DebugPinataSchema = z.object({
+  ipfsHash: z.string().describe("IPFS hash (CID) to check if pinned on Pinata"),
+});
 
 /**
  * ZoraActionProvider provides actions for interacting with the Zora protocol.
@@ -84,13 +94,27 @@ The action will return the transaction hash, coin address, and deployment detail
     console.log("Creating coin with args:", args);
     try {
       // Generate token URI from local file
-      const uri = await generateZoraTokenUri({
+      const { uri, metadataHash, imageHash } = await generateZoraTokenUri({
         name: args.name,
         symbol: args.symbol,
         description: args.description,
         imageFileName: args.imageFileName,
         pinataConfig: { jwt: this.#pinataJwt },
       });
+      console.log("Token URI:", uri);
+      console.log("Metadata Hash:", metadataHash);
+      console.log("Image Hash:", imageHash);
+
+      // Verify content is pinned on Pinata before proceeding
+      console.log("Verifying content is pinned on Pinata...");
+      const isImagePinned = await checkPinataPin(imageHash, { jwt: this.#pinataJwt });
+      const isMetadataPinned = await checkPinataPin(metadataHash, { jwt: this.#pinataJwt });
+
+      if (!isImagePinned || !isMetadataPinned) {
+        throw new Error("IPFS content not properly pinned after multiple retries. Please try again later.");
+      }
+      
+      console.log("IPFS content confirmed pinned. Proceeding with coin creation...");
 
       // Create public client
       const networkId = walletProvider.getNetwork().networkId as string;
@@ -114,28 +138,62 @@ The action will return the transaction hash, coin address, and deployment detail
       // Dynamically import Zora SDK to handle ESM/CommonJS compatibility
       const zoraModule = await import("@zoralabs/coins-sdk");
 
-      // Create the coin using Zora SDK
-      const result = await zoraModule.createCoin(
-        {
-          name: args.name,
-          symbol: args.symbol,
-          uri,
-          payoutRecipient: (args.payoutRecipient as Hex) || this.#account.address,
-          platformReferrer:
-            (args.platformReferrer as Hex) || "0x0000000000000000000000000000000000000000",
-          initialPurchaseWei: parseUnits(args.initialPurchase || "0", 18),
-        },
-        walletClient,
-        publicClient,
-      );
+      // Add delay and retry logic for coin creation
+      const maxRetries = 5;
+      const retryDelay = 15000; // 15 seconds between retries
+      let lastError: any = null;
 
-      return JSON.stringify({
-        success: true,
-        hash: result.hash,
-        address: result.address,
-        deployment: result.deployment,
-      });
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          console.log(`Attempting to create coin (attempt ${attempt}/${maxRetries})...`);
+          
+          if (attempt > 1) {
+            console.log(`Waiting ${retryDelay/1000} seconds before retry...`);
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+          }
+          
+          // Create the coin using Zora SDK
+          const result = await zoraModule.createCoin(
+            {
+              name: args.name,
+              symbol: args.symbol,
+              uri,
+              payoutRecipient: (args.payoutRecipient as Hex) || this.#account.address,
+              platformReferrer:
+                (args.platformReferrer as Hex) || "0x0000000000000000000000000000000000000000",
+              initialPurchaseWei: parseUnits(args.initialPurchase || "0", 18),
+            },
+            walletClient,
+            publicClient,
+          );
+          
+          return JSON.stringify({
+            success: true,
+            hash: result.hash,
+            address: result.address,
+            deployment: result.deployment,
+          });
+        } catch (error: unknown) {
+          console.error(`Error on attempt ${attempt}:`, error);
+          lastError = error;
+          
+          // Check if error is related to metadata fetch
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          if (!errorMessage.includes("Metadata fetch failed")) {
+            // If it's not a metadata fetch issue, don't retry
+            throw error;
+          }
+          
+          // If this was the last attempt, throw the error
+          if (attempt === maxRetries) {
+            throw error;
+          }
+        }
+      }
+
+      throw lastError || new Error("Failed to create coin after multiple retries");
     } catch (error: unknown) {
+      console.error("Error creating coin:", error);
       return JSON.stringify({
         success: false,
         error: error instanceof Error ? error.message : String(error),
