@@ -11,6 +11,7 @@ import {
   openseaActionProvider,
   alloraActionProvider,
   truemarketsActionProvider,
+  zoraActionProvider,
 } from "@coinbase/agentkit";
 import { getLangChainTools } from "@coinbase/agentkit-langchain";
 import { HumanMessage } from "@langchain/core/messages";
@@ -125,6 +126,10 @@ async function initializeAgent() {
         alloraActionProvider(),
         truemarketsActionProvider({
           RPC_URL: process.env.RPC_URL,
+        }),
+        zoraActionProvider({
+          privateKey: await (await walletProvider.getWallet().getDefaultAddress()).export(),
+          pinataJwt: process.env.PINATA_JWT,
         }),
       ],
     });

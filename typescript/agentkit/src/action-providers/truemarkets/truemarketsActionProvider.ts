@@ -92,7 +92,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
         return JSON.stringify({
           success: true,
           totalMarkets: 0,
-          markets: []
+          markets: [],
         });
       }
 
@@ -138,7 +138,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
       if (validAddresses.length === 0) {
         return JSON.stringify({
           success: false,
-          error: "Failed to retrieve market addresses"
+          error: "Failed to retrieve market addresses",
         });
       }
 
@@ -168,12 +168,12 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
       return JSON.stringify({
         success: true,
         totalMarkets,
-        markets
+        markets,
       });
     } catch (error) {
       return JSON.stringify({
         success: false,
-        error: `Error retrieving active markets: ${error}`
+        error: `Error retrieving active markets: ${error}`,
       });
     }
   }
@@ -212,23 +212,23 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
       } else if (args.id !== undefined) {
         // ID provided, need to get the address
         try {
-          marketAddress = await this.#publicClient.readContract({
+          marketAddress = (await this.#publicClient.readContract({
             address: TruthMarketManager_ADDRESS as Hex,
             abi: TruthMarketManagerABI,
             functionName: "getActiveMarketAddress",
             args: [BigInt(args.id)],
-          }) as Hex;
+          })) as Hex;
         } catch (error) {
           return JSON.stringify({
             success: false,
-            error: `Error retrieving market address for ID ${args.id}: ${error}`
+            error: `Error retrieving market address for ID ${args.id}: ${error}`,
           });
         }
       } else {
         // This should never happen due to schema validation
         return JSON.stringify({
           success: false,
-          error: "Either marketAddress or id must be provided"
+          error: "Either marketAddress or id must be provided",
         });
       }
 
@@ -268,7 +268,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
           address: marketAddress,
           abi: TruthMarketABI,
           functionName: "winningPosition",
-        }
+        },
       ];
 
       const basicInfoResults = await this.#publicClient.multicall({
@@ -279,7 +279,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
       if (basicInfoResults.some(result => result.status === "failure")) {
         return JSON.stringify({
           success: false,
-          error: "Error retrieving basic market information"
+          error: "Error retrieving basic market information",
         });
       }
 
@@ -325,7 +325,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
           address: noPool,
           abi: UniswapV3PoolABI,
           functionName: "slot0",
-        }
+        },
       ];
 
       const poolInfoResults = await this.#publicClient.multicall({
@@ -335,7 +335,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
       if (poolInfoResults.some(result => result.status === "failure")) {
         return JSON.stringify({
           success: false,
-          error: "Error retrieving pool information"
+          error: "Error retrieving pool information",
         });
       }
 
@@ -343,8 +343,24 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
       const yesToken1 = poolInfoResults[1].result as Hex;
       const noToken0 = poolInfoResults[2].result as Hex;
       const noToken1 = poolInfoResults[3].result as Hex;
-      const yesSlot0 = poolInfoResults[4].result as [bigint, number, number, number, number, number, boolean];
-      const noSlot0 = poolInfoResults[5].result as [bigint, number, number, number, number, number, boolean];
+      const yesSlot0 = poolInfoResults[4].result as [
+        bigint,
+        number,
+        number,
+        number,
+        number,
+        number,
+        boolean,
+      ];
+      const noSlot0 = poolInfoResults[5].result as [
+        bigint,
+        number,
+        number,
+        number,
+        number,
+        number,
+        boolean,
+      ];
 
       // Determine which token is the YES/NO token and which is USDC in each pool
       const yesToken = yesToken0 === USDC_ADDRESS ? yesToken1 : yesToken0;
@@ -377,7 +393,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
           abi: ERC20ABI,
           functionName: "balanceOf",
           args: [noPool],
-        }
+        },
       ];
 
       const balanceResults = await this.#publicClient.multicall({
@@ -387,7 +403,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
       if (balanceResults.some(result => result.status === "failure")) {
         return JSON.stringify({
           success: false,
-          error: "Error retrieving token balances"
+          error: "Error retrieving token balances",
         });
       }
 
@@ -423,28 +439,14 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
       const usdcDecimals_ = Number(USDC_DECIMALS);
       const yesNoTokenDecimals_ = Number(YESNO_DECIMALS);
 
-      const yesPrice = calculatePrice(
-        yesSlot0[0],
-        isYesToken0,
-        usdcDecimals_,
-        yesNoTokenDecimals_,
-      );
-      const noPrice = calculatePrice(
-        noSlot0[0],
-        isNoToken0,
-        usdcDecimals_,
-        yesNoTokenDecimals_,
-      );
+      const yesPrice = calculatePrice(yesSlot0[0], isYesToken0, usdcDecimals_, yesNoTokenDecimals_);
+      const noPrice = calculatePrice(noSlot0[0], isNoToken0, usdcDecimals_, yesNoTokenDecimals_);
 
       // Calculate TVL using token balances
-      const yesPoolUsdcValue = Number(
-        formatUnits(yesPoolUsdcBalance || 0n, usdcDecimals_),
-      );
+      const yesPoolUsdcValue = Number(formatUnits(yesPoolUsdcBalance || 0n, usdcDecimals_));
       const yesPoolTokenValue =
         Number(formatUnits(yesPoolTokenBalance || 0n, yesNoTokenDecimals_)) * yesPrice;
-      const noPoolUsdcValue = Number(
-        formatUnits(noPoolUsdcBalance || 0n, usdcDecimals_),
-      );
+      const noPoolUsdcValue = Number(formatUnits(noPoolUsdcBalance || 0n, usdcDecimals_));
       const noPoolTokenValue =
         Number(formatUnits(noPoolTokenBalance || 0n, yesNoTokenDecimals_)) * noPrice;
 
@@ -487,28 +489,28 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
         resolutionTime: Number(endOfTrading),
         prices: {
           yes: parseFloat(yesPrice.toFixed(6)),
-          no: parseFloat(noPrice.toFixed(6))
+          no: parseFloat(noPrice.toFixed(6)),
         },
         tokens: {
           yes: {
             tokenAddress: yesToken,
             lpAddress: yesPool,
-            poolSize: parseFloat(yesTVL.toFixed(2))
+            poolSize: parseFloat(yesTVL.toFixed(2)),
           },
           no: {
             tokenAddress: noToken,
             lpAddress: noPool,
-            poolSize: parseFloat(noTVL.toFixed(2))
-          }
+            poolSize: parseFloat(noTVL.toFixed(2)),
+          },
         },
         tvl: parseFloat(totalTVL.toFixed(2)),
         winningPosition: marketWinningPosition,
-        winningPositionString
+        winningPositionString,
       });
     } catch (error) {
       return JSON.stringify({
         success: false,
-        error: `Error retrieving market details: ${error}`
+        error: `Error retrieving market details: ${error}`,
       });
     }
   }

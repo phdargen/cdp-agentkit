@@ -326,9 +326,9 @@ describe("ViemWalletProvider", () => {
     it("should handle native transfer errors", async () => {
       mockWalletClient.sendTransaction.mockRejectedValueOnce(new Error("Transaction failed"));
 
-      await expect(provider.nativeTransfer(MOCK_ADDRESS_TO as `0x${string}`, "1.0")).rejects.toThrow(
-        "Transaction failed",
-      );
+      await expect(
+        provider.nativeTransfer(MOCK_ADDRESS_TO as `0x${string}`, "1.0"),
+      ).rejects.toThrow("Transaction failed");
     });
 
     it("should handle invalid address in native transfer", async () => {

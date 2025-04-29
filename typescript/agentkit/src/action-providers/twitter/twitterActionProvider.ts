@@ -155,9 +155,14 @@ A failure response will return a message with the Twitter API request error:
   })
   async postTweet(args: z.infer<typeof TwitterPostTweetSchema>): Promise<string> {
     try {
-      const response = await this.client.v2.tweet(args.tweet, args.mediaIds ? {
-        media: { media_ids: args.mediaIds }
-      } : {});
+      const response = await this.client.v2.tweet(
+        args.tweet,
+        args.mediaIds
+          ? {
+              media: { media_ids: args.mediaIds },
+            }
+          : {},
+      );
       return `Successfully posted to Twitter:\n${JSON.stringify(response)}`;
     } catch (error) {
       return `Error posting to Twitter:\n${error} with media ids: ${args.mediaIds}`;
@@ -186,9 +191,9 @@ A failure response will return a message with the Twitter API request error:
     try {
       const options = {
         reply: { in_reply_to_tweet_id: args.tweetId },
-        ...(args.mediaIds && { media: { media_ids: args.mediaIds } })
+        ...(args.mediaIds && { media: { media_ids: args.mediaIds } }),
       };
-      
+
       const response = await this.client.v2.tweet(args.tweetReply, options);
 
       return `Successfully posted reply to Twitter:\n${JSON.stringify(response)}`;
