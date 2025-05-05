@@ -245,7 +245,7 @@ export async function generateZoraTokenUri(params: TokenUriParams): Promise<{
       image: imageUri,
       content: {
         uri: imageUri,
-        mime: imageUri.startsWith('ipfs://') || imageUri.startsWith('https://') ? 'image/*' : 'image/png',
+        mime: 'image/png', //imageUri.startsWith('ipfs://') || imageUri.startsWith('https://') ? 'image/*' : 'image/png',
       },
       properties: {
         category: params.category || 'social',

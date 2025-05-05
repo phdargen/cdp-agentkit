@@ -3,24 +3,13 @@ import { ActionProvider } from "../actionProvider";
 import { EvmWalletProvider } from "../../wallet-providers/evmWalletProvider";
 import { CreateCoinSchema } from "./schemas";
 import { CreateAction } from "../actionDecorator";
-import { Hex, createPublicClient, http, createWalletClient, parseUnits } from "viem";
-import { Network, NETWORK_ID_TO_VIEM_CHAIN } from "../../network";
-import { privateKeyToAccount } from "viem/accounts";
-import { 
-  generateZoraTokenUri, 
-} from "./utils";
+import { Hex, parseUnits, encodeFunctionData } from "viem";
+import { Network } from "../../network";
+import { generateZoraTokenUri } from "./utils";
 
 const SUPPORTED_NETWORKS = ["base-mainnet", "base-sepolia"];
 
 export interface ZoraActionProviderConfig {
-  /**
-   * RPC URL to use for public client
-   */
-  RPC_URL?: string;
-  /**
-   * Private key of the wallet provider
-   */
-  privateKey: string;
   /**
    * Pinata JWT for IPFS uploads
    */
@@ -28,18 +17,9 @@ export interface ZoraActionProviderConfig {
 }
 
 /**
- * Schema for IPFS debugging
- */
-const DebugPinataSchema = z.object({
-  ipfsHash: z.string().describe("IPFS hash (CID) to check if pinned on Pinata"),
-});
-
-/**
  * ZoraActionProvider provides actions for interacting with the Zora protocol.
  */
 export class ZoraActionProvider extends ActionProvider<EvmWalletProvider> {
-  #privateKey: string;
-  #account: ReturnType<typeof privateKeyToAccount>;
   #pinataJwt: string;
 
   /**
@@ -49,11 +29,6 @@ export class ZoraActionProvider extends ActionProvider<EvmWalletProvider> {
    */
   constructor(config: ZoraActionProviderConfig) {
     super("zora", []);
-    this.#privateKey = config.privateKey;
-
-    // Validate private key and create account
-    this.#account = privateKeyToAccount(this.#privateKey as Hex);
-    if (!this.#account) throw new Error("Invalid private key");
 
     // Set Pinata JWT
     const pinataJwt = config.pinataJwt || process.env.PINATA_JWT;
@@ -71,9 +46,9 @@ export class ZoraActionProvider extends ActionProvider<EvmWalletProvider> {
    * @returns A message containing the coin creation details.
    */
   @CreateAction({
-    name: "createCoin",
+    name: "coinIt",
     description: `
-This tool will create a new coin on Zora protocol.
+This tool will create a new Zora coin.
 It takes the following parameters:
 - name: The name of the coin
 - symbol: The symbol of the coin
@@ -102,58 +77,39 @@ The action will return the transaction hash, coin address, and deployment detail
         category: args.category,
         pinataConfig: { jwt: this.#pinataJwt },
       });
-      console.log("Token URI:", uri);
-      console.log("Image URI:", imageUri);
 
-      // Create public client
-      const networkId = walletProvider.getNetwork().networkId as string;
-      const publicClient = createPublicClient({
-        chain: NETWORK_ID_TO_VIEM_CHAIN[networkId],
-        transport: http(),
-      });
+      // Dynamically import Zora SDK 
+      const { createCoinCall, getCoinCreateFromLogs } = await import("@zoralabs/coins-sdk");
 
-      // Create wallet client
-      const walletClient = createWalletClient({
-        account: this.#account,
-        chain: NETWORK_ID_TO_VIEM_CHAIN[networkId],
-        transport: http(),
-      });
+      // Create coin call
+      const call = {
+        name: args.name,
+        symbol: args.symbol,
+        uri: uri.replace("ipfs://", "https://gateway.pinata.cloud/ipfs/"), // TODO:: remove replace when ZORA ipfs gateway is fixed
+        payoutRecipient: (args.payoutRecipient as Hex) || walletProvider.getAddress(),
+        platformReferrer:
+          (args.platformReferrer as Hex) || "0x0000000000000000000000000000000000000000",
+        initialPurchaseWei: parseUnits(args.initialPurchase || "0", 18),
+      };
+      const createCoinRequest = await createCoinCall(call);
+      const { abi, functionName, address, args: callArgs, value } = createCoinRequest;
+      const data = encodeFunctionData({ abi, functionName, args: callArgs });
+      const txRequest = { to: address as Hex, data, value };
 
-      // Validate that wallet matches the provider
-      if (this.#account.address.toLowerCase() !== walletProvider.getAddress().toLowerCase()) {
-        throw new Error("Private key does not match wallet provider address");
-      }
+      // Send transaction
+      const hash = await walletProvider.sendTransaction(txRequest);
+      const receipt = await walletProvider.waitForTransactionReceipt(hash);
+      const deployment = getCoinCreateFromLogs(receipt);
 
-      // Dynamically import Zora SDK to handle ESM/CommonJS compatibility
-      const zoraModule = await import("@zoralabs/coins-sdk");
-
-      // Create the coin using Zora SDK
-      const result = await zoraModule.createCoin(
-        {
-          name: args.name,
-          symbol: args.symbol,
-          uri: uri.replace("ipfs://", "https://gateway.pinata.cloud/ipfs/"),
-          payoutRecipient: (args.payoutRecipient as Hex) || this.#account.address,
-          platformReferrer:
-            (args.platformReferrer as Hex) || "0x0000000000000000000000000000000000000000",
-          initialPurchaseWei: parseUnits(args.initialPurchase || "0", 18),
-        },
-        walletClient,
-        publicClient,
-        {
-          gasMultiplier: 200,
-        },
-      );
-
-      console.log("result:", result);
-      if(result.receipt.status === "success") {
+      console.log("result:", { hash, receipt, deployment });
+      if(receipt.status === "success") {
         return JSON.stringify({
           success: true,
-          transactionHash: result.hash,
-          coinAddress: result.address,
-          imageUri: imageUri,
-          uri: uri,
-          deployment: result.deployment,
+          transactionHash: hash,
+          coinAddress: deployment?.coin,
+          imageUri,
+          uri,
+          deployment,
         });
       } else {
         throw new Error("Coin creation transaction reverted");

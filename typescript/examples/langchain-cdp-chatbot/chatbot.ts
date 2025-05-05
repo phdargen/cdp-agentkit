@@ -128,7 +128,6 @@ async function initializeAgent() {
           RPC_URL: process.env.RPC_URL,
         }),
         zoraActionProvider({
-          privateKey: await (await walletProvider.getWallet().getDefaultAddress()).export(),
           pinataJwt: process.env.PINATA_JWT,
         }),
       ],
