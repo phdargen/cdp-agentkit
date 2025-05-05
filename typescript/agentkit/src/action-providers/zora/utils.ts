@@ -30,6 +30,9 @@ interface ZoraMetadata {
     uri: string;
     mime: string;
   };
+  properties: {
+    category: string;
+  };
 }
 
 /**
@@ -39,7 +42,8 @@ interface TokenUriParams {
   name: string;
   symbol: string;
   description: string;
-  imageFileName: string;
+  image: string;  // Can be a local file path or a URI (https:// or ipfs://)
+  category?: string;
   pinataConfig: PinataConfig;
 }
 
@@ -203,40 +207,48 @@ async function uploadJsonToIPFS(params: {
 }
 
 /**
- * Generates a Zora token URI by uploading a local file to IPFS and creating metadata
+ * Generates a Zora token URI by handling local file or URI
  *
  * @param params - Parameters for generating the token URI
- * @returns A promise that resolves to object containing the IPFS URI and hashes
+ * @returns A promise that resolves to object containing the IPFS URI
  */
 export async function generateZoraTokenUri(params: TokenUriParams): Promise<{
   uri: string;
-  metadataHash: string;
-  imageHash: string;
+  imageUri: string;
 }> {
   try {
-    // 1. Read and upload the image file
-    const { base64, mimeType } = await readFileAsBase64(params.imageFileName);
-    const fileName = path.basename(params.imageFileName);
+    let imageUri: string;
 
-    const imageRes = await uploadFileToIPFS({
-      pinataConfig: params.pinataConfig,
-      fileData: base64,
-      fileName,
-      mimeType,
-    });
+    // Check if image is already a URI (ipfs:// or https://)
+    if (params.image.startsWith('ipfs://') || params.image.startsWith('https://')) {
+      imageUri = params.image;
+    } else {
+      // Handle local file
+      const { base64, mimeType } = await readFileAsBase64(params.image);
+      const fileName = path.basename(params.image);
 
-    const imageHash = imageRes.IpfsHash;
-    const ipfsImageUri = `ipfs://${imageHash}`;
+      const imageRes = await uploadFileToIPFS({
+        pinataConfig: params.pinataConfig,
+        fileData: base64,
+        fileName,
+        mimeType,
+      });
 
-    // 2. Create and upload the metadata
+      imageUri = `ipfs://${imageRes.IpfsHash}`;
+    }
+
+    // Create and upload the metadata
     const metadata: ZoraMetadata = {
       name: params.name,
       description: params.description,
       symbol: params.symbol,
-      image: ipfsImageUri,
+      image: imageUri,
       content: {
-        uri: ipfsImageUri,
-        mime: mimeType,
+        uri: imageUri,
+        mime: imageUri.startsWith('ipfs://') || imageUri.startsWith('https://') ? 'image/*' : 'image/png',
+      },
+      properties: {
+        category: params.category || 'social',
       },
     };
 
@@ -245,76 +257,13 @@ export async function generateZoraTokenUri(params: TokenUriParams): Promise<{
       json: metadata,
     });
 
-    const metadataHash = metadataRes.IpfsHash;
-    const uri = `ipfs://${metadataHash}`;
+    const uri = `ipfs://${metadataRes.IpfsHash}`;
 
-    return { uri, metadataHash, imageHash };
+    return { uri, imageUri };
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to generate Zora token URI: ${error.message}`);
     }
     throw error;
   }
-}
-
-/**
- * Checks if content is successfully pinned on Pinata by hash
- * 
- * @param ipfsHash - The IPFS hash (CID) to check
- * @param pinataConfig - Pinata configuration including JWT
- * @param maxRetries - Maximum number of retries (default: 5)
- * @param retryDelay - Delay between retries in ms (default: 2000)
- * @returns Promise resolving to boolean indicating pin status
- */
-export async function checkPinataPin(
-  ipfsHash: string,
-  pinataConfig: PinataConfig,
-  maxRetries = 5,
-  retryDelay = 2000
-): Promise<boolean> {
-  // Clean the hash if it includes ipfs:// prefix
-  const hash = ipfsHash.replace("ipfs://", "");
-  
-  const checkPinStatus = async (): Promise<boolean> => {
-    try {
-      // Check pin status directly with Pinata API
-      const response = await fetch(`https://api.pinata.cloud/data/pinList?status=pinned&hashContains=${hash}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${pinataConfig.jwt}`
-        }
-      });
-      
-      if (!response.ok) {
-        console.error("Pinata API error:", response.status, response.statusText);
-        return false;
-      }
-      
-      const data = await response.json();
-      return data.count > 0;
-    } catch (error) {
-      console.error("Error checking Pinata pin status:", error);
-      return false;
-    }
-  };
-  
-  // Try with retries
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    const isPinned = await checkPinStatus();
-    
-    if (isPinned) {
-      console.log(`Content ${hash} is pinned on Pinata after ${attempt + 1} attempts`);
-      return true;
-    }
-    
-    console.log(`Content ${hash} not yet pinned on Pinata, retrying in ${retryDelay}ms (${attempt + 1}/${maxRetries})`);
-    
-    // Wait before retry
-    if (attempt < maxRetries - 1) {
-      await new Promise(resolve => setTimeout(resolve, retryDelay));
-    }
-  }
-  
-  console.error(`Content ${hash} not pinned on Pinata after ${maxRetries} attempts`);
-  return false;
 }

@@ -5,7 +5,8 @@ export const CreateCoinSchema = z
     name: z.string().describe("The name of the coin to create"),
     symbol: z.string().describe("The symbol of the coin to create"),
     description: z.string().describe("The description of the coin"),
-    imageFileName: z.string().describe("The name of the image file to upload to IPFS"),
+    image: z.string().describe("Local image file path or URI (ipfs:// or https://)"),
+    category: z.string().default("social").describe("The category of the coin, optional, defaults to 'social'"),
     payoutRecipient: z
       .string()
       .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address format")
