@@ -155,15 +155,14 @@ A failure response will return a message with the Twitter API request error:
   })
   async postTweet(args: z.infer<typeof TwitterPostTweetSchema>): Promise<string> {
     try {
-      let response;
-      if (args.mediaIds && args.mediaIds.length > 0) {
-        response = await this.client.v2.tweet(
-          args.tweet,
-          { media: { media_ids: args.mediaIds } }
-        );
-      } else {
-        response = await this.client.v2.tweet(args.tweet);
-      }
+      const response = await this.client.v2.tweet(
+        args.tweet,
+        args.mediaIds
+          ? {
+              media: { media_ids: args.mediaIds },
+            }
+          : {},
+      );
       return `Successfully posted to Twitter:\n${JSON.stringify(response)}`;
     } catch (error) {
       return `Error posting to Twitter:\n${error} with media ids: ${args.mediaIds}`;
@@ -190,19 +189,12 @@ A failure response will return a message with the Twitter API request error:
   })
   async postTweetReply(args: z.infer<typeof TwitterPostTweetReplySchema>): Promise<string> {
     try {
-      let response;
-      const replyParams = { reply: { in_reply_to_tweet_id: args.tweetId } };
-      if (args.mediaIds && args.mediaIds.length > 0) {
-        response = await this.client.v2.tweet(
-          args.tweetReply,
-          { ...replyParams, media: { media_ids: args.mediaIds } }
-        );
-      } else {
-        response = await this.client.v2.tweet(
-          args.tweetReply,
-          replyParams
-        );
-      }
+      const options = {
+        reply: { in_reply_to_tweet_id: args.tweetId },
+        ...(args.mediaIds && { media: { media_ids: args.mediaIds } }),
+      };
+
+      const response = await this.client.v2.tweet(args.tweetReply, options);
 
       return `Successfully posted reply to Twitter:\n${JSON.stringify(response)}`;
     } catch (error) {
