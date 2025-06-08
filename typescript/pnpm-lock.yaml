@@ -100,8 +100,8 @@ importers:
         specifier: ^1.98.0
         version: 1.98.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@zoralabs/coins-sdk':
-        specifier: ^0.1.0
-        version: 0.1.0(abitype@1.0.8(typescript@5.8.2)(zod@3.24.2))(viem@2.23.15(bufferutil@4.0.9)(typescript@5.8.2)(utf-8-validate@5.0.10)(zod@3.24.2))
+        specifier: ^0.2.0
+        version: 0.2.0(abitype@1.0.8(typescript@5.8.2)(zod@3.24.2))(viem@2.23.15(bufferutil@4.0.9)(typescript@5.8.2)(utf-8-validate@5.0.10)(zod@3.24.2))
       bs58:
         specifier: ^4.0.1
         version: 4.0.1
@@ -1589,14 +1589,6 @@ packages:
     resolution: {integrity: sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==}
     engines: {node: '>=8.0.0'}
 
-  '@openzeppelin/contracts-upgradeable@5.3.0':
-    resolution: {integrity: sha512-yVzSSyTMWO6rapGI5tuqkcLpcGGXA0UA1vScyV5EhE5yw8By3Ewex9rDUw8lfVw0iTkvR/egjfcW5vpk03lqZg==}
-    peerDependencies:
-      '@openzeppelin/contracts': 5.3.0
-
-  '@openzeppelin/contracts@5.3.0':
-    resolution: {integrity: sha512-zj/KGoW7zxWUE8qOI++rUM18v+VeLTTzKs/DJFkSzHpQFPD/jKKF0TrMxBfGLl3kpdELCNccvB3zmofSzm4nlA==}
-
   '@paulmillr/qr@0.2.1':
     resolution: {integrity: sha512-IHnV6A+zxU7XwmKFinmYjUcwlyK9+xkG3/s9KcQhI9BjQKycrJ1JRO+FbNYPwZiPKW3je/DR0k7w8/gLa5eaxQ==}
     deprecated: 'The package is now available as "qr": npm install qr'
@@ -2232,14 +2224,14 @@ packages:
   '@xmtp/proto@3.78.0':
     resolution: {integrity: sha512-JHkkvbdyqpWo1YOg88uOrc2GAsPnfXhIWaUKyIjXQdt4LltR4iAMgXcr1CFN+xjUmOBkAwwJ2JywUYv/uA4yZA==}
 
-  '@zoralabs/coins-sdk@0.1.0':
-    resolution: {integrity: sha512-4o6OZrjE4jf/FVAcRjWC0acrjiY+YVD1gB8oxLoFt3GzGn1+uiTtOF/u64oSkzzE9OP0UWkpzvouurrYFw3Bkw==}
+  '@zoralabs/coins-sdk@0.2.0':
+    resolution: {integrity: sha512-hGrb67On/wfwTdLNZXFRXojXHLtf6cHYPGqf/wPtPufChjmXjSm56JdTp3bKQRKKDk6u+5x0ovrzJsWM+ZVXIQ==}
     peerDependencies:
       abitype: ^1.0.8
       viem: ^2.21.55
 
-  '@zoralabs/coins@0.7.1':
-    resolution: {integrity: sha512-CGW8FHhr0WPkm6AT2Zyzyh6NnP728FAYtsqz6Z8JVmy365R1fw92oNLt4KGEBLeortSbPJDCwQjEaVZXz04gzw==}
+  '@zoralabs/protocol-deployments@0.5.10':
+    resolution: {integrity: sha512-V8uuk+MFKPAmVXhahQrDpoUTwxye2g9BPjqQ4eoptf2lmWsCmL6u45DeolylUa0sh8baYZFsgD8NHt9jo0ZjJg==}
 
   JSONStream@1.3.5:
     resolution: {integrity: sha512-E+iruNOY8VV9s4JEbe1aNEm6MiszPRr/UfcHMz0TQh1BXSxHK+ASV1R6W4HpjBhSeS+54PIsAMCBmwD06LLsqQ==}
@@ -7724,12 +7716,6 @@ snapshots:
 
   '@opentelemetry/api@1.9.0': {}
 
-  '@openzeppelin/contracts-upgradeable@5.3.0(@openzeppelin/contracts@5.3.0)':
-    dependencies:
-      '@openzeppelin/contracts': 5.3.0
-
-  '@openzeppelin/contracts@5.3.0': {}
-
   '@paulmillr/qr@0.2.1': {}
 
   '@peculiar/asn1-schema@2.3.15':
@@ -8838,17 +8824,14 @@ snapshots:
       rxjs: 7.8.2
       undici: 5.29.0
 
-  '@zoralabs/coins-sdk@0.1.0(abitype@1.0.8(typescript@5.8.2)(zod@3.24.2))(viem@2.23.15(bufferutil@4.0.9)(typescript@5.8.2)(utf-8-validate@5.0.10)(zod@3.24.2))':
+  '@zoralabs/coins-sdk@0.2.0(abitype@1.0.8(typescript@5.8.2)(zod@3.24.2))(viem@2.23.15(bufferutil@4.0.9)(typescript@5.8.2)(utf-8-validate@5.0.10)(zod@3.24.2))':
     dependencies:
       '@hey-api/client-fetch': 0.8.4
-      '@zoralabs/coins': 0.7.1
+      '@zoralabs/protocol-deployments': 0.5.10
       abitype: 1.0.8(typescript@5.8.2)(zod@3.24.2)
       viem: 2.23.15(bufferutil@4.0.9)(typescript@5.8.2)(utf-8-validate@5.0.10)(zod@3.24.2)
 
-  '@zoralabs/coins@0.7.1':
-    dependencies:
-      '@openzeppelin/contracts': 5.3.0
-      '@openzeppelin/contracts-upgradeable': 5.3.0(@openzeppelin/contracts@5.3.0)
+  '@zoralabs/protocol-deployments@0.5.10': {}
 
   JSONStream@1.3.5:
     dependencies:

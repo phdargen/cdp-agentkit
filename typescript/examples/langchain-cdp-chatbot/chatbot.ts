@@ -95,6 +95,7 @@ async function initializeAgent() {
     };
 
     const walletProvider = await CdpWalletProvider.configureWithWallet(config);
+    //console.log(await (await walletProvider.getWallet().getDefaultAddress()).export());
 
     // Initialize AgentKit
     const agentkit = await AgentKit.from({

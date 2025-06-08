@@ -79,17 +79,19 @@ The action will return the transaction hash, coin address, and deployment detail
       });
 
       // Dynamically import Zora SDK 
-      const { createCoinCall, getCoinCreateFromLogs } = await import("@zoralabs/coins-sdk");
+      const { createCoinCall, getCoinCreateFromLogs, DeployCurrency } = await import("@zoralabs/coins-sdk");
 
       // Create coin call
       const call = {
         name: args.name,
         symbol: args.symbol,
-        uri: uri.replace("ipfs://", "https://gateway.pinata.cloud/ipfs/"), // TODO:: remove replace when ZORA ipfs gateway is fixed
+        uri: uri,
         payoutRecipient: (args.payoutRecipient as Hex) || walletProvider.getAddress(),
         platformReferrer:
           (args.platformReferrer as Hex) || "0x0000000000000000000000000000000000000000",
         initialPurchaseWei: parseUnits(args.initialPurchase || "0", 18),
+        //chainId: walletProvider.getNetwork().chainId,
+        currency: DeployCurrency.ETH
       };
       const createCoinRequest = await createCoinCall(call);
       const { abi, functionName, address, args: callArgs, value } = createCoinRequest;
