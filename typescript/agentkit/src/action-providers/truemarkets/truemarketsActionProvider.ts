@@ -9,13 +9,14 @@ import {
   TruthMarketManager_ADDRESS,
   USDC_ADDRESS,
   USDC_DECIMALS,
+  TYD_ADDRESS,
+  TYD_DECIMALS,
   UniswapV3PoolABI,
   YESNO_DECIMALS,
 } from "./constants";
 import { abi as ERC20ABI } from "../erc20/constants";
 import { EvmWalletProvider } from "../../wallet-providers";
 import { Hex, formatUnits, createPublicClient, http, PublicClient } from "viem";
-import { GetMarketStatus } from "./utils";
 import { base } from "viem/chains";
 /**
  * Interface representing a TruthMarket
@@ -362,16 +363,24 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
         boolean,
       ];
 
-      // Determine which token is the YES/NO token and which is USDC in each pool
-      const yesToken = yesToken0 === USDC_ADDRESS ? yesToken1 : yesToken0;
-      const noToken = noToken0 === USDC_ADDRESS ? noToken1 : noToken0;
+      // Determine payment token (USDC or TYD) - should be the same for both pools
+      const payToken =
+        yesToken0 === USDC_ADDRESS || yesToken0 === TYD_ADDRESS ? yesToken0 : yesToken1;
+
+      // Determine which token is the YES/NO token in each pool
+      const yesToken = yesToken0 === payToken ? yesToken1 : yesToken0;
+      const noToken = noToken0 === payToken ? noToken1 : noToken0;
       const isYesToken0 = yesToken0 === yesToken;
       const isNoToken0 = noToken0 === noToken;
+
+      // Extract sqrtPriceX96 from slot0 results
+      const yesSqrtPriceX96 = yesSlot0[0];
+      const noSqrtPriceX96 = noSlot0[0];
 
       // Get pool balances using multicall
       const balanceCalls = [
         {
-          address: USDC_ADDRESS as Hex,
+          address: payToken,
           abi: ERC20ABI,
           functionName: "balanceOf",
           args: [yesPool],
@@ -383,7 +392,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
           args: [yesPool],
         },
         {
-          address: USDC_ADDRESS as Hex,
+          address: payToken,
           abi: ERC20ABI,
           functionName: "balanceOf",
           args: [noPool],
@@ -407,9 +416,9 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
         });
       }
 
-      const yesPoolUsdcBalance = balanceResults[0].result as bigint;
+      const yesPoolStableBalance = balanceResults[0].result as bigint;
       const yesPoolTokenBalance = balanceResults[1].result as bigint;
-      const noPoolUsdcBalance = balanceResults[2].result as bigint;
+      const noPoolStableBalance = balanceResults[2].result as bigint;
       const noPoolTokenBalance = balanceResults[3].result as bigint;
 
       // Calculate prices from slot0 data
@@ -436,22 +445,27 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
       };
 
       // Calculate TVL based on token balances and prices
-      const usdcDecimals_ = Number(USDC_DECIMALS);
+      const payDecimals = payToken === USDC_ADDRESS ? Number(USDC_DECIMALS) : Number(TYD_DECIMALS);
       const yesNoTokenDecimals_ = Number(YESNO_DECIMALS);
 
-      const yesPrice = calculatePrice(yesSlot0[0], isYesToken0, usdcDecimals_, yesNoTokenDecimals_);
-      const noPrice = calculatePrice(noSlot0[0], isNoToken0, usdcDecimals_, yesNoTokenDecimals_);
+      const yesPrice = calculatePrice(
+        yesSqrtPriceX96,
+        isYesToken0,
+        payDecimals,
+        yesNoTokenDecimals_,
+      );
+      const noPrice = calculatePrice(noSqrtPriceX96, isNoToken0, payDecimals, yesNoTokenDecimals_);
 
       // Calculate TVL using token balances
-      const yesPoolUsdcValue = Number(formatUnits(yesPoolUsdcBalance || 0n, usdcDecimals_));
+      const yesPoolStableValue = Number(formatUnits(yesPoolStableBalance || 0n, payDecimals));
       const yesPoolTokenValue =
         Number(formatUnits(yesPoolTokenBalance || 0n, yesNoTokenDecimals_)) * yesPrice;
-      const noPoolUsdcValue = Number(formatUnits(noPoolUsdcBalance || 0n, usdcDecimals_));
+      const noPoolStableValue = Number(formatUnits(noPoolStableBalance || 0n, payDecimals));
       const noPoolTokenValue =
         Number(formatUnits(noPoolTokenBalance || 0n, yesNoTokenDecimals_)) * noPrice;
 
-      const yesTVL = yesPoolUsdcValue + yesPoolTokenValue;
-      const noTVL = noPoolUsdcValue + noPoolTokenValue;
+      const yesTVL = yesPoolStableValue + yesPoolTokenValue;
+      const noTVL = noPoolStableValue + noPoolTokenValue;
       const totalTVL = yesTVL + noTVL;
 
       // Format the status
@@ -501,6 +515,10 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
             tokenAddress: noToken,
             lpAddress: noPool,
             poolSize: parseFloat(noTVL.toFixed(2)),
+          },
+          payToken: {
+            tokenAddress: payToken,
+            tokenName: payToken === USDC_ADDRESS ? "USDC" : "TYD",
           },
         },
         tvl: parseFloat(totalTVL.toFixed(2)),

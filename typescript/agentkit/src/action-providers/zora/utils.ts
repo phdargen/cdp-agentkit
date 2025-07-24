@@ -111,7 +111,7 @@ async function uploadFileToIPFS(params: {
       byteArrays.push(byteArray);
     }
 
-    const blob = new Blob(byteArrays, { type: params.mimeType });
+    const blob = new Blob(byteArrays as BlobPart[], { type: params.mimeType });
     const file = new File([blob], params.fileName, { type: params.mimeType });
 
     formData.append("file", file);
