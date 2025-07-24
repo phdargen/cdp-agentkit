@@ -45,13 +45,16 @@ describe("ZoraActionProvider", () => {
 
   let provider: ZoraActionProvider;
   let mockWalletProvider: jest.Mocked<EvmWalletProvider>;
+  let originalPinataJwt: string | undefined;
 
   beforeEach(() => {
     // Reset mocks between tests
     jest.clearAllMocks();
+    originalPinataJwt = process.env.PINATA_JWT;
+    process.env.PINATA_JWT = "test-jwt";
 
-    // Create the provider with a test JWT
-    provider = new ZoraActionProvider({ pinataJwt: "test-jwt" });
+    // Create the provider
+    provider = new ZoraActionProvider();
 
     // Set up the mock wallet provider
     mockWalletProvider = {
@@ -68,16 +71,20 @@ describe("ZoraActionProvider", () => {
     } as unknown as jest.Mocked<EvmWalletProvider>;
   });
 
+  afterEach(() => {
+    process.env.PINATA_JWT = originalPinataJwt;
+  });
+
   describe("constructor", () => {
     it("should throw an error if Pinata JWT is not provided", () => {
-      expect(() => new ZoraActionProvider({} as { pinataJwt?: undefined })).toThrow(
+      delete process.env.PINATA_JWT;
+      expect(() => new ZoraActionProvider()).toThrow(
         "PINATA_JWT is not configured. Required for IPFS uploads.",
       );
     });
 
-    it("should create provider with Pinata JWT", () => {
-      const provider = new ZoraActionProvider({ pinataJwt: "test-jwt" });
-      expect(provider).toBeInstanceOf(ZoraActionProvider);
+    it("should create provider with Pinata JWT from environment", () => {
+      expect(new ZoraActionProvider()).toBeInstanceOf(ZoraActionProvider);
     });
   });
 

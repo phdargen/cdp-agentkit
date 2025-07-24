@@ -9,13 +9,6 @@ import { generateZoraTokenUri } from "./utils";
 
 const SUPPORTED_NETWORKS = ["base-mainnet", "base-sepolia"];
 
-export interface ZoraActionProviderConfig {
-  /**
-   * Pinata JWT for IPFS uploads
-   */
-  pinataJwt?: string;
-}
-
 /**
  * ZoraActionProvider provides actions for interacting with the Zora protocol.
  */
@@ -24,14 +17,12 @@ export class ZoraActionProvider extends ActionProvider<EvmWalletProvider> {
 
   /**
    * Constructor for the ZoraActionProvider.
-   *
-   * @param config - The configuration options for the ZoraActionProvider.
    */
-  constructor(config: ZoraActionProviderConfig) {
+  constructor() {
     super("zora", []);
 
     // Set Pinata JWT
-    const pinataJwt = config.pinataJwt || process.env.PINATA_JWT;
+    const pinataJwt = process.env.PINATA_JWT;
     if (!pinataJwt) {
       throw new Error("PINATA_JWT is not configured. Required for IPFS uploads.");
     }
@@ -133,8 +124,6 @@ The action will return the transaction hash, coin address, and deployment detail
 /**
  * Factory function to create a new ZoraActionProvider instance.
  *
- * @param config - Configuration options for the ZoraActionProvider
  * @returns A new ZoraActionProvider instance
  */
-export const zoraActionProvider = (config: ZoraActionProviderConfig) =>
-  new ZoraActionProvider(config);
+export const zoraActionProvider = () => new ZoraActionProvider();

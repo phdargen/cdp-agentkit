@@ -98,6 +98,9 @@ importers:
       '@zerodev/sdk':
         specifier: ^5.4.28
         version: 5.4.28(viem@2.23.15(bufferutil@4.0.9)(typescript@5.8.2)(utf-8-validate@5.0.10)(zod@3.24.2))
+      '@zoralabs/coins-sdk':
+        specifier: ^0.2.8
+        version: 0.2.8(abitype@1.0.8(typescript@5.8.2)(zod@3.24.2))(viem@2.23.15(bufferutil@4.0.9)(typescript@5.8.2)(utf-8-validate@5.0.10)(zod@3.24.2))
       axios:
         specifier: ^1.9.0
         version: 1.9.0
@@ -1216,6 +1219,7 @@ packages:
 
   '@hey-api/client-fetch@0.8.4':
     resolution: {integrity: sha512-SWtUjVEFIUdiJGR2NiuF0njsSrSdTe7WHWkp3BLH3DEl2bRhiflOnBo29NSDdrY90hjtTQiTQkBxUgGOF29Xzg==}
+    deprecated: Starting with v0.73.0, this package is bundled directly inside @hey-api/openapi-ts.
 
   '@humanwhocodes/config-array@0.13.0':
     resolution: {integrity: sha512-DZLEEqFWQFiyK6h5YIeynKx7JlvCYWL0cImfSRXZ9l4Sg2efkFGTuFf6vzXjK1cq6IYkU+Eg/JizXw+TD2vRNw==}
@@ -1860,14 +1864,15 @@ packages:
     peerDependencies:
       viem: ^2.23.15
 
-  '@zoralabs/coins-sdk@0.1.0':
-    resolution: {integrity: sha512-4o6OZrjE4jf/FVAcRjWC0acrjiY+YVD1gB8oxLoFt3GzGn1+uiTtOF/u64oSkzzE9OP0UWkpzvouurrYFw3Bkw==}
+  '@zoralabs/coins-sdk@0.2.8':
+    resolution: {integrity: sha512-vni9qcdS6/9HUOue7SDir2wHn+SSSDmxfZhBcCzQWdK9NaW/+E5jCWXuQGFgBzKpLc4FN5ktJz36v92BADQE3g==}
+    engines: {node: '>=22'}
     peerDependencies:
       abitype: ^1.0.8
       viem: ^2.21.55
 
-  '@zoralabs/coins@0.7.1':
-    resolution: {integrity: sha512-CGW8FHhr0WPkm6AT2Zyzyh6NnP728FAYtsqz6Z8JVmy365R1fw92oNLt4KGEBLeortSbPJDCwQjEaVZXz04gzw==}
+  '@zoralabs/protocol-deployments@0.6.1':
+    resolution: {integrity: sha512-iDO5EhLrqDw0keudRq9omuSdvHG852de5/apY2p7QLBDxitQuJ/6/jOaq2WB4B6GPVUh2fTd5+CdoSsbJhJv5g==}
 
   JSONStream@1.3.5:
     resolution: {integrity: sha512-E+iruNOY8VV9s4JEbe1aNEm6MiszPRr/UfcHMz0TQh1BXSxHK+ASV1R6W4HpjBhSeS+54PIsAMCBmwD06LLsqQ==}
@@ -7001,17 +7006,14 @@ snapshots:
       '@simplewebauthn/types': 12.0.0
       viem: 2.23.15(bufferutil@4.0.9)(typescript@5.8.2)(utf-8-validate@5.0.10)(zod@3.24.2)
 
-  '@zoralabs/coins-sdk@0.1.0(abitype@1.0.8(typescript@5.8.2)(zod@3.24.2))(viem@2.23.15(bufferutil@4.0.9)(typescript@5.8.2)(utf-8-validate@5.0.10)(zod@3.24.2))':
+  '@zoralabs/coins-sdk@0.2.8(abitype@1.0.8(typescript@5.8.2)(zod@3.24.2))(viem@2.23.15(bufferutil@4.0.9)(typescript@5.8.2)(utf-8-validate@5.0.10)(zod@3.24.2))':
     dependencies:
       '@hey-api/client-fetch': 0.8.4
-      '@zoralabs/coins': 0.7.1
+      '@zoralabs/protocol-deployments': 0.6.1
       abitype: 1.0.8(typescript@5.8.2)(zod@3.24.2)
       viem: 2.23.15(bufferutil@4.0.9)(typescript@5.8.2)(utf-8-validate@5.0.10)(zod@3.24.2)
 
-  '@zoralabs/coins@0.7.1':
-    dependencies:
-      '@openzeppelin/contracts': 5.3.0
-      '@openzeppelin/contracts-upgradeable': 5.3.0(@openzeppelin/contracts@5.3.0)
+  '@zoralabs/protocol-deployments@0.6.1': {}
 
   JSONStream@1.3.5:
     dependencies:
@@ -9030,18 +9032,6 @@ snapshots:
       '@jest/types': 29.6.3
       import-local: 3.2.0
       jest-cli: 29.7.0(@types/node@20.17.27)(ts-node@10.9.2(@types/node@20.17.27)(typescript@5.8.2))
-    transitivePeerDependencies:
-      - '@types/node'
-      - babel-plugin-macros
-      - supports-color
-      - ts-node
-
-  jest@29.7.0(@types/node@22.13.14)(ts-node@10.9.2(@types/node@22.13.14)(typescript@5.8.2)):
-    dependencies:
-      '@jest/core': 29.7.0(ts-node@10.9.2(@types/node@22.13.14)(typescript@5.8.2))
-      '@jest/types': 29.6.3
-      import-local: 3.2.0
-      jest-cli: 29.7.0(@types/node@22.13.14)(ts-node@10.9.2(@types/node@22.13.14)(typescript@5.8.2))
     transitivePeerDependencies:
       - '@types/node'
       - babel-plugin-macros
