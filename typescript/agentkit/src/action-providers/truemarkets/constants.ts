@@ -9,6 +9,7 @@ export const TruthMarketABI = [
   parseAbiItem("function getPoolAddresses() view returns (address yesPool, address noPool)"),
   parseAbiItem("function paymentToken() view returns (address)"),
   parseAbiItem("function additionalInfo() view returns (string)"),
+  parseAbiItem("function winningPosition() view returns (uint8)"),
 ];
 
 export const TruthMarketManagerABI = [
@@ -29,7 +30,9 @@ export const UniswapV3PoolABI = [
 
 export const TruthMarketManager_ADDRESS = "0x61A98Bef11867c69489B91f340fE545eEfc695d7";
 export const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+export const TYD_ADDRESS = "0xb13CF163d916917d9cD6E836905cA5f12a1dEF4B";
 export const USDC_DECIMALS = 6;
+export const TYD_DECIMALS = 6;
 export const YESNO_DECIMALS = 18;
 
 /**

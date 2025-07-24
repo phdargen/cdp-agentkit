@@ -3,7 +3,7 @@ import { z } from "zod";
 /**
  * Input schema for get active markets action.
  */
-export const GetActiveTruthMarketsSchema = z
+export const GetTruthMarketsSchema = z
   .object({
     limit: z
       .number()
@@ -18,17 +18,11 @@ export const GetActiveTruthMarketsSchema = z
       .default("desc"),
   })
   .strip()
-  .describe("Instructions for getting active markets on Truemarkets");
+  .describe("Instructions for getting prediction markets on Truemarkets");
 
 /**
  * Input schema for get market details action.
  */
-export const GetMarketDetailsSchema = z
-  .object({
-    marketAddress: z
-      .string()
-      .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address format")
-      .describe("Address of the market to retrieve details for"),
-  })
-  .strip()
-  .describe("Instructions for getting detailed information about a specific market on Truemarkets");
+export const GetTruthMarketDetailsSchema = z
+  .string()
+  .describe("Prediction market address (0x...) or market ID (number) to retrieve details for");

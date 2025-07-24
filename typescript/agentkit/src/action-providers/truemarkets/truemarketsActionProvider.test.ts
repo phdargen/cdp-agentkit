@@ -18,6 +18,7 @@ jest.mock("viem", () => {
           result: "mock result",
         }));
       }),
+      readContract: jest.fn(),
     })),
     http: jest.fn().mockImplementation(url => ({ url })),
   };
@@ -72,20 +73,20 @@ describe("TrueMarketsActionProvider", () => {
     jest.clearAllMocks();
   });
 
-  describe("getActiveMarkets", () => {
+  describe("getPredictionMarkets", () => {
     it("should successfully fetch active markets", async () => {
       // Mock readContract calls
       mockWallet.readContract
         // First call: numberOfActiveMarkets
         .mockResolvedValueOnce(2n);
 
-      // Mock the implementation to directly return the expected results
       // Create a spy on the actual implementation
-      const getActiveMarketsSpy = jest.spyOn(provider, "getActiveMarkets");
+      const getPredictionMarketsSpy = jest.spyOn(provider, "getPredictionMarkets");
 
-      // Replace the original implementation with our mocked version to return JSON
-      getActiveMarketsSpy.mockImplementation(async () => {
-        return {
+      // Replace the original implementation with our mocked version to return JSON string
+      getPredictionMarketsSpy.mockImplementation(async () => {
+        return JSON.stringify({
+          success: true,
           totalMarkets: 2,
           markets: [
             {
@@ -99,7 +100,7 @@ describe("TrueMarketsActionProvider", () => {
               marketQuestion: "Will this other test pass?",
             },
           ],
-        };
+        });
       });
 
       const args = {
@@ -108,16 +109,18 @@ describe("TrueMarketsActionProvider", () => {
         sortOrder: "desc" as "desc" | "asc",
       };
 
-      const response = await provider.getActiveMarkets(mockWallet, args);
+      const responseString = await provider.getPredictionMarkets(mockWallet, args);
+      const response = JSON.parse(responseString);
 
-      // Verify response contains expected data in JSON format
+      // Verify response contains expected data
+      expect(response.success).toBe(true);
       expect(response.totalMarkets).toBe(2);
       expect(response.markets.length).toBe(2);
       expect(response.markets[0].marketQuestion).toBe(MOCK_MARKET_QUESTION);
       expect(response.markets[0].address).toBe(MOCK_MARKET_ADDRESS);
 
       // Restore the original implementation
-      getActiveMarketsSpy.mockRestore();
+      getPredictionMarketsSpy.mockRestore();
     });
 
     it("should handle no active markets", async () => {
@@ -129,8 +132,10 @@ describe("TrueMarketsActionProvider", () => {
         sortOrder: "desc" as "desc" | "asc",
       };
 
-      const response = await provider.getActiveMarkets(mockWallet, args);
+      const responseString = await provider.getPredictionMarkets(mockWallet, args);
+      const response = JSON.parse(responseString);
 
+      expect(response.success).toBe(true);
       expect(response.totalMarkets).toBe(0);
       expect(response.markets.length).toBe(0);
     });
@@ -145,17 +150,17 @@ describe("TrueMarketsActionProvider", () => {
         sortOrder: "desc" as "desc" | "asc",
       };
 
-      const response = await provider.getActiveMarkets(mockWallet, args);
+      const responseString = await provider.getPredictionMarkets(mockWallet, args);
+      const response = JSON.parse(responseString);
 
+      expect(response.success).toBe(false);
       expect(response.error).toBe(
         "Error retrieving active markets: Error: Failed to fetch active markets",
       );
-      expect(response.totalMarkets).toBe(0);
-      expect(response.markets.length).toBe(0);
     });
   });
 
-  describe("getMarketDetails", () => {
+  describe("getPredictionMarketDetails", () => {
     let mockPublicClient: { multicall: jest.Mock };
 
     beforeEach(() => {
@@ -172,6 +177,7 @@ describe("TrueMarketsActionProvider", () => {
           { status: "success", result: MOCK_STATUS_NUM },
           { status: "success", result: MOCK_END_OF_TRADING },
           { status: "success", result: [MOCK_YES_POOL_ADDRESS, MOCK_NO_POOL_ADDRESS] },
+          { status: "success", result: 0n },
         ])
         // Pool info calls
         .mockResolvedValueOnce([
@@ -192,18 +198,18 @@ describe("TrueMarketsActionProvider", () => {
     });
 
     it("should successfully fetch market details", async () => {
-      const args = {
-        marketAddress: MOCK_MARKET_ADDRESS,
-      };
+      const args = MOCK_MARKET_ADDRESS;
 
-      const response = await provider.getMarketDetails(mockWallet, args);
+      const responseString = await provider.getPredictionMarketDetails(mockWallet, args);
+      const response = JSON.parse(responseString);
 
       // Verify the expected JSON structure
+      expect(response.success).toBe(true);
       expect(response.marketAddress).toBe(MOCK_MARKET_ADDRESS);
       expect(response.question).toBe(MOCK_MARKET_QUESTION);
       expect(response.additionalInfo).toBe(MOCK_ADDITIONAL_INFO);
       expect(response.source).toBe(MOCK_MARKET_SOURCE);
-      expect(response.status).toBe("Created");
+      expect(response.status).toBe(0);
 
       // Verify tokens
       expect(response.tokens.yes.lpAddress).toBe(MOCK_YES_POOL_ADDRESS);
@@ -223,21 +229,15 @@ describe("TrueMarketsActionProvider", () => {
       mockPublicClient.multicall.mockReset();
       mockPublicClient.multicall.mockRejectedValueOnce(error);
 
-      const args = {
-        marketAddress: MOCK_MARKET_ADDRESS,
-      };
+      const args = MOCK_MARKET_ADDRESS;
 
-      const response = await provider.getMarketDetails(mockWallet, args);
+      const responseString = await provider.getPredictionMarketDetails(mockWallet, args);
+      const response = JSON.parse(responseString);
 
+      expect(response.success).toBe(false);
       expect(response.error).toBe(
         "Error retrieving market details: Error: Failed to fetch market details",
       );
-      expect(response.marketAddress).toBe(MOCK_MARKET_ADDRESS);
-      expect(response.question).toBe("");
-      expect(response.tokens.yes.tokenAddress).toBe("");
-      expect(response.tokens.yes.lpAddress).toBe("");
-      expect(response.tokens.no.tokenAddress).toBe("");
-      expect(response.tokens.no.lpAddress).toBe("");
     });
   });
 
