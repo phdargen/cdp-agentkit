@@ -3,7 +3,7 @@ import { ActionProvider } from "../actionProvider";
 import { EvmWalletProvider } from "../../wallet-providers/evmWalletProvider";
 import { CreateCoinSchema } from "./schemas";
 import { CreateAction } from "../actionDecorator";
-import { Hex, parseUnits, encodeFunctionData } from "viem";
+import { Hex, encodeFunctionData } from "viem";
 import { Network } from "../../network";
 import { generateZoraTokenUri } from "./utils";
 
@@ -89,9 +89,9 @@ The action will return the transaction hash, coin address, and deployment detail
         payoutRecipient: (args.payoutRecipient as Hex) || walletProvider.getAddress(),
         platformReferrer:
           (args.platformReferrer as Hex) || "0x0000000000000000000000000000000000000000",
-        initialPurchaseWei: parseUnits(args.initialPurchase || "0", 18),
+        //initialPurchaseWei: parseUnits(args.initialPurchase || "0", 18),
         //chainId: walletProvider.getNetwork().chainId,
-        currency: DeployCurrency.ETH
+        currency: DeployCurrency.ZORA
       };
       const createCoinRequest = await createCoinCall(call);
       const { abi, functionName, address, args: callArgs, value } = createCoinRequest;
