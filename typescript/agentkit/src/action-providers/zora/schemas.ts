@@ -20,12 +20,10 @@ export const CreateCoinSchema = z
       .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address format")
       .optional()
       .describe("The address that will receive platform referrer fees, optional"),
-    initialPurchase: z
-      .string()
-      .optional()
-      .describe(
-        "The initial purchase amount in whole units of ETH (e.g. 1.5 for 1.5 ETH), defaults to 0",
-      ),
+    currency: z
+      .enum(["ZORA", "ETH"])
+      .default("ZORA")
+      .describe("Currency to be used for the trading pair, optional, defaults to 'ZORA'."),
   })
   .strip()
   .describe("Instructions for creating a new coin on Zora");

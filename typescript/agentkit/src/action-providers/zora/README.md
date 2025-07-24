@@ -27,7 +27,7 @@ zora/
   - `category` (optional): The category of the coin, defaults to 'social'
   - `payoutRecipient` (optional): The address that will receive creator earnings, defaults to wallet address
   - `platformReferrer` (optional): Platform referrer address that earns referral fees
-  - `initialPurchase` (optional): Initial purchase amount in ETH (e.g., "1.5" for 1.5 ETH)
+  - `currency` (optional): The currency to be used for the trading pair (`ZORA` or `ETH`). Defaults to `ZORA`
 
 ## Adding New Actions
 

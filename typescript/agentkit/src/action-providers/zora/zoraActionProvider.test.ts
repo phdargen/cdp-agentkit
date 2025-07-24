@@ -27,6 +27,10 @@ jest.mock(
     getCoinCreateFromLogs: jest.fn().mockReturnValue({
       coin: "0x2345678901234567890123456789012345678901",
     }),
+    DeployCurrency: {
+      ZORA: "ZORA",
+      ETH: "ETH",
+    },
   }),
   { virtual: true },
 );
@@ -111,6 +115,7 @@ describe("ZoraActionProvider", () => {
         description: "A test coin",
         image: "https://example.com/image.png",
         category: "social",
+        currency: "ZORA" as const,
       };
 
       const parseResult = CreateCoinSchema.safeParse(validInput);
@@ -124,6 +129,7 @@ describe("ZoraActionProvider", () => {
         description: "A test coin",
         image: "https://example.com/image.png",
         category: "social",
+        currency: "ZORA" as const,
         payoutRecipient: "invalid-address", // Should be 0x format
       };
 
@@ -138,6 +144,7 @@ describe("ZoraActionProvider", () => {
         description: "A test coin",
         image: "https://example.com/image.png",
         category: "social",
+        currency: "ZORA" as const,
       };
 
       const result = await provider.createCoin(mockWalletProvider, args);
@@ -150,6 +157,51 @@ describe("ZoraActionProvider", () => {
       expect(parsedResult.coinAddress).toBe("0x2345678901234567890123456789012345678901");
     });
 
+    it("should include zoraURL for base-mainnet network", async () => {
+      // Mock wallet provider to return base-mainnet network
+      mockWalletProvider.getNetwork.mockReturnValue({
+        protocolFamily: "evm",
+        networkId: "base-mainnet",
+      });
+
+      const args = {
+        name: "Test Coin",
+        symbol: "TEST",
+        description: "A test coin",
+        image: "https://example.com/image.png",
+        category: "social",
+        currency: "ZORA" as const,
+      };
+
+      const result = await provider.createCoin(mockWalletProvider, args);
+      const parsedResult = JSON.parse(result);
+
+      expect(parsedResult.success).toBe(true);
+      expect(parsedResult.coinAddress).toBe("0x2345678901234567890123456789012345678901");
+      expect(parsedResult.zoraURL).toBe(
+        "https://zora.co/coin/base:0x2345678901234567890123456789012345678901",
+      );
+    });
+
+    it("should not include zoraURL for non-base-mainnet networks", async () => {
+      // Keep the default base-sepolia network from beforeEach
+      const args = {
+        name: "Test Coin",
+        symbol: "TEST",
+        description: "A test coin",
+        image: "https://example.com/image.png",
+        category: "social",
+        currency: "ZORA" as const,
+      };
+
+      const result = await provider.createCoin(mockWalletProvider, args);
+      const parsedResult = JSON.parse(result);
+
+      expect(parsedResult.success).toBe(true);
+      expect(parsedResult.coinAddress).toBe("0x2345678901234567890123456789012345678901");
+      expect(parsedResult.zoraURL).toBeUndefined();
+    });
+
     it("should handle transaction failure", async () => {
       const args = {
         name: "Test Coin",
@@ -157,6 +209,7 @@ describe("ZoraActionProvider", () => {
         description: "A test coin",
         image: "https://example.com/image.png",
         category: "social",
+        currency: "ZORA" as const,
       };
 
       // Mock a reverted transaction
@@ -179,6 +232,7 @@ describe("ZoraActionProvider", () => {
         description: "A test coin",
         image: "https://example.com/image.png",
         category: "social",
+        currency: "ZORA" as const,
       };
 
       // Create an error that will be thrown during the request
