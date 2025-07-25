@@ -447,6 +447,15 @@ it will return payment details that can be used on retry.</td>
 </tr>
 </table>
 </details>
+<details>
+<summary><strong>Zora</strong></summary>
+<table width="100%">
+<tr>
+    <td width="200"><code>coinIt</code></td>
+    <td width="768">Creates a new Zora coin with customizable name, symbol, description, and image.</td>
+</tr>
+</table>
+</details>
 
 ## Creating an Action Provider
 
