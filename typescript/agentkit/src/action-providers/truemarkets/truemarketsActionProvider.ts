@@ -185,6 +185,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
     This tool will retrieve detailed information about a specific Truemarkets prediction market.
     It returns comprehensive data including market question, status, liquidity pool information, 
     prices for YES/NO tokens and Total Value Locked (TVL).
+    The prices of the YES/NO token reflect the odds of the outcome.
     If the price of YES tokens is larger than of NO tokens, the market favors a YES outcome and vice versa.
     You can query using either:
     - marketAddress: The direct contract address of the market
