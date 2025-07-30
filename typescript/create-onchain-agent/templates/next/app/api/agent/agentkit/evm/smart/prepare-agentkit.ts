@@ -102,8 +102,7 @@ export async function prepareAgentkitAndWalletProvider(): Promise<{
       networkId: process.env.NETWORK_ID || "base-sepolia",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       owner: owner as any,
-      smartWalletAddress: walletData?.smartWalletAddress,
-      paymasterUrl: undefined, // Sponsor transactions: https://docs.cdp.coinbase.com/paymaster/docs/welcome
+      address: walletData?.smartWalletAddress,
     });
 
     // Initialize AgentKit: https://docs.cdp.coinbase.com/agentkit/docs/agent-actions
