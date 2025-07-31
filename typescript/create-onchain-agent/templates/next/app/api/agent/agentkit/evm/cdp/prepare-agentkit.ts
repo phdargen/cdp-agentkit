@@ -1,7 +1,6 @@
 import {
   AgentKit,
   cdpApiActionProvider,
-  cdpEvmWalletActionProvider,
   CdpEvmWalletProvider,
   erc20ActionProvider,
   pythActionProvider,
@@ -94,7 +93,6 @@ export async function prepareAgentkitAndWalletProvider(): Promise<{
         walletActionProvider(),
         erc20ActionProvider(),
         cdpApiActionProvider(),
-        cdpEvmWalletActionProvider(),
       ],
     });
 
