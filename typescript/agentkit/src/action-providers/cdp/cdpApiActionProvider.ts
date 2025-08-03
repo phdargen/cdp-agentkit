@@ -120,6 +120,8 @@ Example usage:
             amount: args.amount,
             slippageBps: 100, // 1% slippage tolerance
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            paymasterUrl: (walletProvider as any).getPaymasterUrl?.(),
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
           } as any);
 
           return `Successfully swapped ${args.amount} ${args.fromAssetId.toUpperCase()} to ${args.toAssetId.toUpperCase()}. Transaction hash: ${swapResult.transactionHash}`;

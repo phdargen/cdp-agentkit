@@ -41,6 +41,7 @@ Once you have them, rename the `.env-local` file to `.env` and make sure you set
 #### Optional:
   - `PRIVATE_KEY=` *(if not provided, a new key will be generated)*
   - `NETWORK_ID=` *(defaults to base-sepolia if not set)*
+  - `PAYMASTER_URL=` 
 
 ## Running the example
 
