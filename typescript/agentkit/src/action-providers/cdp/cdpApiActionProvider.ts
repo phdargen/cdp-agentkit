@@ -5,6 +5,8 @@ import { isWalletProviderWithClient } from "../../wallet-providers/cdpShared";
 import { CreateAction } from "../actionDecorator";
 import { ActionProvider } from "../actionProvider";
 import { RequestFaucetFundsV2Schema, SwapSchema } from "./schemas";
+import { parseUnits } from "viem";
+import { EvmSmartAccount } from "@coinbase/cdp-sdk";
 
 /**
  * CdpApiActionProvider is an action provider for CDP API.
@@ -107,22 +109,44 @@ Example usage:
           const cdpNetwork = this.#getCdpSdkNetwork(networkId);
 
           // Get the account for the wallet address
-          const account = await walletProvider.getClient().evm.getAccount({
-            address: walletProvider.getAddress() as `0x${string}`,
-          });
+          // const account = await walletProvider.getClient().evm.getAccount({
+          //   address: walletProvider.getAddress() as `0x${string}`,
+          // });
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const account = (walletProvider as any).getCdpAccount() as EvmSmartAccount;
+
+          console.log("account", account.address);
+          console.log("network", cdpNetwork);
+          console.log("args", args);
+          console.log("account type:", typeof account);
+          console.log("account constructor:", account.constructor?.name);
+          console.log("account methods:", Object.getOwnPropertyNames(Object.getPrototypeOf(account)));
+          console.log("has swap method:", typeof account.swap);
+          
 
           // Execute swap using the all-in-one pattern
-          const swapResult = await account.swap({
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            network: cdpNetwork as any,
-            from: args.fromAssetId,
-            to: args.toAssetId,
-            amount: args.amount,
+          const swapParams = {
+            network: "base" as const,
+            fromToken: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as `0x${string}`,
+            toToken: "0x4200000000000000000000000000000000000006" as `0x${string}`,
+            fromAmount: parseUnits("0.01", 6),
             slippageBps: 100, // 1% slippage tolerance
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } as any);
+            ...(process.env.PAYMASTER_URL && { paymasterUrl: process.env.PAYMASTER_URL }),
+          };
 
-          return `Successfully swapped ${args.amount} ${args.fromAssetId.toUpperCase()} to ${args.toAssetId.toUpperCase()}. Transaction hash: ${swapResult.transactionHash}`;
+          console.log("swap params", swapParams);
+          
+          const swapResult = await account.swap(swapParams);
+
+          console.log("swap result", swapResult);
+
+          if (!swapResult) {
+            throw new Error("Swap operation returned undefined result");
+          }
+
+          return "Successfully swapped";
+          //return `Successfully swapped ${args.amount} ${args.fromAssetId.toUpperCase()} to ${args.toAssetId.toUpperCase()}. Transaction hash: ${swapResult.transactionHash}`;
         } catch (error) {
           throw new Error(`Swap failed: ${error}`);
         }

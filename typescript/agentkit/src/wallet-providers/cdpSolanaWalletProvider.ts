@@ -282,6 +282,15 @@ export class CdpSolanaWalletProvider extends SvmWalletProvider implements Wallet
   }
 
   /**
+   * Gets the CDP server account.
+   *
+   * @returns The CDP server account.
+   */
+  getCdpAccount(): Awaited<ReturnType<typeof CdpClient.prototype.solana.createAccount>> {
+    return this.#serverAccount;
+  }
+
+  /**
    * Transfer SOL from the wallet to another address
    *
    * @param to - The base58 encoded address to transfer the SOL to

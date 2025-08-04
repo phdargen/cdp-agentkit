@@ -1,4 +1,4 @@
-import { CdpClient, type EvmServerAccount } from "@coinbase/cdp-sdk";
+import { CdpClient, type EvmServerAccount, type EvmSmartAccount } from "@coinbase/cdp-sdk";
 import type { Address, LocalAccount } from "viem";
 
 export interface CdpProviderConfig {
@@ -58,6 +58,16 @@ export interface WalletProviderWithClient {
    * Gets the CDP client.
    */
   getClient(): CdpClient;
+}
+
+/**
+ * A wallet provider that provides access to a CDP account.
+ */
+export interface WalletProviderWithCdpAccount {
+  /**
+   * Gets the CDP account that corresponds to the address returned by getAddress().
+   */
+  getCdpAccount(): EvmServerAccount | EvmSmartAccount | Awaited<ReturnType<typeof CdpClient.prototype.solana.createAccount>>;
 }
 
 /**

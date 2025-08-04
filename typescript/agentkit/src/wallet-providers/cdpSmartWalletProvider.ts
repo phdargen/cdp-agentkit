@@ -267,6 +267,34 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
   }
 
   /**
+   * Gets the CDP account that corresponds to the address returned by getAddress().
+   * For smart wallets, this returns the smart account.
+   *
+   * @returns The CDP smart account.
+   */
+  getCdpAccount(): EvmSmartAccount {
+    return this.#smartAccount;
+  }
+
+  /**
+   * Gets the CDP owner account.
+   *
+   * @returns The CDP owner account.
+   */
+  getCdpOwnerAccount(): LocalAccount | EvmServerAccount {
+    return this.#ownerAccount;
+  }
+
+  /**
+   * Gets the CDP smart account.
+   *
+   * @returns The CDP smart account.
+   */
+  getCdpSmartAccount(): EvmSmartAccount {
+    return this.#smartAccount;
+  }
+
+  /**
    * Gets the balance of the smart wallet.
    *
    * @returns The balance of the wallet in wei

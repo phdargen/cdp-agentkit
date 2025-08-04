@@ -236,6 +236,15 @@ export class CdpEvmWalletProvider extends EvmWalletProvider implements WalletPro
   }
 
   /**
+   * Gets the CDP server account.
+   *
+   * @returns The CDP server account.
+   */
+  getCdpAccount(): EvmServerAccount {
+    return this.#serverAccount;
+  }
+
+  /**
    * Gets the balance of the wallet.
    *
    * @returns The balance of the wallet in wei
