@@ -42,6 +42,11 @@ interface ConfigureCdpSmartWalletProviderWithWalletOptions {
    * The network of the wallet.
    */
   network: Network;
+
+  /**
+   * The paymaster URL for gasless transactions.
+   */
+  paymasterUrl?: string;
 }
 
 /**
@@ -53,6 +58,7 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
   #ownerAccount: LocalAccount | EvmServerAccount;
   #cdp: CdpClient;
   #network: Network;
+  #paymasterUrl?: string;
 
   /**
    * Constructs a new CdpSmartWalletProvider.
@@ -67,6 +73,7 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
     this.#cdp = config.cdp;
     this.#publicClient = config.publicClient;
     this.#network = config.network;
+    this.#paymasterUrl = config.paymasterUrl;
   }
 
   /**
@@ -83,6 +90,7 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
     const apiKeySecret = config.apiKeySecret || process.env.CDP_API_KEY_SECRET;
     const walletSecret = config.walletSecret || process.env.CDP_WALLET_SECRET;
     const idempotencyKey = config.idempotencyKey || process.env.IDEMPOTENCY_KEY;
+    const paymasterUrl = config.paymasterUrl || process.env.PAYMASTER_URL;
 
     if (!apiKeyId || !apiKeySecret || !walletSecret) {
       throw new Error(
@@ -144,6 +152,7 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
       smartAccount,
       ownerAccount,
       network,
+      paymasterUrl,
     });
   }
 
@@ -225,6 +234,7 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
       smartAccount: this.#smartAccount,
       network: this.#getCdpSdkNetwork(),
       calls,
+      paymasterUrl: this.#paymasterUrl,
     });
 
     return userOperation.userOpHash as Hex;
@@ -264,6 +274,15 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
    */
   getClient(): CdpClient {
     return this.#cdp;
+  }
+
+  /**
+   * Gets the paymaster URL for gasless transactions.
+   *
+   * @returns The paymaster URL if configured, undefined otherwise.
+   */
+  getPaymasterUrl(): string | undefined {
+    return this.#paymasterUrl;
   }
 
   /**

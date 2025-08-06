@@ -105,7 +105,7 @@ async function initializeAgent() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       owner: owner as any,
       networkId,
-      // paymasterUrl: undefined, // Sponsor transactions: https://docs.cdp.coinbase.com/paymaster/docs/welcome
+      paymasterUrl: process.env.PAYMASTER_URL, // Sponsor transactions: https://docs.cdp.coinbase.com/paymaster/docs/welcome
     });
 
     // Initialize AgentKit

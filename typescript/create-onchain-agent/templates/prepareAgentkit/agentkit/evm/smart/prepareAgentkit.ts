@@ -98,7 +98,7 @@ export async function prepareAgentkitAndWalletProvider(): Promise<{
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       owner: owner as any,
       smartWalletAddress: walletData?.smartWalletAddress,
-      paymasterUrl: undefined, // Sponsor transactions: https://docs.cdp.coinbase.com/paymaster/docs/welcome
+      paymasterUrl: process.env.PAYMASTER_URL, // Sponsor transactions: https://docs.cdp.coinbase.com/paymaster/docs/welcome
     });
 
     // Initialize AgentKit: https://docs.cdp.coinbase.com/agentkit/docs/agent-actions

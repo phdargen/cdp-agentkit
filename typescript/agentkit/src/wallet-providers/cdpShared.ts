@@ -48,6 +48,11 @@ export interface CdpSmartWalletProviderConfig extends CdpWalletProviderConfig {
    * The name of the smart wallet.
    */
   smartAccountName?: string;
+
+  /**
+   * The paymaster URL for gasless transactions.
+   */
+  paymasterUrl?: string;
 }
 
 /**
