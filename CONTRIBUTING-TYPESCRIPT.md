@@ -200,8 +200,21 @@ Wallet providers give an agent access to a wallet. AgentKit currently supports t
 
 EVM:
 
-- [CdpWalletProvider](https://github.com/coinbase/agentkit/blob/master/typescript/agentkit/src/wallet-providers/cdpWalletProvider.ts)
+- [CdpEvmWalletProvider](https://github.com/coinbase/agentkit/blob/master/typescript/agentkit/src/wallet-providers/cdpEvmWalletProvider.ts)
+- [CdpSmartWalletProvider](https://github.com/coinbase/agentkit/blob/master/typescript/agentkit/src/wallet-providers/cdpSmartWalletProvider.ts)
+- [LegacyCdpWalletProvider](https://github.com/coinbase/agentkit/blob/master/typescript/agentkit/src/wallet-providers/legacyCdpWalletProvider.ts)
+- [LegacyCdpSmartWalletProvider](https://github.com/coinbase/agentkit/blob/master/typescript/agentkit/src/wallet-providers/legacyCdpSmartWalletProvider.ts)
 - [ViemWalletProvider](https://github.com/coinbase/agentkit/blob/master/typescript/agentkit/src/wallet-providers/viemWalletProvider.ts)
+- [ZeroDevWalletProvider](https://github.com/coinbase/agentkit/blob/master/typescript/agentkit/src/wallet-providers/zeroDevWalletProvider.ts)
+- [PrivyEvmWalletProvider](https://github.com/coinbase/agentkit/blob/master/typescript/agentkit/src/wallet-providers/privyEvmWalletProvider.ts)
+- [PrivyEvmDelegatedEmbeddedWalletProvider](https://github.com/coinbase/agentkit/blob/master/typescript/agentkit/src/wallet-providers/privyEvmDelegatedEmbeddedWalletProvider.ts)
+
+Solana:
+
+- [CdpSolanaWalletProvider](https://github.com/coinbase/agentkit/blob/master/typescript/agentkit/src/wallet-providers/cdpSolanaWalletProvider.ts)
+- [SolanaKeypairWalletProvider](https://github.com/coinbase/agentkit/blob/master/typescript/agentkit/src/wallet-providers/solanaKeypairWalletProvider.ts)
+- [PrivySvmWalletProvider](https://github.com/coinbase/agentkit/blob/master/typescript/agentkit/src/wallet-providers/privySvmWalletProvider.ts)
+
 
 ### Adding a new EVM wallet provider
 
