@@ -33,12 +33,14 @@ export interface ConfigureLegacyCdpSmartWalletOptions {
   smartWalletAddress?: Hex;
   paymasterUrl?: string;
   signer: Signer;
+  rpcUrl?: string;
 }
 
 interface LegacyCdpSmartWalletProviderConfig {
   smartWallet: NetworkScopedSmartWallet;
   network: Required<Network>;
   chainId: string;
+  rpcUrl?: string;
 }
 
 /**
@@ -59,9 +61,10 @@ export class LegacyCdpSmartWalletProvider extends EvmWalletProvider {
 
     this.#network = config.network;
     this.#smartWallet = config.smartWallet;
+    const rpcUrl = config.rpcUrl || process.env.RPC_URL;
     this.#publicClient = createPublicClient({
       chain: NETWORK_ID_TO_VIEM_CHAIN[config.network.networkId],
-      transport: http(),
+      transport: rpcUrl ? http(rpcUrl) : http(),
     });
   }
 
@@ -142,6 +145,7 @@ export class LegacyCdpSmartWalletProvider extends EvmWalletProvider {
       smartWallet: networkScopedSmartWallet,
       network,
       chainId: network.chainId,
+      rpcUrl: config.rpcUrl,
     });
 
     return legacyCdpSmartWalletProvider;
@@ -290,6 +294,13 @@ export class LegacyCdpSmartWalletProvider extends EvmWalletProvider {
    */
   getName(): string {
     return "legacy_cdp_smart_wallet_provider";
+  }
+
+  /**
+   * Gets the Viem PublicClient used for read-only operations.
+   */
+  getPublicClient(): ViemPublicClient {
+    return this.#publicClient;
   }
 
   /**
