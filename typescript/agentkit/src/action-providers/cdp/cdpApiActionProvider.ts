@@ -101,6 +101,7 @@ It takes the following inputs:
 - slippageBps: (Optional) Maximum allowed slippage in basis points (100 = 1%)
 Important notes:
 - The contract address for native ETH is "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+- Use fromAmount units exactly as provided, do not convert to wei or any other units.
 `,
     schema: SwapSchema,
   })
@@ -200,6 +201,7 @@ It takes the following inputs:
 Important notes:
 - The contract address for native ETH is "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 - If needed, it will automatically approve the permit2 contract to spend the fromToken
+- Use fromAmount units exactly as provided, do not convert to wei or any other units.
 `,
     schema: SwapSchema,
   })
@@ -299,7 +301,8 @@ Important notes:
         }
       }
 
-      const swapParams = {
+      // Execute swap using the all-in-one pattern
+      const swapResult = (await account.swap({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         network: cdpNetwork as any,
         fromToken: args.fromToken as Hex,
@@ -308,22 +311,11 @@ Important notes:
         slippageBps: args.slippageBps,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         paymasterUrl: isSmartWallet ? walletProvider.getPaymasterUrl() : undefined,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         signerAddress: isSmartWallet
           ? (walletProvider.smartAccount.owners[0].address as Hex)
           : (account.address as Hex),
-      };
-
-      // Execute swap using the all-in-one pattern
-      const swapResult = isSmartWallet
-        ? ((await walletProvider.smartAccount.swap({
-            ...swapParams,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          })) as any)
-        : ((await account.swap({
-            ...swapParams,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          })) as any);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      })) as any;
 
       // Format the successful response
       const formattedResponse = {

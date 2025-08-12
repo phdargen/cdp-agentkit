@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { CdpClient } from "@coinbase/cdp-sdk";
-import { WalletProvider } from "../../wallet-providers";
 import { EvmWalletProvider } from "../../wallet-providers/evmWalletProvider";
 import { WalletProviderWithClient } from "../../wallet-providers/cdpShared";
 import { CdpApiActionProvider } from "./cdpApiActionProvider";
