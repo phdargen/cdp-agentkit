@@ -22,6 +22,7 @@ x402/
 ### Alternative Action
 
 - `make_http_request_with_x402`: Direct payment-enabled requests (skips confirmation flow)
+- `list_x402_services`: List available x402 services (optionally filter by asset and price)
 
 ## Overview
 
@@ -95,6 +96,28 @@ Direct payment-enabled requests (use with caution):
   headers: { "Accept": "..." },     // Optional
   body: { ... }                     // Optional
 }
+```
+
+### `list_x402_services` Action
+
+Fetches available services and optionally filters them by maximum price (base units). The action defaults to USDC on the current network (base-mainnet or base-sepolia):
+
+```typescript
+{
+  maxPrice: 100000 // optional (e.g., < $0.10 with 6 decimals)
+}
+```
+
+Example filtering for USDC services under $0.10 (6 decimals):
+
+```ts
+const maxPrice = 100000;
+
+const services = await list_x402_services({ maxPrice });
+
+// The action uses USDC by default per network:
+// - base-mainnet: 0x833589fcd6edb6e08f4c7c32d4f71b54bda02913
+// - base-sepolia: 0x036CbD53842c5426634e7929541eC2318f3dCF7e
 ```
 
 ## Response Format

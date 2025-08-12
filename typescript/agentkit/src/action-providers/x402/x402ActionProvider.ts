@@ -2,11 +2,18 @@ import { z } from "zod";
 import { ActionProvider } from "../actionProvider";
 import { Network } from "../../network";
 import { CreateAction } from "../actionDecorator";
-import { HttpRequestSchema, RetryWithX402Schema, DirectX402RequestSchema } from "./schemas";
+import {
+  HttpRequestSchema,
+  RetryWithX402Schema,
+  DirectX402RequestSchema,
+  ListX402ServicesSchema,
+} from "./schemas";
 import { EvmWalletProvider } from "../../wallet-providers";
 import axios, { AxiosError } from "axios";
 import { withPaymentInterceptor, decodeXPaymentResponse } from "x402-axios";
 import { PaymentRequirements } from "x402/types";
+import { useFacilitator } from "x402/verify";
+import { facilitator } from "@coinbase/x402";
 
 const SUPPORTED_NETWORKS = ["base-mainnet", "base-sepolia"];
 
@@ -20,6 +27,70 @@ export class X402ActionProvider extends ActionProvider<EvmWalletProvider> {
    */
   constructor() {
     super("x402", []);
+  }
+
+  /**
+   * Lists available x402 services with optional filtering.
+   *
+   * @param _walletProvider - Unused for this action; listing does not require a wallet
+   * @param args - Optional filters: asset and maxPrice
+   * @returns JSON string with the list of services (possibly filtered)
+   */
+  @CreateAction({
+    name: "list_x402_services",
+    description:
+      "List available x402 services. Optionally filter by a maximum price in base units.",
+    schema: ListX402ServicesSchema,
+  })
+  async listX402Services(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof ListX402ServicesSchema>,
+  ): Promise<string> {
+    try {
+      const { list } = useFacilitator(facilitator);
+      const services = await list();
+      console.log("services", services);
+
+      // Only filter by maxPrice when a positive number is provided; otherwise, return all services
+      const hasValidMaxPrice =
+        typeof args.maxPrice === "number" && Number.isFinite(args.maxPrice) && args.maxPrice > 0;
+
+      const filtered = services?.items
+        ? (hasValidMaxPrice
+            ? services.items.filter(item => {
+                const accepts = Array.isArray(item.accepts) ? item.accepts : [];
+                return accepts.some(req => {
+                  const requirement = Number(req.maxAmountRequired);
+                  return Number.isFinite(requirement) && requirement <= (args.maxPrice as number);
+                });
+              })
+            : services.items)
+        : [];
+      console.log("filtered", filtered);
+
+      return JSON.stringify(
+        {
+          success: true,
+          total: services?.items?.length ?? 0,
+          returned: filtered.length,
+          items: filtered,
+        },
+        null,
+        2,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return JSON.stringify(
+        {
+          error: true,
+          message: "Failed to list x402 services",
+          details: message,
+          suggestion: "Ensure @coinbase/x402 is configured and the facilitator is reachable.",
+        },
+        null,
+        2,
+      );
+    }
   }
 
   /**
@@ -142,7 +213,11 @@ DO NOT use this action directly without first trying make_http_request!`,
         return accepts[0];
       };
 
-      const api = withPaymentInterceptor(axios.create({}), account, paymentSelector);
+      const api = withPaymentInterceptor(
+        axios.create({}),
+        account,
+        paymentSelector as unknown as Parameters<typeof withPaymentInterceptor>[2],
+      );
 
       const response = await api.request({
         url: args.url,
