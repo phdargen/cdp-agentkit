@@ -252,24 +252,6 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
   }
 
   /**
-   * Gets the smart account.
-   *
-   * @returns The smart account.
-   */
-  getSmartAccount(): EvmSmartAccount {
-    return this.#smartAccount;
-  }
-
-  /**
-   * Gets the owner account.
-   *
-   * @returns The owner account.
-   */
-  getOwnerAccount(): EvmServerAccount | LocalAccount {
-    return this.#ownerAccount;
-  }
-
-  /**
    * Gets the network of the wallet.
    *
    * @returns The network of the wallet.

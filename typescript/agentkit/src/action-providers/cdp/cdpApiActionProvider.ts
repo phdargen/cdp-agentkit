@@ -203,7 +203,7 @@ Important notes:
 `,
     schema: SwapSchema,
   })
-  async swap(walletProvider: WalletProvider, args: z.infer<typeof SwapSchema>): Promise<string> {
+  async swap(walletProvider: EvmWalletProvider, args: z.infer<typeof SwapSchema>): Promise<string> {
     // Get CDP SDK network
     const network = walletProvider.getNetwork();
     const networkId = network.networkId!;
@@ -240,7 +240,7 @@ Important notes:
       // Get the account for the wallet address
       const isSmartWallet = walletProvider instanceof CdpSmartWalletProvider;
       const account = isSmartWallet
-        ? walletProvider.getSmartAccount()
+        ? walletProvider.smartAccount
         : await walletProvider.getClient().evm.getAccount({
             address: walletProvider.getAddress() as Hex,
           });
@@ -281,7 +281,7 @@ Important notes:
           // Permit2 contract address
           const spender = swapPrice.issues.allowance.spender as Hex;
 
-          approvalTxHash = await (walletProvider as unknown as EvmWalletProvider).sendTransaction({
+          approvalTxHash = await walletProvider.sendTransaction({
             to: args.fromToken as Hex,
             data: encodeFunctionData({
               abi: erc20Abi,
@@ -290,9 +290,7 @@ Important notes:
             }),
           });
 
-          await (walletProvider as unknown as EvmWalletProvider).waitForTransactionReceipt(
-            approvalTxHash,
-          );
+          await walletProvider.waitForTransactionReceipt(approvalTxHash);
         } catch (error) {
           return JSON.stringify({
             success: false,
@@ -301,8 +299,7 @@ Important notes:
         }
       }
 
-      // Execute swap using the all-in-one pattern
-      const swapResult = (await account.swap({
+      const swapParams = {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         network: cdpNetwork as any,
         fromToken: args.fromToken as Hex,
@@ -310,13 +307,23 @@ Important notes:
         fromAmount: parseUnits(args.fromAmount, fromTokenDecimals),
         slippageBps: args.slippageBps,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        paymasterUrl: (walletProvider as unknown as CdpSmartWalletProvider).getPaymasterUrl(),
+        paymasterUrl: isSmartWallet ? walletProvider.getPaymasterUrl() : undefined,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         signerAddress: isSmartWallet
-          ? walletProvider.getOwnerAccount().address as Hex
+          ? (walletProvider.smartAccount.owners[0].address as Hex)
           : (account.address as Hex),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      })) as any;
+      };
+
+      // Execute swap using the all-in-one pattern
+      const swapResult = isSmartWallet
+        ? ((await walletProvider.smartAccount.swap({
+            ...swapParams,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          })) as any)
+        : ((await account.swap({
+            ...swapParams,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          })) as any);
 
       // Format the successful response
       const formattedResponse = {

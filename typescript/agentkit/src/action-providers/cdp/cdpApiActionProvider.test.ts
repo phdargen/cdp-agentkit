@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { CdpClient } from "@coinbase/cdp-sdk";
 import { WalletProvider } from "../../wallet-providers";
+import { EvmWalletProvider } from "../../wallet-providers/evmWalletProvider";
 import { WalletProviderWithClient } from "../../wallet-providers/cdpShared";
 import { CdpApiActionProvider } from "./cdpApiActionProvider";
 import { RequestFaucetFundsV2Schema, SwapSchema } from "./schemas";
@@ -12,7 +13,7 @@ jest.mock("./utils");
 
 describe("CDP API Action Provider", () => {
   let actionProvider: CdpApiActionProvider;
-  let mockWalletProvider: jest.Mocked<WalletProvider & WalletProviderWithClient>;
+  let mockWalletProvider: jest.Mocked<EvmWalletProvider & WalletProviderWithClient>;
   let mockCdpClient: jest.Mocked<CdpClient>;
   const mockGetTokenDetails = utils.getTokenDetails as jest.Mock;
 
