@@ -1,5 +1,18 @@
 import { z } from "zod";
 
+// Schema for listing x402 services
+export const ListX402ServicesSchema = z
+  .object({
+    maxPrice: z
+      .number()
+      .optional()
+      .describe(
+        "Optional maximum price in the same base units used by the service (e.g., 100000 for $0.10 USDC with 6 decimals)",
+      ),
+  })
+  .strip()
+  .describe("Parameters for listing x402 services with optional filtering");
+
 // Schema for initial HTTP request
 export const HttpRequestSchema = z
   .object({
