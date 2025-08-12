@@ -16,37 +16,18 @@ import {
 } from "./constants";
 import { abi as ERC20ABI } from "../erc20/constants";
 import { EvmWalletProvider } from "../../wallet-providers";
-import { Hex, formatUnits, createPublicClient, http, PublicClient } from "viem";
+import { Hex, formatUnits } from "viem";
 import { TruthMarket, Slot0Result } from "./utils";
-import { base } from "viem/chains";
 
 /**
- * Configuration options for the TrueMarketsActionProvider.
- */
-export interface TrueMarketsActionProviderConfig {
-  /**
-   * RPC URL for creating the Viem public client
-   */
-  RPC_URL?: string;
-}
-
-/**
- * TrueMarketsActionProvider provides actions to interact with TrueMarkets contracts.
+ * Action provider for TrueMarkets interactions.
  */
 export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider> {
-  #publicClient: PublicClient;
-
   /**
-   * Constructor for the TrueMarketsActionProvider.
-   *
-   * @param config - The configuration options for the TrueMarketsActionProvider.
+   * Creates a new TrueMarkets action provider.
    */
-  constructor(config?: TrueMarketsActionProviderConfig) {
+  constructor() {
     super("truemarkets", []);
-    this.#publicClient = createPublicClient({
-      chain: base,
-      transport: config?.RPC_URL ? http(config.RPC_URL) : http(),
-    }) as PublicClient;
   }
 
   /**
@@ -120,7 +101,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
         args: [BigInt(index)],
       }));
 
-      const marketAddresses = await this.#publicClient.multicall({
+      const marketAddresses = await walletProvider.getPublicClient().multicall({
         contracts: addressCalls,
       });
 
@@ -143,7 +124,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
         functionName: "marketQuestion",
       }));
 
-      const marketQuestionsResult = await this.#publicClient.multicall({
+      const marketQuestionsResult = await walletProvider.getPublicClient().multicall({
         contracts: questionCalls,
       });
 
@@ -216,7 +197,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
         }
 
         try {
-          marketAddress = (await this.#publicClient.readContract({
+          marketAddress = (await walletProvider.getPublicClient().readContract({
             address: TruthMarketManager_ADDRESS as Hex,
             abi: TruthMarketManagerABI,
             functionName: "getActiveMarketAddress",
@@ -269,7 +250,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
         },
       ];
 
-      const basicInfoResults = await this.#publicClient.multicall({
+      const basicInfoResults = await walletProvider.getPublicClient().multicall({
         contracts: basicInfoCalls,
       });
 
@@ -326,7 +307,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
         },
       ];
 
-      const poolInfoResults = await this.#publicClient.multicall({
+      const poolInfoResults = await walletProvider.getPublicClient().multicall({
         contracts: poolInfoCalls,
       });
 
@@ -386,7 +367,7 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
         },
       ];
 
-      const balanceResults = await this.#publicClient.multicall({
+      const balanceResults = await walletProvider.getPublicClient().multicall({
         contracts: balanceCalls,
       });
 
@@ -515,5 +496,4 @@ export class TrueMarketsActionProvider extends ActionProvider<EvmWalletProvider>
   supportsNetwork = (network: Network) => network.networkId === "base-mainnet";
 }
 
-export const truemarketsActionProvider = (config?: TrueMarketsActionProviderConfig) =>
-  new TrueMarketsActionProvider(config);
+export const truemarketsActionProvider = () => new TrueMarketsActionProvider();

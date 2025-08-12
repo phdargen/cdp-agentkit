@@ -195,6 +195,8 @@ export class PrivyEvmDelegatedEmbeddedWalletProvider extends WalletProvider {
 
   /**
    * Gets the Viem PublicClient used for read-only operations.
+   *
+   * @returns The Viem PublicClient instance used for read-only operations.
    */
   getPublicClient(): PublicClient {
     return this.#publicClient;

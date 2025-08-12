@@ -189,6 +189,8 @@ export class ViemWalletProvider extends EvmWalletProvider {
 
   /**
    * Gets the Viem PublicClient used for read-only operations.
+   *
+   * @returns The Viem PublicClient instance used for read-only operations.
    */
   getPublicClient(): ViemPublicClient {
     return this.#publicClient;
