@@ -238,9 +238,9 @@ Important notes:
         );
 
       // Get the account for the wallet address
-      const isSmartWallet = walletProvider.getName() === "cdp_smart_wallet_provider";
+      const isSmartWallet = walletProvider instanceof CdpSmartWalletProvider;
       const account = isSmartWallet
-        ? (walletProvider as unknown as CdpSmartWalletProvider).getSmartAccount()
+        ? walletProvider.getSmartAccount()
         : await walletProvider.getClient().evm.getAccount({
             address: walletProvider.getAddress() as Hex,
           });
@@ -313,7 +313,7 @@ Important notes:
         paymasterUrl: (walletProvider as unknown as CdpSmartWalletProvider).getPaymasterUrl(),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         signerAddress: isSmartWallet
-          ? ((walletProvider as unknown as CdpSmartWalletProvider).getOwnerAccount().address as Hex)
+          ? walletProvider.getOwnerAccount().address as Hex
           : (account.address as Hex),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       })) as any;
