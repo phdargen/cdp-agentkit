@@ -24,9 +24,7 @@ class CdpEvmWalletProviderConfig(BaseModel):
     network_id: str | None = Field(None, description="The network id")
     address: str | None = Field(None, description="The address to use")
     idempotency_key: str | None = Field(None, description="The idempotency key for wallet creation")
-    rpc_url: str | None = Field(
-        None, description="Optional RPC URL to override default chain RPC"
-    )
+    rpc_url: str | None = Field(None, description="Optional RPC URL to override default chain RPC")
 
 
 class CdpEvmWalletProvider(EvmWalletProvider):
@@ -57,11 +55,7 @@ class CdpEvmWalletProvider(EvmWalletProvider):
             self._idempotency_key = config.idempotency_key or os.getenv("IDEMPOTENCY_KEY") or None
 
             chain = NETWORK_ID_TO_CHAIN[network_id]
-            rpc_url = (
-                config.rpc_url
-                or os.getenv("RPC_URL")
-                or chain.rpc_urls["default"].http[0]
-            )
+            rpc_url = config.rpc_url or os.getenv("RPC_URL") or chain.rpc_urls["default"].http[0]
 
             self._network = Network(
                 protocol_family="evm",

@@ -31,9 +31,7 @@ class CdpSmartWalletProviderConfig(BaseModel):
     paymaster_url: str | None = Field(
         None, description="Optional paymaster URL for gasless transactions"
     )
-    rpc_url: str | None = Field(
-        None, description="Optional RPC URL to override default chain RPC"
-    )
+    rpc_url: str | None = Field(None, description="Optional RPC URL to override default chain RPC")
 
 
 class CdpSmartWalletProvider(EvmWalletProvider):
@@ -68,11 +66,7 @@ class CdpSmartWalletProvider(EvmWalletProvider):
             network_id = config.network_id or os.getenv("NETWORK_ID", "base-sepolia")
 
             chain = NETWORK_ID_TO_CHAIN[network_id]
-            rpc_url = (
-                config.rpc_url
-                or os.getenv("RPC_URL")
-                or chain.rpc_urls["default"].http[0]
-            )
+            rpc_url = config.rpc_url or os.getenv("RPC_URL") or chain.rpc_urls["default"].http[0]
 
             self._network = Network(
                 protocol_family="evm",
