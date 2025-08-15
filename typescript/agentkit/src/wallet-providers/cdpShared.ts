@@ -36,6 +36,12 @@ export interface CdpWalletProviderConfig extends CdpProviderConfig {
    * The idempotency key of the wallet. Only used when creating a new account.
    */
   idempotencyKey?: string;
+
+  /**
+   * Optional RPC URL for Viem public client HTTP transport.
+   * Falls back to process.env.RPC_URL when not provided.
+   */
+  rpcUrl?: string;
 }
 
 export interface CdpSmartWalletProviderConfig extends CdpWalletProviderConfig {

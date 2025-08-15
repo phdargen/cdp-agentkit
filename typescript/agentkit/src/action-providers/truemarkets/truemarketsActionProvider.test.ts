@@ -2,31 +2,12 @@ import { truemarketsActionProvider, TrueMarketsActionProvider } from "./truemark
 import { EvmWalletProvider } from "../../wallet-providers";
 import { Network } from "../../network";
 import { USDC_ADDRESS } from "./constants";
-import { Hex, createPublicClient } from "viem";
-
-// Mock viem's createPublicClient
-jest.mock("viem", () => {
-  const originalModule = jest.requireActual("viem");
-  return {
-    ...originalModule,
-    createPublicClient: jest.fn().mockImplementation(() => ({
-      // Mock public client methods as needed
-      multicall: jest.fn().mockImplementation(({ contracts }) => {
-        // Create mock responses with success status
-        return contracts.map(() => ({
-          status: "success",
-          result: "mock result",
-        }));
-      }),
-      readContract: jest.fn(),
-    })),
-    http: jest.fn().mockImplementation(url => ({ url })),
-  };
-});
+import { Hex } from "viem";
 
 describe("TrueMarketsActionProvider", () => {
   let provider: TrueMarketsActionProvider;
   let mockWallet: jest.Mocked<EvmWalletProvider>;
+  let publicClientMock: { multicall: jest.Mock; readContract: jest.Mock };
 
   // Mock addresses and data for tests
   const MOCK_MARKET_ADDRESS = "0x1234567890123456789012345678901234567890" as Hex;
@@ -40,25 +21,19 @@ describe("TrueMarketsActionProvider", () => {
   const MOCK_STATUS_NUM = 0n; // Created status
   const MOCK_END_OF_TRADING = 1717171717n; // Unix timestamp
 
-  describe("constructor", () => {
-    it("should use the provided RPC_URL for the public client", () => {
-      const customRpcUrl = "https://custom-rpc.example.com";
-      truemarketsActionProvider({ RPC_URL: customRpcUrl });
-
-      // Verify createPublicClient was called with the correct URL
-      expect(createPublicClient).toHaveBeenCalledWith(
-        expect.objectContaining({
-          chain: expect.anything(),
-          transport: expect.objectContaining({ url: customRpcUrl }),
-        }),
-      );
-    });
-  });
-
   beforeEach(() => {
     jest.clearAllMocks();
 
     provider = truemarketsActionProvider();
+
+    publicClientMock = {
+      multicall: jest
+        .fn()
+        .mockImplementation(({ contracts }) =>
+          contracts.map(() => ({ status: "success", result: "mock result" })),
+        ),
+      readContract: jest.fn(),
+    };
 
     mockWallet = {
       readContract: jest.fn(),
@@ -66,6 +41,7 @@ describe("TrueMarketsActionProvider", () => {
       getNetwork: jest.fn().mockReturnValue({
         networkId: "base-mainnet",
       }),
+      getPublicClient: jest.fn().mockReturnValue(publicClientMock),
     } as unknown as jest.Mocked<EvmWalletProvider>;
   });
 
@@ -161,11 +137,12 @@ describe("TrueMarketsActionProvider", () => {
   });
 
   describe("getPredictionMarketDetails", () => {
-    let mockPublicClient: { multicall: jest.Mock };
+    let mockPublicClient: { multicall: jest.Mock; readContract: jest.Mock };
 
     beforeEach(() => {
-      // Access the mocked public client
-      mockPublicClient = (createPublicClient as jest.Mock).mock.results[0].value;
+      // Use the shared mocked public client
+      mockPublicClient = publicClientMock;
+      mockPublicClient.multicall.mockReset();
 
       // Setup multicall mock responses
       mockPublicClient.multicall
@@ -225,7 +202,7 @@ describe("TrueMarketsActionProvider", () => {
 
     it("should handle errors", async () => {
       const error = new Error("Failed to fetch market details");
-      mockWallet.readContract.mockReset();
+      (mockWallet.readContract as jest.Mock).mockReset();
       mockPublicClient.multicall.mockReset();
       mockPublicClient.multicall.mockRejectedValueOnce(error);
 

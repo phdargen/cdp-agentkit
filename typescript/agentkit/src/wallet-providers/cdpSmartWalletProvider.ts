@@ -142,9 +142,10 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
           owner: ownerAccount as EvmServerAccount,
         }));
 
+    const rpcUrl = config.rpcUrl || process.env.RPC_URL;
     const publicClient = createPublicClient({
       chain: NETWORK_ID_TO_VIEM_CHAIN[networkId],
-      transport: http(),
+      transport: rpcUrl ? http(rpcUrl) : http(),
     });
 
     return new CdpSmartWalletProvider({
@@ -284,6 +285,15 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
    */
   getPaymasterUrl(): string | undefined {
     return this.#paymasterUrl;
+  }
+
+  /**
+   * Gets the Viem PublicClient used for read-only operations.
+   *
+   * @returns The Viem PublicClient instance used for read-only operations.
+   */
+  getPublicClient(): PublicClient {
+    return this.#publicClient;
   }
 
   /**

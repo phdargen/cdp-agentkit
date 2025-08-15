@@ -101,9 +101,10 @@ export class CdpEvmWalletProvider extends EvmWalletProvider implements WalletPro
       ? cdpClient.evm.getAccount({ address: config.address as Address })
       : cdpClient.evm.createAccount({ idempotencyKey }));
 
+    const rpcUrl = config.rpcUrl || process.env.RPC_URL;
     const publicClient = createPublicClient({
       chain: NETWORK_ID_TO_VIEM_CHAIN[networkId],
-      transport: http(),
+      transport: rpcUrl ? http(rpcUrl) : http(),
     });
 
     return new CdpEvmWalletProvider({
@@ -233,6 +234,15 @@ export class CdpEvmWalletProvider extends EvmWalletProvider implements WalletPro
    */
   getClient(): CdpClient {
     return this.#cdp;
+  }
+
+  /**
+   * Gets the Viem PublicClient used for read-only operations.
+   *
+   * @returns The Viem PublicClient instance used for read-only operations.
+   */
+  getPublicClient(): PublicClient {
+    return this.#publicClient;
   }
 
   /**

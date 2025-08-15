@@ -104,6 +104,7 @@ async function initializeAgent() {
       idempotencyKey: process.env.IDEMPOTENCY_KEY,
       address: process.env.ADDRESS as `0x${string}` | undefined,
       networkId: process.env.NETWORK_ID,
+      rpcUrl: process.env.RPC_URL,
     };
 
     const walletProvider = await CdpEvmWalletProvider.configureWithWallet(cdpWalletConfig);

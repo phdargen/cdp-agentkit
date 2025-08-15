@@ -89,6 +89,11 @@ export interface LegacyCdpWalletProviderConfig extends LegacyCdpProviderConfig {
      */
     feePerGasMultiplier?: number;
   };
+
+  /**
+   * Optional RPC URL for Viem public client.
+   */
+  rpcUrl?: string;
 }
 
 /**
@@ -131,9 +136,10 @@ export class LegacyCdpWalletProvider extends EvmWalletProvider {
     this.#cdpWallet = config.wallet;
     this.#address = config.address;
     this.#network = config.network;
+    const rpcUrl = config.rpcUrl || process.env.RPC_URL;
     this.#publicClient = createPublicClient({
       chain: NETWORK_ID_TO_VIEM_CHAIN[config.network!.networkId!],
-      transport: http(),
+      transport: rpcUrl ? http(rpcUrl) : http(),
     });
     this.#gasLimitMultiplier = Math.max(config.gas?.gasLimitMultiplier ?? 1.2, 1);
     this.#feePerGasMultiplier = Math.max(config.gas?.feePerGasMultiplier ?? 1, 1);
@@ -412,6 +418,15 @@ export class LegacyCdpWalletProvider extends EvmWalletProvider {
    */
   getName(): string {
     return "legacy_cdp_wallet_provider";
+  }
+
+  /**
+   * Gets the Viem PublicClient used for read-only operations.
+   *
+   * @returns The Viem PublicClient instance used for read-only operations.
+   */
+  getPublicClient(): PublicClient {
+    return this.#publicClient;
   }
 
   /**

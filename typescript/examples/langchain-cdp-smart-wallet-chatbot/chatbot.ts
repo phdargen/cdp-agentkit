@@ -106,6 +106,7 @@ async function initializeAgent() {
       owner: owner as any,
       networkId,
       paymasterUrl: process.env.PAYMASTER_URL, // Sponsor transactions: https://docs.cdp.coinbase.com/paymaster/docs/welcome
+      rpcUrl: process.env.RPC_URL,
     });
 
     // Initialize AgentKit
