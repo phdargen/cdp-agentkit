@@ -174,6 +174,10 @@ EVM:
 - [CdpSmartWalletProvider](./python/coinbase-agentkit/coinbase_agentkit/wallet_providers/cdp_smart_wallet_provider.py)
 - [EthAccountWalletProvider](./python/coinbase-agentkit/coinbase_agentkit/wallet_providers/eth_account_wallet_provider.py)
 
+Solana:
+
+- [CdpSolanaWalletProvider](./python/coinbase-agentkit/coinbase_agentkit/wallet_providers/cdp_solana_wallet_provider.py)
+
 ### Adding a new EVM wallet provider
 
 The EVM Wallet Providers are housed in `wallet_providers/`. EVM Wallet Providers extend `EvmWalletProvider` which is an abstract class that provides core EVM wallet functionality. To add a new EVM wallet provider, create a new file in the `wallet_providers` directory and implement a class that extends `EvmWalletProvider`.
@@ -194,7 +198,7 @@ Integrations into AI Agent frameworks are specific to the framework itself, so w
 
 ### Local Testing
 
-A good way to test new actions locally is by using the chatbot example in `python/examples/langchain-smart-wallet-chatbot`. See the [chatbot README](./python/examples/langchain-smart-wallet-chatbot/README.md) for instructions on setting up and running the chatbot.
+A good way to test new actions locally is by using the chatbot example in `python/examples/langchain-cdp-smart-wallet-chatbot`. See the [chatbot README](./python/examples/langchain-cdp-smart-wallet-chatbot/README.md) for instructions on setting up and running the chatbot.
 
 The flow is:
 
