@@ -15,8 +15,8 @@ import { ChatOpenAI } from "@langchain/openai";
 import * as dotenv from "dotenv";
 import * as fs from "fs";
 import * as readline from "readline";
-import { Address, Hex } from "viem";
-import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { Address, Hex, LocalAccount } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 
 dotenv.config();
 
@@ -53,8 +53,9 @@ function validateEnvironment(): void {
 validateEnvironment();
 
 type WalletData = {
-  privateKey: Hex;
+  privateKey?: Hex;
   smartWalletAddress: Address;
+  ownerAddress?: Address;
 };
 
 /**
@@ -73,28 +74,20 @@ async function initializeAgent() {
     const walletDataFile = `wallet_data_${networkId.replace(/-/g, "_")}.txt`;
 
     let walletData: WalletData | null = null;
-    let privateKey: Hex | null = null;
+    let owner: Hex | LocalAccount | undefined = undefined;
 
     // Read existing wallet data if available
     if (fs.existsSync(walletDataFile)) {
       try {
         walletData = JSON.parse(fs.readFileSync(walletDataFile, "utf8")) as WalletData;
-        privateKey = walletData.privateKey;
+        if (walletData.ownerAddress) owner = walletData.ownerAddress;
+        else if (walletData.privateKey) owner = privateKeyToAccount(walletData.privateKey as Hex);
+        else console.log(`No ownerAddress or privateKey found in ${walletDataFile}, will create a new CDP server account as owner`);
       } catch (error) {
         console.error(`Error reading wallet data for ${networkId}:`, error);
         // Continue without wallet data
       }
     }
-    if (!privateKey) {
-      if (walletData?.smartWalletAddress) {
-        throw new Error(
-          `Smart wallet found but no private key provided. Either provide the private key, or delete ${walletDataFile} and try again.`,
-        );
-      }
-      privateKey = (process.env.PRIVATE_KEY || generatePrivateKey()) as Hex;
-    }
-
-    const owner = privateKeyToAccount(privateKey);
 
     // Configure Smart Wallet Provider
     const walletProvider = await CdpSmartWalletProvider.configureWithWallet({
@@ -107,6 +100,7 @@ async function initializeAgent() {
       networkId,
       paymasterUrl: process.env.PAYMASTER_URL, // Sponsor transactions: https://docs.cdp.coinbase.com/paymaster/docs/welcome
       rpcUrl: process.env.RPC_URL,
+      idempotencyKey: process.env.IDEMPOTENCY_KEY,
     });
 
     // Initialize AgentKit
@@ -150,7 +144,8 @@ async function initializeAgent() {
     fs.writeFileSync(
       walletDataFile,
       JSON.stringify({
-        privateKey,
+        privateKey: walletData?.privateKey,
+        ownerAddress: exportedWallet.ownerAddress,
         smartWalletAddress: exportedWallet.address,
       } as WalletData),
     );

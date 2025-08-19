@@ -32,6 +32,11 @@ export interface ViemWalletProviderGasConfig {
    * An internal multiplier on fee per gas estimation.
    */
   feePerGasMultiplier?: number;
+
+  /**
+   * Optional RPC URL override for Viem public client.
+   */
+  rpcUrl?: string;
 }
 
 /**
@@ -53,9 +58,10 @@ export class ViemWalletProvider extends EvmWalletProvider {
     super();
 
     this.#walletClient = walletClient;
+    const rpcUrl = gasConfig?.rpcUrl || process.env.RPC_URL;
     this.#publicClient = createPublicClient({
       chain: walletClient.chain,
-      transport: http(),
+      transport: rpcUrl ? http(rpcUrl) : http(),
     });
     this.#gasLimitMultiplier = Math.max(gasConfig?.gasLimitMultiplier ?? 1.2, 1);
     this.#feePerGasMultiplier = Math.max(gasConfig?.feePerGasMultiplier ?? 1, 1);
