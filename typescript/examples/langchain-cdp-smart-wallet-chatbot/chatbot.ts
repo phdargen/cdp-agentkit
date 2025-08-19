@@ -82,7 +82,10 @@ async function initializeAgent() {
         walletData = JSON.parse(fs.readFileSync(walletDataFile, "utf8")) as WalletData;
         if (walletData.ownerAddress) owner = walletData.ownerAddress;
         else if (walletData.privateKey) owner = privateKeyToAccount(walletData.privateKey as Hex);
-        else console.log(`No ownerAddress or privateKey found in ${walletDataFile}, will create a new CDP server account as owner`);
+        else
+          console.log(
+            `No ownerAddress or privateKey found in ${walletDataFile}, will create a new CDP server account as owner`,
+          );
       } catch (error) {
         console.error(`Error reading wallet data for ${networkId}:`, error);
         // Continue without wallet data
@@ -140,15 +143,16 @@ async function initializeAgent() {
     });
 
     // Save wallet data
-    const exportedWallet = await walletProvider.exportWallet();
-    fs.writeFileSync(
-      walletDataFile,
-      JSON.stringify({
-        privateKey: walletData?.privateKey,
-        ownerAddress: exportedWallet.ownerAddress,
-        smartWalletAddress: exportedWallet.address,
-      } as WalletData),
-    );
+    if (!walletData) {
+      const exportedWallet = await walletProvider.exportWallet();
+      fs.writeFileSync(
+        walletDataFile,
+        JSON.stringify({
+          ownerAddress: exportedWallet.ownerAddress,
+          smartWalletAddress: exportedWallet.address,
+        } as WalletData),
+      );
+    }
 
     return { agent, config: agentConfig };
   } catch (error) {

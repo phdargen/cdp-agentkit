@@ -230,6 +230,17 @@ Important notes:
         error: "CDP Swap API is currently only supported on 'base-mainnet' or 'ethereum-mainnet'.",
       });
 
+    // Get the account
+    const isSmartWallet = walletProvider instanceof CdpSmartWalletProvider;
+    const account = isSmartWallet
+      ? walletProvider.smartAccount
+      : await walletProvider.getClient().evm.getAccount({
+          address: walletProvider.getAddress() as Hex,
+        });
+    if (isSmartWallet && walletProvider.ownerAccount.type === "local") {
+      throw new Error("Smart wallet owner account is not a CDP server account.");
+    }
+
     try {
       // Get token details
       const { fromTokenDecimals, fromTokenName, toTokenName, toTokenDecimals } =
@@ -238,14 +249,6 @@ Important notes:
           args.fromToken,
           args.toToken,
         );
-
-      // Get the account for the wallet address
-      const isSmartWallet = walletProvider instanceof CdpSmartWalletProvider;
-      const account = isSmartWallet
-        ? walletProvider.smartAccount
-        : await walletProvider.getClient().evm.getAccount({
-            address: walletProvider.getAddress() as Hex,
-          });
 
       // Estimate swap price first to check liquidity, token balance and permit2 approval status
       const swapPrice = await walletProvider.getClient().evm.getSwapPrice({
@@ -312,7 +315,7 @@ Important notes:
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         paymasterUrl: isSmartWallet ? walletProvider.getPaymasterUrl() : undefined,
         signerAddress: isSmartWallet
-          ? (walletProvider.smartAccount.owners[0].address as Hex)
+          ? (walletProvider.ownerAccount.address as Hex)
           : (account.address as Hex),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       })) as any;

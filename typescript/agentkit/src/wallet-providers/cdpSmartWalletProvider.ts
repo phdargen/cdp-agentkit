@@ -54,9 +54,9 @@ interface ConfigureCdpSmartWalletProviderWithWalletOptions {
  */
 export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletProviderWithClient {
   public smartAccount: EvmSmartAccount;
+  public ownerAccount: LocalAccount | EvmServerAccount;
 
   #publicClient: PublicClient;
-  #ownerAccount: LocalAccount | EvmServerAccount;
   #cdp: CdpClient;
   #network: Network;
   #paymasterUrl?: string;
@@ -70,7 +70,7 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
     super();
 
     this.smartAccount = config.smartAccount;
-    this.#ownerAccount = config.ownerAccount;
+    this.ownerAccount = config.ownerAccount;
     this.#cdp = config.cdp;
     this.#publicClient = config.publicClient;
     this.#network = config.network;
@@ -171,7 +171,7 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
     return {
       name: this.smartAccount.name,
       address: this.smartAccount.address as Address,
-      ownerAddress: this.#ownerAccount.address as Address,
+      ownerAddress: this.ownerAccount.address as Address,
     };
   }
 
