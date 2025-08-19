@@ -42,7 +42,7 @@ describe("CDP API Action Provider", () => {
     } as any;
 
     // Default setup for retryWithExponentialBackoff
-    mockRetryWithExponentialBackoff.mockImplementation(async (fn) => {
+    mockRetryWithExponentialBackoff.mockImplementation(async fn => {
       return await fn();
     });
 
@@ -168,9 +168,9 @@ describe("CDP API Action Provider", () => {
         .fn()
         .mockResolvedValue({ status: "success" });
 
-      const mockAccount = { 
+      const mockAccount = {
         swap: jest.fn(),
-        address: "0x123456789"
+        address: "0x123456789",
       };
       (mockCdpClient.evm.getAccount as jest.Mock).mockResolvedValue(mockAccount);
       mockGetTokenDetails.mockResolvedValue({
@@ -264,9 +264,9 @@ describe("CDP API Action Provider", () => {
         minToAmount: "980000",
       });
 
-      const mockAccount = { 
+      const mockAccount = {
         swap: jest.fn(),
-        address: "0x123456789"
+        address: "0x123456789",
       };
       (mockCdpClient.evm.getAccount as jest.Mock).mockResolvedValue(mockAccount);
       mockAccount.swap.mockRejectedValue(new Error("Insufficient liquidity"));
