@@ -4,24 +4,21 @@ import { EvmWalletProvider } from "../../wallet-providers/evmWalletProvider";
 import { WalletProviderWithClient } from "../../wallet-providers/cdpShared";
 import { CdpApiActionProvider } from "./cdpApiActionProvider";
 import { RequestFaucetFundsV2Schema, SwapSchema } from "./schemas";
-import * as utils from "./utils";
+import * as utils from "./swapUtils";
 
 // Mock the CDP SDK
 jest.mock("@coinbase/cdp-sdk");
-jest.mock("./utils");
+jest.mock("./swapUtils");
 
 describe("CDP API Action Provider", () => {
   let actionProvider: CdpApiActionProvider;
   let mockWalletProvider: jest.Mocked<EvmWalletProvider & WalletProviderWithClient>;
   let mockCdpClient: jest.Mocked<CdpClient>;
   const mockGetTokenDetails = utils.getTokenDetails as jest.Mock;
+  const mockRetryWithExponentialBackoff = utils.retryWithExponentialBackoff as jest.Mock;
 
   beforeEach(() => {
     jest.clearAllMocks();
-
-    const mockAccount = {
-      swap: jest.fn(),
-    };
 
     mockCdpClient = {
       evm: {
@@ -34,16 +31,20 @@ describe("CDP API Action Provider", () => {
       },
     } as any;
 
-    // Set up default mock behavior
-    (mockCdpClient.evm.getAccount as jest.Mock).mockResolvedValue(mockAccount);
-
     mockWalletProvider = {
       getNetwork: jest.fn(),
       getAddress: jest.fn(),
       getClient: jest.fn(),
       readContract: jest.fn(),
       getName: jest.fn(),
+      waitForTransactionReceipt: jest.fn(),
+      sendTransaction: jest.fn(),
     } as any;
+
+    // Default setup for retryWithExponentialBackoff
+    mockRetryWithExponentialBackoff.mockImplementation(async (fn) => {
+      return await fn();
+    });
 
     actionProvider = new CdpApiActionProvider();
   });
@@ -163,8 +164,14 @@ describe("CDP API Action Provider", () => {
       (mockWalletProvider as any).getPaymasterUrl = jest
         .fn()
         .mockReturnValue("https://paymaster.example");
+      (mockWalletProvider as any).waitForTransactionReceipt = jest
+        .fn()
+        .mockResolvedValue({ status: "success" });
 
-      const mockAccount = { swap: jest.fn() };
+      const mockAccount = { 
+        swap: jest.fn(),
+        address: "0x123456789"
+      };
       (mockCdpClient.evm.getAccount as jest.Mock).mockResolvedValue(mockAccount);
       mockGetTokenDetails.mockResolvedValue({
         fromTokenDecimals: 18,
@@ -178,7 +185,7 @@ describe("CDP API Action Provider", () => {
         toAmount: "990000", // 0.99 USDC
         minToAmount: "980000",
       });
-      mockAccount.swap.mockResolvedValue("0xswap789");
+      mockAccount.swap.mockResolvedValue({ transactionHash: "0xswap789" });
 
       const result = await actionProvider.swap(mockWalletProvider, {
         fromToken: FROM_TOKEN,
@@ -201,7 +208,6 @@ describe("CDP API Action Provider", () => {
       );
 
       const parsedResult = JSON.parse(result);
-      console.log(parsedResult);
       expect(parsedResult.success).toBe(true);
       expect(parsedResult.transactionHash).toBe("0xswap789");
     });
@@ -258,7 +264,10 @@ describe("CDP API Action Provider", () => {
         minToAmount: "980000",
       });
 
-      const mockAccount = { swap: jest.fn() };
+      const mockAccount = { 
+        swap: jest.fn(),
+        address: "0x123456789"
+      };
       (mockCdpClient.evm.getAccount as jest.Mock).mockResolvedValue(mockAccount);
       mockAccount.swap.mockRejectedValue(new Error("Insufficient liquidity"));
 

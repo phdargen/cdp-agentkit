@@ -5,7 +5,7 @@ import { isWalletProviderWithClient } from "../../wallet-providers/cdpShared";
 import { CreateAction } from "../actionDecorator";
 import { ActionProvider } from "../actionProvider";
 import { RequestFaucetFundsV2Schema, SwapSchema } from "./schemas";
-import { getTokenDetails } from "./utils";
+import { getTokenDetails, PERMIT2_ADDRESS, retryWithExponentialBackoff } from "./swapUtils";
 import { Hex, formatUnits, parseUnits, maxUint256, encodeFunctionData, erc20Abi } from "viem";
 
 /**
@@ -283,19 +283,22 @@ Important notes:
       let approvalTxHash: Hex | null = null;
       if (swapPrice.issues.allowance) {
         try {
-          // Permit2 contract address
-          const spender = swapPrice.issues.allowance.spender as Hex;
-
           approvalTxHash = await walletProvider.sendTransaction({
             to: args.fromToken as Hex,
             data: encodeFunctionData({
               abi: erc20Abi,
               functionName: "approve",
-              args: [spender, maxUint256],
+              args: [PERMIT2_ADDRESS, maxUint256],
             }),
           });
 
-          await walletProvider.waitForTransactionReceipt(approvalTxHash);
+          const receipt = await walletProvider.waitForTransactionReceipt(approvalTxHash);
+          if (receipt.status !== "complete" && receipt.status !== "success") {
+            return JSON.stringify({
+              success: false,
+              error: `Approval transaction failed`,
+            });
+          }
         } catch (error) {
           return JSON.stringify({
             success: false,
@@ -304,27 +307,44 @@ Important notes:
         }
       }
 
-      // Execute swap using the all-in-one pattern
-      const swapResult = (await account.swap({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        network: cdpNetwork as any,
-        fromToken: args.fromToken as Hex,
-        toToken: args.toToken as Hex,
-        fromAmount: parseUnits(args.fromAmount, fromTokenDecimals),
-        slippageBps: args.slippageBps,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        paymasterUrl: isSmartWallet ? walletProvider.getPaymasterUrl() : undefined,
-        signerAddress: isSmartWallet
-          ? (walletProvider.ownerAccount.address as Hex)
-          : (account.address as Hex),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      })) as any;
+      // Execute swap using the all-in-one pattern with retry logic
+      const swapResult = await retryWithExponentialBackoff(
+        async () => {
+          return (await account.swap({
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            network: cdpNetwork as any,
+            fromToken: args.fromToken as Hex,
+            toToken: args.toToken as Hex,
+            fromAmount: parseUnits(args.fromAmount, fromTokenDecimals),
+            slippageBps: args.slippageBps,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            paymasterUrl: isSmartWallet ? walletProvider.getPaymasterUrl() : undefined,
+            signerAddress: isSmartWallet
+              ? (walletProvider.ownerAccount.address as Hex)
+              : (account.address as Hex),
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          })) as any;
+        },
+        3,
+        5000,
+      ); // Max 3 retries with 5s base delay
+
+      // Check if swap was successful
+      const swapReceipt = await walletProvider.waitForTransactionReceipt(
+        isSmartWallet ? swapResult.userOpHash : swapResult.transactionHash,
+      );
+      if (swapReceipt.status !== "complete" && swapReceipt.status !== "success") {
+        return JSON.stringify({
+          success: false,
+          error: `Swap transaction failed`,
+        });
+      }
 
       // Format the successful response
       const formattedResponse = {
         success: true,
         ...(approvalTxHash ? { approvalTxHash } : {}),
-        transactionHash: swapResult,
+        transactionHash: isSmartWallet ? swapResult.userOpHash : swapResult.transactionHash,
         fromAmount: args.fromAmount,
         fromTokenName: fromTokenName,
         fromToken: args.fromToken,
