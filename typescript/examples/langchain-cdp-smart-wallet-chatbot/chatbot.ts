@@ -1,6 +1,7 @@
 import {
   AgentKit,
   cdpApiActionProvider,
+  cdpSmartWalletActionProvider,
   erc20ActionProvider,
   pythActionProvider,
   CdpSmartWalletProvider,
@@ -115,6 +116,7 @@ async function initializeAgent() {
         walletActionProvider(),
         erc20ActionProvider(),
         cdpApiActionProvider(),
+        cdpSmartWalletActionProvider(),
       ],
     });
 
