@@ -76,8 +76,12 @@ describe("ZeroX Action Provider", () => {
       getNetwork: jest.fn().mockReturnValue({
         chainId: MOCK_CHAIN_ID,
         protocolFamily: "evm",
+        networkId: "ethereum-mainnet",
       }),
       readContract: jest.fn(),
+      getPublicClient: jest.fn().mockReturnValue({
+        multicall: jest.fn(),
+      }),
       sendTransaction: jest.fn(),
       waitForTransactionReceipt: jest.fn(),
       signTypedData: jest.fn(),
@@ -89,17 +93,24 @@ describe("ZeroX Action Provider", () => {
 
   describe("getSwapPrice", () => {
     beforeEach(() => {
-      // Mock readContract for decimals
-      mockWalletProvider.readContract
-        .mockResolvedValueOnce(18) // sellToken decimals
-        .mockResolvedValueOnce(6); // buyToken decimals
+      // Mock multicall for token details (decimals and names)
+      const mockMulticallResults = [
+        { status: "success", result: 18 }, // sellToken decimals
+        { status: "success", result: "TEST" }, // sellToken name
+        { status: "success", result: 6 }, // buyToken decimals
+        { status: "success", result: "USDC" }, // buyToken name
+      ];
+
+      (mockWalletProvider.getPublicClient().multicall as jest.Mock).mockResolvedValue(
+        mockMulticallResults,
+      );
 
       // Mock fetch for price API
       const mockPriceResponse = {
         buyAmount: "1000000", // 1 USDC with 6 decimals
         minBuyAmount: "990000", // 0.99 USDC with 6 decimals
         totalNetworkFee: "100000000000000", // 0.0001 ETH
-        issues: null,
+        issues: { balance: null },
         liquidityAvailable: true,
       };
 
@@ -132,9 +143,14 @@ describe("ZeroX Action Provider", () => {
       expect((global.fetch as jest.Mock).mock.calls[0][0]).toContain(`buyToken=${MOCK_BUY_TOKEN}`);
 
       // Verify response formatting
+      expect(parsedResponse.success).toBe(true);
       expect(parsedResponse.sellToken).toBe(MOCK_SELL_TOKEN);
+      expect(parsedResponse.sellTokenName).toBe("TEST");
       expect(parsedResponse.buyToken).toBe(MOCK_BUY_TOKEN);
+      expect(parsedResponse.buyTokenName).toBe("USDC");
       expect(parsedResponse.liquidityAvailable).toBe(true);
+      expect(parsedResponse.balanceEnough).toBe(true);
+      expect(parsedResponse.slippageBps).toBe(50);
       expect(parsedResponse.buyAmount).toBeDefined();
       expect(parsedResponse.minBuyAmount).toBeDefined();
     });
@@ -185,10 +201,17 @@ describe("ZeroX Action Provider", () => {
     const MOCK_TX_HASH = "0xtxhash123456";
 
     beforeEach(() => {
-      // Mock readContract for decimals
-      mockWalletProvider.readContract
-        .mockResolvedValueOnce(18) // sellToken decimals
-        .mockResolvedValueOnce(6); // buyToken decimals
+      // Mock multicall for token details (decimals and names)
+      const mockMulticallResults = [
+        { status: "success", result: 18 }, // sellToken decimals
+        { status: "success", result: "TEST" }, // sellToken name
+        { status: "success", result: 6 }, // buyToken decimals
+        { status: "success", result: "USDC" }, // buyToken name
+      ];
+
+      (mockWalletProvider.getPublicClient().multicall as jest.Mock).mockResolvedValue(
+        mockMulticallResults,
+      );
 
       // Mock API responses
       const mockPriceResponse = {
@@ -228,6 +251,7 @@ describe("ZeroX Action Provider", () => {
       mockWalletProvider.sendTransaction.mockResolvedValueOnce(MOCK_TX_HASH as Hex);
       mockWalletProvider.waitForTransactionReceipt.mockResolvedValueOnce({
         transactionHash: MOCK_TX_HASH,
+        status: "success",
       });
     });
 
@@ -258,8 +282,12 @@ describe("ZeroX Action Provider", () => {
       // Verify response formatting
       expect(parsedResponse.success).toBe(true);
       expect(parsedResponse.sellToken).toBe(MOCK_SELL_TOKEN);
+      expect(parsedResponse.sellTokenName).toBe("TEST");
       expect(parsedResponse.buyToken).toBe(MOCK_BUY_TOKEN);
-      expect(parsedResponse.swapTxHash).toBe(MOCK_TX_HASH);
+      expect(parsedResponse.buyTokenName).toBe("USDC");
+      expect(parsedResponse.transactionHash).toBe(MOCK_TX_HASH);
+      expect(parsedResponse.slippageBps).toBe(50);
+      expect(parsedResponse.network).toBe("ethereum-mainnet");
     });
 
     it("should handle price API errors", async () => {
@@ -319,32 +347,6 @@ describe("ZeroX Action Provider", () => {
 
     it("should return false for non-evm networks", () => {
       expect(provider.supportsNetwork({ protocolFamily: "solana" })).toBe(false);
-    });
-  });
-
-  describe("isNativeEth", () => {
-    it("should identify native ETH address", () => {
-      // Test private method through the action methods
-      const args = {
-        sellToken: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", // Native ETH address
-        buyToken: MOCK_BUY_TOKEN,
-        sellAmount: MOCK_SELL_AMOUNT,
-        slippageBps: 50,
-      };
-
-      // We just need to mock enough to reach the method
-      (global.fetch as jest.Mock).mockRejectedValueOnce(new Error("Test error"));
-      mockWalletProvider.readContract.mockRejectedValueOnce(new Error("Test error"));
-
-      provider.getSwapPrice(mockWalletProvider, args);
-
-      // Native ETH should skip the decimals readContract call
-      expect(mockWalletProvider.readContract).not.toHaveBeenCalledWith(
-        expect.objectContaining({
-          address: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-          functionName: "decimals",
-        }),
-      );
     });
   });
 });

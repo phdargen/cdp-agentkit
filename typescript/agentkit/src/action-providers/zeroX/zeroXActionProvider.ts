@@ -3,7 +3,7 @@ import { ActionProvider } from "../actionProvider";
 import { Network } from "../../network";
 import { CreateAction } from "../actionDecorator";
 import { GetSwapPriceSchema, ExecuteSwapSchema } from "./schemas";
-import { EvmWalletProvider } from "../../wallet-providers";
+import { CdpSmartWalletProvider, EvmWalletProvider } from "../../wallet-providers";
 import {
   erc20Abi,
   formatUnits,
@@ -15,7 +15,7 @@ import {
   Hex,
   numberToHex,
 } from "viem";
-
+import { getTokenDetails, PERMIT2_ADDRESS } from "./utils";
 /**
  * Configuration for the ZeroXActionProvider.
  */
@@ -69,7 +69,7 @@ Important notes:
 - The contract address for native ETH is "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 - This only fetches a price quote and does not execute a swap
 - Supported on all EVM networks compatible with 0x API
-- Returns detailed price information including exchange rate and fees
+- Use sellToken units exactly as provided, do not convert to wei or any other units
 `,
     schema: GetSwapPriceSchema,
   })
@@ -82,30 +82,16 @@ Important notes:
     if (!chainId) throw new Error("Chain ID not available from wallet provider");
 
     try {
-      // Determine sell token decimals
-      let sellTokenDecimals = 18;
-      if (!this.isNativeEth(args.sellToken)) {
-        sellTokenDecimals = (await walletProvider.readContract({
-          address: args.sellToken as Hex,
-          abi: erc20Abi,
-          functionName: "decimals",
-          args: [],
-        })) as number;
-      }
+      // Get token details
+      const {
+        fromTokenDecimals: sellTokenDecimals,
+        toTokenDecimals: buyTokenDecimals,
+        fromTokenName: sellTokenName,
+        toTokenName: buyTokenName,
+      } = await getTokenDetails(walletProvider, args.sellToken, args.buyToken);
 
       // Convert sell amount to base units
       const sellAmount = parseUnits(args.sellAmount, sellTokenDecimals).toString();
-
-      // Determine buy token decimals
-      let buyTokenDecimals = 18;
-      if (!this.isNativeEth(args.buyToken)) {
-        buyTokenDecimals = (await walletProvider.readContract({
-          address: args.buyToken as Hex,
-          abi: erc20Abi,
-          functionName: "decimals",
-          args: [],
-        })) as number;
-      }
 
       // Create URL for the price API request
       const url = new URL("https://api.0x.org/swap/permit2/price");
@@ -138,14 +124,17 @@ Important notes:
 
       // Format the response
       const formattedResponse = {
+        success: true,
         sellAmount: formatUnits(BigInt(sellAmount), sellTokenDecimals),
+        sellTokenName: sellTokenName,
         sellToken: args.sellToken,
         buyAmount: formatUnits(data.buyAmount, buyTokenDecimals),
         minBuyAmount: data.minBuyAmount ? formatUnits(data.minBuyAmount, buyTokenDecimals) : null,
+        buyTokenName: buyTokenName,
         buyToken: args.buyToken,
-        totalNetworkFeeInETH: data.totalNetworkFee ? formatUnits(data.totalNetworkFee, 18) : null,
-        issues: data.issues || null,
+        slippageBps: args.slippageBps,
         liquidityAvailable: data.liquidityAvailable,
+        balanceEnough: data.issues?.balance === null,
         priceOfBuyTokenInSellToken: (
           Number(formatUnits(BigInt(sellAmount), sellTokenDecimals)) /
           Number(formatUnits(data.buyAmount, buyTokenDecimals))
@@ -192,6 +181,7 @@ Important notes:
 - The trade size might influence the excecution price depending on available liquidity 
 - First fetch a price quote and only execute swap if you are happy with the indicated price
 - Supported on all EVM networks compatible with 0x API
+- Use sellToken units exactly as provided, do not convert to wei or any other units
 `,
     schema: ExecuteSwapSchema,
   })
@@ -199,37 +189,28 @@ Important notes:
     walletProvider: EvmWalletProvider,
     args: z.infer<typeof ExecuteSwapSchema>,
   ): Promise<string> {
+    // Sanity checks
     const network = walletProvider.getNetwork();
     const chainId = network.chainId;
     if (!chainId) throw new Error("Chain ID not available from wallet provider");
 
-    // Check price impact
+    if (walletProvider instanceof CdpSmartWalletProvider) {
+      throw new Error(
+        "CdpSmartWalletProvider is currently not supported for 0x swaps, use swap action from CdpApiActionProvider instead",
+      );
+    }
 
     try {
-      // Determine sell token decimals
-      let sellTokenDecimals = 18;
-      if (!this.isNativeEth(args.sellToken)) {
-        sellTokenDecimals = (await walletProvider.readContract({
-          address: args.sellToken as Hex,
-          abi: erc20Abi,
-          functionName: "decimals",
-          args: [],
-        })) as number;
-      }
+      // Get token details
+      const {
+        fromTokenDecimals: sellTokenDecimals,
+        toTokenDecimals: buyTokenDecimals,
+        fromTokenName: sellTokenName,
+        toTokenName: buyTokenName,
+      } = await getTokenDetails(walletProvider, args.sellToken, args.buyToken);
 
       // Convert sell amount to base units
       const sellAmount = parseUnits(args.sellAmount, sellTokenDecimals).toString();
-
-      // Determine buy token decimals
-      let buyTokenDecimals = 18;
-      if (!this.isNativeEth(args.buyToken)) {
-        buyTokenDecimals = (await walletProvider.readContract({
-          address: args.buyToken as Hex,
-          abi: erc20Abi,
-          functionName: "decimals",
-          args: [],
-        })) as number;
-      }
 
       // Get the wallet address
       const walletAddress = walletProvider.getAddress();
@@ -281,17 +262,14 @@ Important notes:
       // Check if permit2 approval is needed for ERC20 tokens
       // Only needed once per token per address
       let approvalTxHash: Hex | null = null;
-      if (!this.isNativeEth(args.sellToken) && priceData.issues?.allowance) {
+      if (priceData.issues?.allowance) {
         try {
-          // Get token approval data
-          const spender = priceData.issues.allowance.spender as Hex; // permit2 contract address
-
           approvalTxHash = await walletProvider.sendTransaction({
             to: args.sellToken as Hex,
             data: encodeFunctionData({
               abi: erc20Abi,
               functionName: "approve",
-              args: [spender, maxUint256],
+              args: [PERMIT2_ADDRESS, maxUint256],
             }),
           });
 
@@ -336,14 +314,9 @@ Important notes:
       let signature: Hex | undefined;
       if (quoteData.permit2?.eip712) {
         try {
-          // Create a new types object without EIP712Domain
-          const types = { ...quoteData.permit2.eip712.types };
-          delete types.EIP712Domain;
-
-          // Create correctly structured typedData object
           const typedData = {
             domain: quoteData.permit2.eip712.domain,
-            types: types,
+            types: quoteData.permit2.eip712.types,
             primaryType: quoteData.permit2.eip712.primaryType,
             message: quoteData.permit2.eip712.message,
           } as const;
@@ -378,49 +351,42 @@ Important notes:
           to: Hex;
           data: Hex;
           gas?: bigint;
-          gasPrice?: bigint;
           value?: bigint;
         } = {
           to: quoteData.transaction.to as Hex,
           data: quoteData.transaction.data as Hex,
-          gas: quoteData?.transaction.gas ? BigInt(quoteData.transaction.gas) : undefined,
-          gasPrice: quoteData?.transaction.gasPrice
-            ? BigInt(quoteData.transaction.gasPrice)
-            : undefined,
+          ...(quoteData?.transaction.gas ? { gas: BigInt(quoteData.transaction.gas) } : {}),
+          ...(quoteData.transaction.value ? { value: BigInt(quoteData.transaction.value) } : {}),
         };
-
-        // Add value parameter only for selling native tokens
-        if (this.isNativeEth(args.sellToken)) {
-          txParams.value = BigInt(quoteData.transaction.value || 0);
-        }
 
         // Send transaction
         const txHash = await walletProvider.sendTransaction(txParams);
         const receipt = await walletProvider.waitForTransactionReceipt(txHash);
+        if (receipt.status !== "complete" && receipt.status !== "success") {
+          return JSON.stringify({
+            success: false,
+            ...(approvalTxHash ? { approvalTxHash } : {}),
+            transactionHash: receipt.transactionHash,
+            error: `Swap transaction failed`,
+          });
+        }
 
         // Format the response
         const formattedResponse = {
           success: true,
+          ...(approvalTxHash ? { approvalTxHash } : {}),
+          transactionHash: receipt.transactionHash,
           sellAmount: formatUnits(BigInt(sellAmount), sellTokenDecimals),
+          sellTokenName: sellTokenName,
           sellToken: args.sellToken,
           buyAmount: formatUnits(quoteData.buyAmount, buyTokenDecimals),
           minBuyAmount: quoteData.minBuyAmount
             ? formatUnits(quoteData.minBuyAmount, buyTokenDecimals)
             : null,
+          buyTokenName: buyTokenName,
           buyToken: args.buyToken,
-          totalNetworkFeeInETH: quoteData.totalNetworkFee
-            ? formatUnits(quoteData.totalNetworkFee, 18)
-            : null,
-          priceOfBuyTokenInSellToken: (
-            Number(formatUnits(BigInt(sellAmount), sellTokenDecimals)) /
-            Number(formatUnits(quoteData.buyAmount, buyTokenDecimals))
-          ).toString(),
-          priceOfSellTokenInBuyToken: (
-            Number(formatUnits(quoteData.buyAmount, buyTokenDecimals)) /
-            Number(formatUnits(BigInt(sellAmount), sellTokenDecimals))
-          ).toString(),
-          permit2ApprovalTxHash: approvalTxHash,
-          swapTxHash: receipt.transactionHash,
+          slippageBps: args.slippageBps,
+          network: network.networkId,
         };
 
         return JSON.stringify(formattedResponse);
@@ -428,7 +394,7 @@ Important notes:
         return JSON.stringify({
           success: false,
           error: `Error sending swap transaction: ${error}`,
-          approvalTxHash: approvalTxHash,
+          ...(approvalTxHash ? { approvalTxHash } : {}),
         });
       }
     } catch (error) {
@@ -446,16 +412,6 @@ Important notes:
    * @returns True if the ZeroX action provider supports the network, false otherwise.
    */
   supportsNetwork = (network: Network) => network.protocolFamily === "evm";
-
-  /**
-   * Checks if a token is native ETH.
-   *
-   * @param token - The token address to check.
-   * @returns True if the token is native ETH, false otherwise.
-   */
-  private isNativeEth(token: string): boolean {
-    return token.toLowerCase() === "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
-  }
 }
 
 /**
