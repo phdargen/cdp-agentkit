@@ -6,6 +6,7 @@ import {
   erc20ActionProvider,
   erc721ActionProvider,
   cdpApiActionProvider,
+  cdpEvmWalletActionProvider,
   CdpSolanaWalletProvider,
   splActionProvider,
   x402ActionProvider,
@@ -113,6 +114,7 @@ async function initializeAgent() {
       cdpApiActionProvider(),
       ...(isEvmWalletProvider(walletProvider)
         ? [
+            cdpEvmWalletActionProvider(),
             wethActionProvider(),
             erc20ActionProvider(),
             erc721ActionProvider(),

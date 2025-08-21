@@ -4,7 +4,7 @@ import { WalletProvider } from "../../wallet-providers";
 import { isWalletProviderWithClient } from "../../wallet-providers/cdpShared";
 import { CreateAction } from "../actionDecorator";
 import { ActionProvider } from "../actionProvider";
-import { RequestFaucetFundsV2Schema, SwapSchema } from "./schemas";
+import { RequestFaucetFundsV2Schema } from "./schemas";
 
 /**
  * CdpApiActionProvider is an action provider for CDP API.
@@ -82,67 +82,12 @@ from another wallet and provide the user with your wallet details.`,
   }
 
   /**
-   * Swaps tokens using the CDP client.
-   *
-   * @param walletProvider - The wallet provider to perform the swap with.
-   * @param args - The input arguments for the swap action.
-   * @returns A confirmation message with transaction details.
-   */
-  @CreateAction({
-    name: "swap",
-    description: `This tool swaps tokens using the CDP API. It takes the wallet, from asset ID, to asset ID, and amount as input.
-Swaps are currently supported on EVM networks like Base and Ethereum.
-Example usage:
-- Swap 0.1 ETH to USDC: { fromAssetId: "eth", toAssetId: "usdc", amount: "0.1" }
-- Swap 100 USDC to ETH: { fromAssetId: "usdc", toAssetId: "eth", amount: "100" }`,
-    schema: SwapSchema,
-  })
-  async swap(walletProvider: WalletProvider, args: z.infer<typeof SwapSchema>): Promise<string> {
-    const network = walletProvider.getNetwork();
-    const networkId = network.networkId!;
-
-    if (isWalletProviderWithClient(walletProvider)) {
-      if (network.protocolFamily === "evm") {
-        try {
-          const cdpNetwork = this.#getCdpSdkNetwork(networkId);
-
-          // Get the account for the wallet address
-          const account = await walletProvider.getClient().evm.getAccount({
-            address: walletProvider.getAddress() as `0x${string}`,
-          });
-
-          // Execute swap using the all-in-one pattern
-          const swapResult = await account.swap({
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            network: cdpNetwork as any,
-            from: args.fromAssetId,
-            to: args.toAssetId,
-            amount: args.amount,
-            slippageBps: 100, // 1% slippage tolerance
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            paymasterUrl: (walletProvider as any).getPaymasterUrl?.(),
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } as any);
-
-          return `Successfully swapped ${args.amount} ${args.fromAssetId.toUpperCase()} to ${args.toAssetId.toUpperCase()}. Transaction hash: ${swapResult.transactionHash}`;
-        } catch (error) {
-          throw new Error(`Swap failed: ${error}`);
-        }
-      } else {
-        throw new Error("Swap is currently only supported on EVM networks.");
-      }
-    } else {
-      throw new Error("Wallet provider is not a CDP Wallet Provider.");
-    }
-  }
-
-  /**
-   * Checks if the Cdp action provider supports the given network.
+   * Checks if the CDP action provider supports the given network.
    *
    * NOTE: Network scoping is done at the action implementation level
    *
    * @param _ - The network to check.
-   * @returns True if the Cdp action provider supports the network, false otherwise.
+   * @returns True if the CDP action provider supports the network, false otherwise.
    */
   supportsNetwork = (_: Network) => true;
 
