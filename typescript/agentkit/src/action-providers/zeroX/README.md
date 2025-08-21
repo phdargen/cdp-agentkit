@@ -18,11 +18,13 @@ zeroX/
 - `get_swap_price_quote_from_0x`: Get a price quote for swapping tokens
   - Returns detailed price information including exchange rate, fees, and minimum buy amount
   - Does not execute any transactions
+  - Supports optional affiliate fee collection
 
 - `execute_swap_on_0x`: Execute a token swap between two tokens
   - Handles token approvals automatically if needed
   - Executes the swap transaction
   - Returns the transaction hash and swap details upon success
+  - Supports optional affiliate fee collection
 
 ## Adding New Actions
 
@@ -58,5 +60,7 @@ ZEROX_API_KEY=your-0x-api-key
 - All token amounts should be specified in whole units (e.g., "1.5" ETH, not wei)
 - Slippage setting is optional and defaults to 1% (100 basis points) if not specified
 - Always check price quotes before executing swaps to ensure favorable rates
+- For affiliate fees: provide swapFeeRecipient to enable fees (swapFeeBps defaults to 1%)
+- Affiliate fees are automatically collected from the sellToken and sent to the specified recipient address
 
 For more information on the **0x Protocol**, visit [0x Protocol Documentation](https://docs.0x.org/). 

@@ -45,6 +45,48 @@ describe("ZeroX Schema Validation", () => {
     }
   });
 
+  it("should validate swap fee parameters when both provided", () => {
+    const inputWithSwapFees = {
+      sellToken: "0x1234567890123456789012345678901234567890",
+      buyToken: "0x0987654321098765432109876543210987654321",
+      sellAmount: "1.5",
+      swapFeeRecipient: "0xabcdef1234567890abcdef1234567890abcdef12",
+      swapFeeBps: 50,
+    };
+
+    const result = GetSwapPriceSchema.safeParse(inputWithSwapFees);
+    expect(result.success).toBe(true);
+  });
+
+  it("should validate when only swapFeeRecipient provided (swapFeeBps defaults to 100)", () => {
+    const inputWithOnlyRecipient = {
+      sellToken: "0x1234567890123456789012345678901234567890",
+      buyToken: "0x0987654321098765432109876543210987654321",
+      sellAmount: "1.5",
+      swapFeeBps: 100,
+      swapFeeRecipient: "0xabcdef1234567890abcdef1234567890abcdef12",
+    };
+
+    const result = GetSwapPriceSchema.safeParse(inputWithOnlyRecipient);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.swapFeeBps).toBe(100); // Default value
+    }
+  });
+
+  it("should fail validation when swapFeeBps exceeds maximum", () => {
+    const inputWithInvalidSwapFeeBps = {
+      sellToken: "0x1234567890123456789012345678901234567890",
+      buyToken: "0x0987654321098765432109876543210987654321",
+      sellAmount: "1.5",
+      swapFeeRecipient: "0xabcdef1234567890abcdef1234567890abcdef12",
+      swapFeeBps: 1500, // Exceeds maximum of 1000
+    };
+
+    const result = GetSwapPriceSchema.safeParse(inputWithInvalidSwapFeeBps);
+    expect(result.success).toBe(false);
+  });
+
   it("should validate ExecuteSwap schema with valid input", () => {
     const validInput = {
       sellToken: "0x1234567890123456789012345678901234567890",
@@ -126,6 +168,7 @@ describe("ZeroX Action Provider", () => {
         buyToken: MOCK_BUY_TOKEN,
         sellAmount: MOCK_SELL_AMOUNT,
         slippageBps: 50,
+        swapFeeBps: 100,
       };
 
       const response = await provider.getSwapPrice(mockWalletProvider, args);
@@ -169,6 +212,7 @@ describe("ZeroX Action Provider", () => {
         buyToken: MOCK_BUY_TOKEN,
         sellAmount: MOCK_SELL_AMOUNT,
         slippageBps: 50,
+        swapFeeBps: 100,
       };
 
       const response = await provider.getSwapPrice(mockWalletProvider, args);
@@ -187,6 +231,7 @@ describe("ZeroX Action Provider", () => {
         buyToken: MOCK_BUY_TOKEN,
         sellAmount: MOCK_SELL_AMOUNT,
         slippageBps: 50,
+        swapFeeBps: 100,
       };
 
       const response = await provider.getSwapPrice(mockWalletProvider, args);
@@ -194,6 +239,65 @@ describe("ZeroX Action Provider", () => {
 
       expect(parsedResponse.success).toBe(false);
       expect(parsedResponse.error).toContain("Error fetching swap price");
+    });
+
+    it("should include swap fee parameters in API call when provided", async () => {
+      const args = {
+        sellToken: MOCK_SELL_TOKEN,
+        buyToken: MOCK_BUY_TOKEN,
+        sellAmount: MOCK_SELL_AMOUNT,
+        slippageBps: 50,
+        swapFeeRecipient: "0xabcdef1234567890abcdef1234567890abcdef12",
+        swapFeeBps: 100,
+      };
+
+      await provider.getSwapPrice(mockWalletProvider, args);
+
+      // Verify fetch was called with swap fee parameters
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      const fetchUrl = (global.fetch as jest.Mock).mock.calls[0][0];
+      expect(fetchUrl).toContain("swapFeeRecipient=0xabcdef1234567890abcdef1234567890abcdef12");
+      expect(fetchUrl).toContain("swapFeeBps=100");
+      expect(fetchUrl).toContain(`swapFeeToken=${MOCK_SELL_TOKEN}`);
+    });
+
+    it("should not include swap fee parameters when not provided", async () => {
+      const args = {
+        sellToken: MOCK_SELL_TOKEN,
+        buyToken: MOCK_BUY_TOKEN,
+        sellAmount: MOCK_SELL_AMOUNT,
+        slippageBps: 50,
+        swapFeeBps: 100,
+      };
+
+      await provider.getSwapPrice(mockWalletProvider, args);
+
+      // Verify fetch was called without swap fee parameters
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      const fetchUrl = (global.fetch as jest.Mock).mock.calls[0][0];
+      expect(fetchUrl).not.toContain("swapFeeRecipient");
+      expect(fetchUrl).not.toContain("swapFeeBps");
+      expect(fetchUrl).not.toContain("swapFeeToken");
+    });
+
+    it("should include swap fee parameters with default swapFeeBps when only recipient provided", async () => {
+      const args = {
+        sellToken: MOCK_SELL_TOKEN,
+        buyToken: MOCK_BUY_TOKEN,
+        sellAmount: MOCK_SELL_AMOUNT,
+        slippageBps: 50,
+        swapFeeBps: 100,
+        swapFeeRecipient: "0xabcdef1234567890abcdef1234567890abcdef12",
+      };
+
+      await provider.getSwapPrice(mockWalletProvider, args);
+
+      // Verify fetch was called with swap fee parameters including default swapFeeBps
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      const fetchUrl = (global.fetch as jest.Mock).mock.calls[0][0];
+      expect(fetchUrl).toContain("swapFeeRecipient=0xabcdef1234567890abcdef1234567890abcdef12");
+      expect(fetchUrl).toContain("swapFeeBps=100"); // Default value
+      expect(fetchUrl).toContain(`swapFeeToken=${MOCK_SELL_TOKEN}`);
     });
   });
 
@@ -261,6 +365,7 @@ describe("ZeroX Action Provider", () => {
         buyToken: MOCK_BUY_TOKEN,
         sellAmount: MOCK_SELL_AMOUNT,
         slippageBps: 50,
+        swapFeeBps: 100,
       };
 
       const response = await provider.executeSwap(mockWalletProvider, args);
@@ -304,6 +409,7 @@ describe("ZeroX Action Provider", () => {
         buyToken: MOCK_BUY_TOKEN,
         sellAmount: MOCK_SELL_AMOUNT,
         slippageBps: 50,
+        swapFeeBps: 100,
       };
 
       const response = await provider.executeSwap(mockWalletProvider, args);
@@ -330,6 +436,7 @@ describe("ZeroX Action Provider", () => {
         buyToken: MOCK_BUY_TOKEN,
         sellAmount: MOCK_SELL_AMOUNT,
         slippageBps: 50,
+        swapFeeBps: 100,
       };
 
       const response = await provider.executeSwap(mockWalletProvider, args);
@@ -337,6 +444,89 @@ describe("ZeroX Action Provider", () => {
 
       expect(parsedResponse.success).toBe(false);
       expect(parsedResponse.error).toContain("No liquidity available");
+    });
+
+    it("should include swap fee parameters in both API calls when provided", async () => {
+      const args = {
+        sellToken: MOCK_SELL_TOKEN,
+        buyToken: MOCK_BUY_TOKEN,
+        sellAmount: MOCK_SELL_AMOUNT,
+        slippageBps: 50,
+        swapFeeRecipient: "0xabcdef1234567890abcdef1234567890abcdef12",
+        swapFeeBps: 100,
+      };
+
+      await provider.executeSwap(mockWalletProvider, args);
+
+      // Verify both API calls include swap fee parameters
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+
+      // Check price API call
+      const priceUrl = (global.fetch as jest.Mock).mock.calls[0][0];
+      expect(priceUrl).toContain("swapFeeRecipient=0xabcdef1234567890abcdef1234567890abcdef12");
+      expect(priceUrl).toContain("swapFeeBps=100");
+      expect(priceUrl).toContain(`swapFeeToken=${MOCK_SELL_TOKEN}`);
+
+      // Check quote API call
+      const quoteUrl = (global.fetch as jest.Mock).mock.calls[1][0];
+      expect(quoteUrl).toContain("swapFeeRecipient=0xabcdef1234567890abcdef1234567890abcdef12");
+      expect(quoteUrl).toContain("swapFeeBps=100");
+      expect(quoteUrl).toContain(`swapFeeToken=${MOCK_SELL_TOKEN}`);
+    });
+
+    it("should not include swap fee parameters when not provided", async () => {
+      const args = {
+        sellToken: MOCK_SELL_TOKEN,
+        buyToken: MOCK_BUY_TOKEN,
+        sellAmount: MOCK_SELL_AMOUNT,
+        slippageBps: 50,
+        swapFeeBps: 100,
+      };
+
+      await provider.executeSwap(mockWalletProvider, args);
+
+      // Verify both API calls exclude swap fee parameters
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+
+      // Check price API call
+      const priceUrl = (global.fetch as jest.Mock).mock.calls[0][0];
+      expect(priceUrl).not.toContain("swapFeeRecipient");
+      expect(priceUrl).not.toContain("swapFeeBps");
+      expect(priceUrl).not.toContain("swapFeeToken");
+
+      // Check quote API call
+      const quoteUrl = (global.fetch as jest.Mock).mock.calls[1][0];
+      expect(quoteUrl).not.toContain("swapFeeRecipient");
+      expect(quoteUrl).not.toContain("swapFeeBps");
+      expect(quoteUrl).not.toContain("swapFeeToken");
+    });
+
+    it("should include swap fee parameters with default swapFeeBps when only recipient provided", async () => {
+      const args = {
+        sellToken: MOCK_SELL_TOKEN,
+        buyToken: MOCK_BUY_TOKEN,
+        sellAmount: MOCK_SELL_AMOUNT,
+        slippageBps: 50,
+        swapFeeBps: 100,
+        swapFeeRecipient: "0xabcdef1234567890abcdef1234567890abcdef12",
+      };
+
+      await provider.executeSwap(mockWalletProvider, args);
+
+      // Verify both API calls include swap fee parameters with default swapFeeBps
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+
+      // Check price API call
+      const priceUrl = (global.fetch as jest.Mock).mock.calls[0][0];
+      expect(priceUrl).toContain("swapFeeRecipient=0xabcdef1234567890abcdef1234567890abcdef12");
+      expect(priceUrl).toContain("swapFeeBps=100"); // Default value
+      expect(priceUrl).toContain(`swapFeeToken=${MOCK_SELL_TOKEN}`);
+
+      // Check quote API call
+      const quoteUrl = (global.fetch as jest.Mock).mock.calls[1][0];
+      expect(quoteUrl).toContain("swapFeeRecipient=0xabcdef1234567890abcdef1234567890abcdef12");
+      expect(quoteUrl).toContain("swapFeeBps=100"); // Default value
+      expect(quoteUrl).toContain(`swapFeeToken=${MOCK_SELL_TOKEN}`);
     });
   });
 

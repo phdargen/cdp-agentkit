@@ -68,6 +68,8 @@ It takes the following inputs:
 - buyToken: The contract address of the token to buy
 - sellAmount: The amount of sellToken to swap in whole units (e.g. 1 ETH or 10 USDC)
 - slippageBps: (Optional) Maximum allowed slippage in basis points (100 = 1%)
+- swapFeeRecipient: (Optional) The wallet address to receive affiliate trading fees
+- swapFeeBps: The amount in basis points (0-1000) to charge as affiliate fees (defaults to 100 = 1%), only used if swapFeeRecipient is provided
 
 Important notes:
 - The contract address for native ETH is "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
@@ -105,6 +107,11 @@ Important notes:
       url.searchParams.append("sellAmount", sellAmount);
       url.searchParams.append("taker", walletProvider.getAddress());
       url.searchParams.append("slippageBps", args.slippageBps.toString());
+      if (args.swapFeeRecipient) {
+        url.searchParams.append("swapFeeRecipient", args.swapFeeRecipient);
+        url.searchParams.append("swapFeeBps", args.swapFeeBps.toString());
+        url.searchParams.append("swapFeeToken", args.sellToken);
+      }
 
       // Make the request
       const response = await fetch(url.toString(), {
@@ -175,6 +182,8 @@ It takes the following inputs:
 - buyToken: The contract address of the token to buy
 - sellAmount: The amount of sellToken to swap in whole units (e.g. 1 ETH or 10 USDC)
 - slippageBps: (Optional) Maximum allowed slippage in basis points (100 = 1%)
+- swapFeeRecipient: (Optional) The wallet address to receive affiliate trading fees
+- swapFeeBps: The amount in basis points (0-1000) to charge as affiliate fees (defaults to 100 = 1%), only used if swapFeeRecipient is provided
 
 Important notes:
 - The contract address for native ETH is "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
@@ -227,6 +236,11 @@ Important notes:
       priceUrl.searchParams.append("sellAmount", sellAmount);
       priceUrl.searchParams.append("taker", walletAddress);
       priceUrl.searchParams.append("slippageBps", args.slippageBps.toString());
+      if (args.swapFeeRecipient) {
+        priceUrl.searchParams.append("swapFeeRecipient", args.swapFeeRecipient);
+        priceUrl.searchParams.append("swapFeeBps", args.swapFeeBps.toString());
+        priceUrl.searchParams.append("swapFeeToken", args.sellToken);
+      }
 
       const priceResponse = await fetch(priceUrl.toString(), {
         method: "GET",
@@ -294,6 +308,11 @@ Important notes:
       quoteUrl.searchParams.append("sellAmount", sellAmount);
       quoteUrl.searchParams.append("taker", walletAddress);
       quoteUrl.searchParams.append("slippageBps", args.slippageBps.toString());
+      if (args.swapFeeRecipient) {
+        quoteUrl.searchParams.append("swapFeeRecipient", args.swapFeeRecipient);
+        quoteUrl.searchParams.append("swapFeeBps", args.swapFeeBps.toString());
+        quoteUrl.searchParams.append("swapFeeToken", args.sellToken);
+      }
 
       const quoteResponse = await fetch(quoteUrl.toString(), {
         method: "GET",
