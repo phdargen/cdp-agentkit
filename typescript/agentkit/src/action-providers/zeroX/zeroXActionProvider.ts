@@ -3,11 +3,7 @@ import { ActionProvider } from "../actionProvider";
 import { Network } from "../../network";
 import { CreateAction } from "../actionDecorator";
 import { GetSwapPriceSchema, ExecuteSwapSchema } from "./schemas";
-import {
-  CdpSmartWalletProvider,
-  EvmWalletProvider,
-  LegacyCdpWalletProvider,
-} from "../../wallet-providers";
+import { EvmWalletProvider, LegacyCdpWalletProvider } from "../../wallet-providers";
 import {
   erc20Abi,
   formatUnits,
@@ -206,12 +202,6 @@ Important notes:
     const network = walletProvider.getNetwork();
     const chainId = network.chainId;
     if (!chainId) throw new Error("Chain ID not available from wallet provider");
-
-    if (walletProvider instanceof CdpSmartWalletProvider) {
-      throw new Error(
-        "CdpSmartWalletProvider is currently not supported for 0x swaps, use swap action from CdpApiActionProvider instead",
-      );
-    }
 
     try {
       // Get token details
