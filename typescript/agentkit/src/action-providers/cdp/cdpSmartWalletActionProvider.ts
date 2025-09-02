@@ -121,7 +121,8 @@ It takes the following inputs:
 - slippageBps: (Optional) Maximum allowed slippage in basis points (100 = 1%)
 Important notes:
 - The contract address for native ETH is "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-- Use fromAmount units exactly as provided, do not convert to wei or any other units.
+- Use fromAmount units exactly as provided, do not convert to wei or any other units
+- Never assume token or address, they have to be provided as inputs. If only token symbol is provided, use the get_token_address tool if available to get the token address first
 `,
     schema: SwapSchema,
   })
@@ -206,7 +207,8 @@ It takes the following inputs:
 Important notes:
 - The contract address for native ETH is "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 - If needed, it will automatically approve the permit2 contract to spend the fromToken
-- Use fromAmount units exactly as provided, do not convert to wei or any other units.
+- Use fromAmount units exactly as provided, do not convert to wei or any other units
+- Never assume token or address, they have to be provided as inputs. If only token symbol is provided, use the get_token_address tool if available to get the token address first
 `,
     schema: SwapSchema,
   })

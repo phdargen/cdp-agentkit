@@ -14,7 +14,7 @@ import {
   UniswapV3PoolABI,
   YESNO_DECIMALS,
 } from "./constants";
-import { abi as ERC20ABI } from "../erc20/constants";
+import { erc20Abi as ERC20ABI } from "viem";
 import { EvmWalletProvider } from "../../wallet-providers";
 import { Hex, formatUnits } from "viem";
 import { TruthMarket, Slot0Result } from "./utils";

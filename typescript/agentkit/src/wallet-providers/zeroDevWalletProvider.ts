@@ -131,9 +131,10 @@ export class ZeroDevWalletProvider extends EvmWalletProvider {
     const bundlerRpc = `https://rpc.zerodev.app/api/v3/bundler/${config.projectId}`;
 
     // Create public client
+    const rpcUrl = config.rpcUrl || process.env.RPC_URL;
     const publicClient = createPublicClient({
       chain,
-      transport: http(),
+      transport: rpcUrl ? http(rpcUrl) : http(),
     });
 
     // Create ECDSA validator
