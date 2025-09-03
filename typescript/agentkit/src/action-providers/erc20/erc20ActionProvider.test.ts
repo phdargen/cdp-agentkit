@@ -108,7 +108,7 @@ describe("Transfer Action", () => {
 
   it("should successfully respond", async () => {
     const args = {
-      amount: BigInt(MOCK_AMOUNT),
+      amount: MOCK_AMOUNT.toString(),
       tokenAddress: MOCK_CONTRACT_ADDRESS,
       destinationAddress: MOCK_DESTINATION,
     };
@@ -132,7 +132,7 @@ describe("Transfer Action", () => {
 
   it("should fail with an error", async () => {
     const args = {
-      amount: BigInt(MOCK_AMOUNT),
+      amount: MOCK_AMOUNT.toString(),
       tokenAddress: MOCK_CONTRACT_ADDRESS,
       destinationAddress: MOCK_DESTINATION,
     };

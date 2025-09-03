@@ -285,7 +285,7 @@ export class CdpEvmWalletProvider extends EvmWalletProvider implements WalletPro
    * Transfer the native asset of the network.
    *
    * @param to - The destination address.
-   * @param value - The amount to transfer in Wei.
+   * @param value - The amount to transfer in atomic units (Wei).
    * @returns The transaction hash.
    */
   async nativeTransfer(to: Address, value: string): Promise<Hex> {

@@ -551,15 +551,17 @@ export class LegacyCdpWalletProvider extends EvmWalletProvider {
    * Transfer the native asset of the network.
    *
    * @param to - The destination address.
-   * @param value - The amount to transfer in Wei.
+   * @param value - The amount to transfer in atomic units (Wei).
    * @returns The transaction hash.
    */
   async nativeTransfer(to: `0x${string}`, value: string): Promise<`0x${string}`> {
     if (!this.#cdpWallet) {
       throw new Error("Wallet not initialized");
     }
+    // Convert Wei to ETH for Coinbase SDK (expects whole units)
+    const ethAmount = new Decimal(value).div(new Decimal(10).pow(18));
     const transferResult = await this.#cdpWallet.createTransfer({
-      amount: new Decimal(value),
+      amount: ethAmount,
       assetId: Coinbase.assets.Eth,
       destination: to,
       gasless: false,

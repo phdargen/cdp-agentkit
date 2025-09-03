@@ -342,7 +342,7 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
    * Transfer the native asset of the network using smart wallet.
    *
    * @param to - The destination address.
-   * @param value - The amount to transfer in Wei.
+   * @param value - The amount to transfer in atomic units (Wei).
    * @returns The user operation hash.
    */
   async nativeTransfer(to: Address, value: string): Promise<Hex> {

@@ -5,7 +5,7 @@ import { z } from "zod";
  */
 export const TransferSchema = z
   .object({
-    amount: z.custom<bigint>().describe("The amount of the asset to transfer"),
+    amount: z.string().describe("The amount of the asset to transfer in whole units (e.g. 1.5 USDC)"),
     tokenAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address format")  
     .describe("The contract address of the token to transfer"),
     destinationAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address format")  
@@ -40,7 +40,6 @@ export const GetTokenAddressSchema = z
     symbol: z
       .string()
       .min(1)
-      .max(10)
       .toUpperCase()
       .describe("The token symbol (e.g., USDC, WETH, DEGEN)"),
   })

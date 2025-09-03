@@ -3,9 +3,9 @@ import { ActionProvider } from "../actionProvider";
 import { Network } from "../../network";
 import { CreateAction } from "../actionDecorator";
 import { GetBalanceSchema, TransferSchema, GetTokenAddressSchema } from "./schemas";
-import { BaseTokenToAssetId, BaseSepoliaTokenToAssetId, TOKEN_SYMBOLS } from "./constants";
+import { BaseTokenToAssetId, BaseSepoliaTokenToAssetId, TOKEN_ADDRESSES_BY_SYMBOLS } from "./constants";
 import { getTokenDetails } from "./utils";
-import { encodeFunctionData, Hex, getAddress, erc20Abi, formatUnits, parseUnits } from "viem";
+import { encodeFunctionData, Hex, getAddress, erc20Abi, parseUnits } from "viem";
 import { EvmWalletProvider, LegacyCdpWalletProvider } from "../../wallet-providers";
 
 /**
@@ -79,26 +79,32 @@ Important notes:
     args: z.infer<typeof TransferSchema>,
   ): Promise<string> {
     try {
-      // Check if we can do gasless transfer
-      const isLegacyCdpWallet = walletProvider.getName() === "legacy_cdp_wallet_provider";
-      const network = walletProvider.getNetwork();
-      const tokenAddress = getAddress(args.tokenAddress);
-
-      // Safety checks
-      if(args.tokenAddress === args.destinationAddress) {
-        return "Error: Transfer destination is the token contract address. Refusing to transfer to prevent loss of funds.";
-      }
-
-      if(await walletProvider.getPublicClient().getCode({ address: args.destinationAddress as Hex }) !== "0x") {
-        return "Error: Transfer destination is a contract address. Refusing to transfer to prevent loss of funds.";
-      }
 
       // Check token balance
+      const tokenAddress = getAddress(args.tokenAddress);
       const tokenDetails = await getTokenDetails(walletProvider, args.tokenAddress);
-      if(BigInt(tokenDetails?.formattedBalance!) < BigInt(args.amount)) {
+      const amountInWei = parseUnits(String(args.amount), tokenDetails?.decimals!);
+
+      if(tokenDetails?.balance! < amountInWei) {
         return `Error: Insufficient ${tokenDetails?.name} (${args.tokenAddress}) token balance. Requested to send ${args.amount} of ${tokenDetails?.name} (${args.tokenAddress}), but only ${tokenDetails?.formattedBalance} is available.`;
       }
 
+      // Guardrails to prevent loss of funds
+      if(args.tokenAddress === args.destinationAddress) {
+        return "Error: Transfer destination is the token contract address. Refusing transfer to prevent loss of funds.";
+      }
+      if(await walletProvider.getPublicClient().getCode({ address: args.destinationAddress as Hex }) !== "0x") {
+        // If destination address is a contract, check if its an ERC20 token
+        const destinationTokenDetails = await getTokenDetails(walletProvider, args.destinationAddress);
+        if (destinationTokenDetails) {
+          return "Error: Transfer destination is an ERC20 token contract. Refusing to transfer to prevent loss of funds.";
+        }
+        // If contract but not an ERC20 token (e.g a smart wallet), allow the transfer
+      }
+
+      // Check if we can do gasless transfer
+      const isLegacyCdpWallet = walletProvider.getName() === "legacy_cdp_wallet_provider";
+      const network = walletProvider.getNetwork();
       const canDoGasless =
         isLegacyCdpWallet &&
         ((network.networkId === "base-mainnet" && BaseTokenToAssetId.has(tokenAddress)) ||
@@ -114,7 +120,7 @@ Important notes:
         const hash = await cdpWallet.gaslessERC20Transfer(
           assetId,
           args.destinationAddress as Hex,
-          parseUnits(String(args.amount), tokenDetails?.decimals!),
+          amountInWei,
         );
 
         await walletProvider.waitForTransactionReceipt(hash);
@@ -130,7 +136,7 @@ Important notes:
         data: encodeFunctionData({
           abi: erc20Abi,
           functionName: "transfer",
-          args: [args.destinationAddress as Hex, parseUnits(String(args.amount), tokenDetails?.decimals!)],
+          args: [args.destinationAddress as Hex, amountInWei],
         }),
       });
 
@@ -153,15 +159,11 @@ Important notes:
    * @returns A message containing the token address or an error if not found.
    */
   @CreateAction({
-    name: "get_token_address",
+    name: "get_erc20_token_address",
     description: `
-    This tool will get the contract address for a common token symbol on Base networks.
-    It takes the following inputs:
-    - symbol: The token symbol (USDC, EURC, or CBBTC)
-    
-    This is useful when you want to get the balance or transfer tokens but only know the symbol.
-    Supported networks: base-mainnet, base-sepolia
-    Available symbols: USDC, EURC, CBBTC
+    This tool will get the contract address for frequently used ERC20 tokens on different networks.
+    It takes the following input:
+    - symbol: The token symbol (e.g. USDC, EURC, CBBTC)
     `,
     schema: GetTokenAddressSchema,
   })
@@ -170,26 +172,11 @@ Important notes:
     args: z.infer<typeof GetTokenAddressSchema>,
   ): Promise<string> {
     const network = walletProvider.getNetwork();
+    const tokenAddress = TOKEN_ADDRESSES_BY_SYMBOLS[network.networkId ?? ""]?.[args.symbol];
     
-    if (!network.networkId) {
-      return `Error: Network ID is not available. Cannot perform token symbol lookup.`;
-    }
-    
-    const supportedNetworks = Object.keys(TOKEN_SYMBOLS) as Array<keyof typeof TOKEN_SYMBOLS>;
-    
-    if (!supportedNetworks.includes(network.networkId as keyof typeof TOKEN_SYMBOLS)) {
-      return `Error: Network ${network.networkId} is not supported for token symbol lookup. Supported networks: ${supportedNetworks.join(", ")}`;
-    }
-    
-    const networkTokens = TOKEN_SYMBOLS[network.networkId as keyof typeof TOKEN_SYMBOLS];
-    const tokenAddress = networkTokens[args.symbol as keyof typeof networkTokens];
-    
-    if (!tokenAddress) {
-      const availableTokens = Object.keys(networkTokens).join(", ");
-      return `Error: Token symbol "${args.symbol}" not found on ${network.networkId}. Available tokens: ${availableTokens}`;
-    }
-    
-    return `Token address for ${args.symbol} on ${network.networkId}: ${tokenAddress}`;
+    return tokenAddress 
+      ? `Token address for ${args.symbol} on ${network.networkId}: ${tokenAddress}`
+      : `Error: Token symbol "${args.symbol}" not found on ${network.networkId}`;
   }
 
   /**

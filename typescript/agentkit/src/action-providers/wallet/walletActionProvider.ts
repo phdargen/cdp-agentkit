@@ -105,7 +105,8 @@ It takes the following inputs:
         args.to = `0x${args.to}`;
       }
 
-      const result = await walletProvider.nativeTransfer(args.to, parseUnits(args.value, terminology.decimals).toString());
+      const amountInAtomicUnits = parseUnits(args.value, terminology.decimals);
+      const result = await walletProvider.nativeTransfer(args.to, amountInAtomicUnits.toString());
       return [
         `Transferred ${args.value} ${terminology.displayUnit} to ${args.to}`,
         `${terminology.type}: ${result}`,

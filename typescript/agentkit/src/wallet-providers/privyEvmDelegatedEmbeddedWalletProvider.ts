@@ -385,11 +385,11 @@ export class PrivyEvmDelegatedEmbeddedWalletProvider extends WalletProvider {
    * Transfer the native asset of the network.
    *
    * @param to - The destination address.
-   * @param value - The amount to transfer in Wei.
+   * @param value - The amount to transfer in atomic units (Wei).
    * @returns The transaction hash.
    */
   async nativeTransfer(to: string, value: string): Promise<Hex> {
-    const valueInWei = parseEther(value);
+    const valueInWei = BigInt(value);
     const valueHex = `0x${valueInWei.toString(16)}`;
 
     const body = {
