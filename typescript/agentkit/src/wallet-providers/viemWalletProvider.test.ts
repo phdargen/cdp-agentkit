@@ -314,19 +314,21 @@ describe("ViemWalletProvider", () => {
 
   describe("native token operations", () => {
     it("should transfer native tokens", async () => {
-      (viem.parseEther as jest.Mock).mockReturnValueOnce(BigInt(1000000000000000000));
+      const hash = await provider.nativeTransfer(MOCK_ADDRESS_TO as Address, "1000000000000000000");
 
-      const hash = await provider.nativeTransfer(MOCK_ADDRESS_TO as Address, "1.0");
-
-      expect(viem.parseEther as jest.Mock).toHaveBeenCalledWith("1.0");
-      expect(mockWalletClient.sendTransaction).toHaveBeenCalled();
+      expect(mockWalletClient.sendTransaction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: MOCK_ADDRESS_TO,
+          value: BigInt("1000000000000000000"),
+        })
+      );
       expect(hash).toBe(MOCK_TRANSACTION_HASH);
     });
 
     it("should handle native transfer errors", async () => {
       mockWalletClient.sendTransaction.mockRejectedValueOnce(new Error("Transaction failed"));
 
-      await expect(provider.nativeTransfer(MOCK_ADDRESS_TO as Address, "1.0")).rejects.toThrow(
+      await expect(provider.nativeTransfer(MOCK_ADDRESS_TO as Address, "1000000000000000000")).rejects.toThrow(
         "Transaction failed",
       );
     });

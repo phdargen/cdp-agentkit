@@ -3,7 +3,11 @@ import { ActionProvider } from "../actionProvider";
 import { Network } from "../../network";
 import { CreateAction } from "../actionDecorator";
 import { GetBalanceSchema, TransferSchema, GetTokenAddressSchema } from "./schemas";
-import { BaseTokenToAssetId, BaseSepoliaTokenToAssetId, TOKEN_ADDRESSES_BY_SYMBOLS } from "./constants";
+import {
+  BaseTokenToAssetId,
+  BaseSepoliaTokenToAssetId,
+  TOKEN_ADDRESSES_BY_SYMBOLS,
+} from "./constants";
 import { getTokenDetails } from "./utils";
 import { encodeFunctionData, Hex, getAddress, erc20Abi, parseUnits } from "viem";
 import { EvmWalletProvider, LegacyCdpWalletProvider } from "../../wallet-providers";
@@ -79,23 +83,33 @@ Important notes:
     args: z.infer<typeof TransferSchema>,
   ): Promise<string> {
     try {
-
-      // Check token balance
+      // Check token details
       const tokenAddress = getAddress(args.tokenAddress);
       const tokenDetails = await getTokenDetails(walletProvider, args.tokenAddress);
-      const amountInWei = parseUnits(String(args.amount), tokenDetails?.decimals!);
+      if (!tokenDetails) {
+        return `Error: Could not fetch token details for ${args.tokenAddress}. Please verify the token address is correct.`;
+      }
 
-      if(tokenDetails?.balance! < amountInWei) {
-        return `Error: Insufficient ${tokenDetails?.name} (${args.tokenAddress}) token balance. Requested to send ${args.amount} of ${tokenDetails?.name} (${args.tokenAddress}), but only ${tokenDetails?.formattedBalance} is available.`;
+      // Check token balance
+      const amountInWei = parseUnits(String(args.amount), tokenDetails.decimals);
+      if (tokenDetails.balance < amountInWei) {
+        return `Error: Insufficient ${tokenDetails.name} (${args.tokenAddress}) token balance. Requested to send ${args.amount} of ${tokenDetails.name} (${args.tokenAddress}), but only ${tokenDetails.formattedBalance} is available.`;
       }
 
       // Guardrails to prevent loss of funds
-      if(args.tokenAddress === args.destinationAddress) {
+      if (args.tokenAddress === args.destinationAddress) {
         return "Error: Transfer destination is the token contract address. Refusing transfer to prevent loss of funds.";
       }
-      if(await walletProvider.getPublicClient().getCode({ address: args.destinationAddress as Hex }) !== "0x") {
+      if (
+        (await walletProvider
+          .getPublicClient()
+          .getCode({ address: args.destinationAddress as Hex })) !== "0x"
+      ) {
         // If destination address is a contract, check if its an ERC20 token
-        const destinationTokenDetails = await getTokenDetails(walletProvider, args.destinationAddress);
+        const destinationTokenDetails = await getTokenDetails(
+          walletProvider,
+          args.destinationAddress,
+        );
         if (destinationTokenDetails) {
           return "Error: Transfer destination is an ERC20 token contract. Refusing to transfer to prevent loss of funds.";
         }
@@ -173,8 +187,8 @@ Important notes:
   ): Promise<string> {
     const network = walletProvider.getNetwork();
     const tokenAddress = TOKEN_ADDRESSES_BY_SYMBOLS[network.networkId ?? ""]?.[args.symbol];
-    
-    return tokenAddress 
+
+    return tokenAddress
       ? `Token address for ${args.symbol} on ${network.networkId}: ${tokenAddress}`
       : `Error: Token symbol "${args.symbol}" not found on ${network.networkId}`;
   }

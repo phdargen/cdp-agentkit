@@ -9,7 +9,6 @@ import {
   PublicClient as ViemPublicClient,
   ReadContractParameters,
   ReadContractReturnType,
-  parseEther,
   Abi,
   ContractFunctionName,
   ContractFunctionArgs,

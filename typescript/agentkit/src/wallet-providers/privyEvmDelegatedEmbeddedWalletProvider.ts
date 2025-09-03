@@ -14,7 +14,6 @@ import {
   TransactionRequest,
   createPublicClient,
   http,
-  parseEther,
 } from "viem";
 import { Network } from "../network";
 import { NETWORK_ID_TO_CHAIN_ID, getChain } from "../network/network";

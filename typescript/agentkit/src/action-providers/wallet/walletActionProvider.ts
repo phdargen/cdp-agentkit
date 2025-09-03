@@ -12,11 +12,17 @@ const PROTOCOL_FAMILY_TO_TERMINOLOGY: Record<
   string,
   { unit: string; displayUnit: string; decimals: number; type: string; verb: string }
 > = {
-  evm: { unit: "WEI", displayUnit: "ETH", decimals: 18, type: "Transaction hash", verb: "transaction" },
+  evm: {
+    unit: "WEI",
+    displayUnit: "ETH",
+    decimals: 18,
+    type: "Transaction hash",
+    verb: "transaction",
+  },
   svm: { unit: "LAMPORTS", displayUnit: "SOL", decimals: 9, type: "Signature", verb: "transfer" },
 };
 
-const DEFAULT_TERMINOLOGY = { unit: "", displayUnit: "", type: "Hash", verb: "transfer" };
+const DEFAULT_TERMINOLOGY = { unit: "", displayUnit: "", decimals: 0, type: "Hash", verb: "transfer" };
 
 /**
  * WalletActionProvider provides actions for getting basic wallet information.

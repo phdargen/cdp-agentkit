@@ -366,7 +366,7 @@ describe("CdpSolanaWalletProvider", () => {
   describe("native transfer", () => {
     it("should transfer SOL", async () => {
       const toAddress = "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin";
-      const amount = "1.0";
+      const amount = "1000000000"; // 1 SOL in lamports
 
       // Set a balance that's high enough to cover the transfer + fees
       mockConnection.getBalance.mockResolvedValueOnce(Number(2000000000n)); // 2 SOL
@@ -380,7 +380,7 @@ describe("CdpSolanaWalletProvider", () => {
       mockConnection.getBalance.mockResolvedValueOnce(Number(1000000n)); // 0.001 SOL
 
       const toAddress = "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin";
-      const amount = "1.0";
+      const amount = "1000000000"; // 1 SOL in lamports
 
       await expect(provider.nativeTransfer(toAddress, amount)).rejects.toThrow(
         "Insufficient balance",

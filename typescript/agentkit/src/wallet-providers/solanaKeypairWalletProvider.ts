@@ -5,7 +5,6 @@ import {
   Keypair,
   PublicKey,
   VersionedTransaction,
-  LAMPORTS_PER_SOL,
   SystemProgram,
   MessageV0,
   ComputeBudgetProgram,

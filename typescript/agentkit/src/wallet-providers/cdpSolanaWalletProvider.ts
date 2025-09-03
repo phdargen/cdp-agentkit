@@ -3,7 +3,6 @@ import {
   clusterApiUrl,
   ComputeBudgetProgram,
   Connection,
-  LAMPORTS_PER_SOL,
   MessageV0,
   PublicKey,
   RpcResponseAndContext,

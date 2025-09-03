@@ -558,10 +558,8 @@ export class LegacyCdpWalletProvider extends EvmWalletProvider {
     if (!this.#cdpWallet) {
       throw new Error("Wallet not initialized");
     }
-    // Convert Wei to ETH for Coinbase SDK (expects whole units)
-    const ethAmount = new Decimal(value).div(new Decimal(10).pow(18));
     const transferResult = await this.#cdpWallet.createTransfer({
-      amount: ethAmount,
+      amount: new Decimal(value),
       assetId: Coinbase.assets.Eth,
       destination: to,
       gasless: false,

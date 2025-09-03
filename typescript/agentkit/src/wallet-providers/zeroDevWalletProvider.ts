@@ -348,7 +348,6 @@ export class ZeroDevWalletProvider extends EvmWalletProvider {
    * @returns The transaction hash.
    */
   async nativeTransfer(to: string, value: string): Promise<string> {
-    // Value is already in atomic units (Wei)
     const valueInWei = BigInt(value);
 
     // Get the chain ID from the network

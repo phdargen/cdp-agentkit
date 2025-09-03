@@ -64,7 +64,7 @@ export async function getTokenDetails(
       balance: BigInt(balance),
       formattedBalance,
     };
-  } catch (error) {
+  } catch {
     return null;
   }
 }

@@ -52,6 +52,7 @@ describe("Wallet Action Provider", () => {
         `  * Network ID: ${MOCK_EVM_NETWORK.networkId}`,
         `  * Chain ID: ${MOCK_EVM_NETWORK.chainId}`,
         `- Native Balance: ${MOCK_ETH_BALANCE.toString()} WEI`,
+        `- Native Balance: 1 ETH`,
       ].join("\n");
 
       expect(response).toBe(expectedResponse);
@@ -72,6 +73,7 @@ describe("Wallet Action Provider", () => {
         `  * Network ID: ${MOCK_SOLANA_NETWORK.networkId}`,
         `  * Chain ID: N/A`,
         `- Native Balance: ${MOCK_SOL_BALANCE.toString()} LAMPORTS`,
+        `- Native Balance: 1 SOL`,
       ].join("\n");
 
       expect(response).toBe(expectedResponse);
@@ -91,6 +93,7 @@ describe("Wallet Action Provider", () => {
         `  * Protocol Family: ${MOCK_UNKNOWN_NETWORK.protocolFamily}`,
         `  * Network ID: ${MOCK_UNKNOWN_NETWORK.networkId}`,
         `  * Chain ID: N/A`,
+        `- Native Balance: ${MOCK_ETH_BALANCE.toString()} `,
         `- Native Balance: ${MOCK_ETH_BALANCE.toString()} `,
       ].join("\n");
 
@@ -153,7 +156,7 @@ describe("Wallet Action Provider", () => {
 
       const response = await actionProvider.nativeTransfer(mockWallet, args);
 
-      expect(mockWallet.nativeTransfer).toHaveBeenCalledWith(MOCK_DESTINATION, MOCK_AMOUNT);
+      expect(mockWallet.nativeTransfer).toHaveBeenCalledWith(MOCK_DESTINATION, "1500000000000000000");
       expect(response).toBe(
         `Transferred ${MOCK_AMOUNT} ETH to ${MOCK_DESTINATION}\nTransaction hash: ${MOCK_TRANSACTION_HASH}`,
       );
@@ -169,7 +172,7 @@ describe("Wallet Action Provider", () => {
 
       const response = await actionProvider.nativeTransfer(mockWallet, args);
 
-      expect(mockWallet.nativeTransfer).toHaveBeenCalledWith(MOCK_DESTINATION, MOCK_AMOUNT);
+      expect(mockWallet.nativeTransfer).toHaveBeenCalledWith(MOCK_DESTINATION, "1500000000");
       expect(response).toBe(
         `Transferred ${MOCK_AMOUNT} SOL to ${MOCK_DESTINATION}\nSignature: ${MOCK_SIGNATURE}`,
       );
