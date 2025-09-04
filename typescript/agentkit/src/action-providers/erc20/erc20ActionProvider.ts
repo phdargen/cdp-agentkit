@@ -72,7 +72,6 @@ It takes the following inputs:
 - amount: The amount to transfer in whole units (e.g. 10.5 USDC)
 - tokenAddress: The contract address of the token to transfer
 - destinationAddress: Where to send the funds (can be an onchain address, ENS 'example.eth', or Basename 'example.base.eth')
-- address: (Optional) The address to check the balance for. If not provided, uses the wallet's address
 Important notes:
 - Never assume token or destination addresses, they have to be provided as inputs. If only token symbol is provided, use the get_token_address tool to get the token address first
 `,
@@ -135,7 +134,7 @@ Important notes:
         const hash = await cdpWallet.gaslessERC20Transfer(
           assetId,
           args.destinationAddress as Hex,
-          amountInWei,
+          BigInt(args.amount),
         );
 
         await walletProvider.waitForTransactionReceipt(hash);
@@ -155,8 +154,7 @@ Important notes:
         }),
       });
 
-      const receipt = await walletProvider.waitForTransactionReceipt(hash);
-      console.log(receipt);
+      await walletProvider.waitForTransactionReceipt(hash);
 
       return `Transferred ${args.amount} of ${tokenDetails?.name} (${args.tokenAddress}) to ${
         args.destinationAddress

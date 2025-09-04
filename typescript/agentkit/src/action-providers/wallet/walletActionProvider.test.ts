@@ -1,6 +1,7 @@
 import { WalletProvider } from "../../wallet-providers";
 import { walletActionProvider } from "./walletActionProvider";
 import { NativeTransferSchema } from "./schemas";
+import { formatUnits } from "viem";
 
 describe("Wallet Action Provider", () => {
   const MOCK_ADDRESS = "0xe6b2af36b3bb8d47206a129ff11d5a2de2a63c83";
@@ -52,7 +53,7 @@ describe("Wallet Action Provider", () => {
         `  * Network ID: ${MOCK_EVM_NETWORK.networkId}`,
         `  * Chain ID: ${MOCK_EVM_NETWORK.chainId}`,
         `- Native Balance: ${MOCK_ETH_BALANCE.toString()} WEI`,
-        `- Native Balance: 1 ETH`,
+        `- Native Balance: ${formatUnits(MOCK_ETH_BALANCE, 18)} ETH`,
       ].join("\n");
 
       expect(response).toBe(expectedResponse);
@@ -73,7 +74,7 @@ describe("Wallet Action Provider", () => {
         `  * Network ID: ${MOCK_SOLANA_NETWORK.networkId}`,
         `  * Chain ID: N/A`,
         `- Native Balance: ${MOCK_SOL_BALANCE.toString()} LAMPORTS`,
-        `- Native Balance: 1 SOL`,
+        `- Native Balance: ${formatUnits(MOCK_SOL_BALANCE, 9)} SOL`,
       ].join("\n");
 
       expect(response).toBe(expectedResponse);
@@ -156,10 +157,7 @@ describe("Wallet Action Provider", () => {
 
       const response = await actionProvider.nativeTransfer(mockWallet, args);
 
-      expect(mockWallet.nativeTransfer).toHaveBeenCalledWith(
-        MOCK_DESTINATION,
-        "1500000000000000000",
-      );
+      expect(mockWallet.nativeTransfer).toHaveBeenCalledWith(MOCK_DESTINATION, MOCK_AMOUNT);
       expect(response).toBe(
         `Transferred ${MOCK_AMOUNT} ETH to ${MOCK_DESTINATION}\nTransaction hash: ${MOCK_TRANSACTION_HASH}`,
       );
@@ -175,7 +173,7 @@ describe("Wallet Action Provider", () => {
 
       const response = await actionProvider.nativeTransfer(mockWallet, args);
 
-      expect(mockWallet.nativeTransfer).toHaveBeenCalledWith(MOCK_DESTINATION, "1500000000");
+      expect(mockWallet.nativeTransfer).toHaveBeenCalledWith(MOCK_DESTINATION, MOCK_AMOUNT);
       expect(response).toBe(
         `Transferred ${MOCK_AMOUNT} SOL to ${MOCK_DESTINATION}\nSignature: ${MOCK_SIGNATURE}`,
       );
