@@ -22,7 +22,13 @@ const PROTOCOL_FAMILY_TO_TERMINOLOGY: Record<
   svm: { unit: "LAMPORTS", displayUnit: "SOL", decimals: 9, type: "Signature", verb: "transfer" },
 };
 
-const DEFAULT_TERMINOLOGY = { unit: "", displayUnit: "", decimals: 0, type: "Hash", verb: "transfer" };
+const DEFAULT_TERMINOLOGY = {
+  unit: "",
+  displayUnit: "",
+  decimals: 0,
+  type: "Hash",
+  verb: "transfer",
+};
 
 /**
  * WalletActionProvider provides actions for getting basic wallet information.

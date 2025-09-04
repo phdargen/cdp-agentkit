@@ -43,7 +43,12 @@ export const GetBalanceSchema = z
  */
 export const GetTokenAddressSchema = z
   .object({
-    symbol: z.string().min(1).max(10).toUpperCase().describe("The token symbol (e.g., USDC, WETH, DEGEN)"),
+    symbol: z
+      .string()
+      .min(1)
+      .max(10)
+      .toUpperCase()
+      .describe("The token symbol (e.g., USDC, WETH, DEGEN)"),
   })
   .strip()
   .describe("Instructions for getting a token's contract address by symbol");

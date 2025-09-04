@@ -156,7 +156,10 @@ describe("Wallet Action Provider", () => {
 
       const response = await actionProvider.nativeTransfer(mockWallet, args);
 
-      expect(mockWallet.nativeTransfer).toHaveBeenCalledWith(MOCK_DESTINATION, "1500000000000000000");
+      expect(mockWallet.nativeTransfer).toHaveBeenCalledWith(
+        MOCK_DESTINATION,
+        "1500000000000000000",
+      );
       expect(response).toBe(
         `Transferred ${MOCK_AMOUNT} ETH to ${MOCK_DESTINATION}\nTransaction hash: ${MOCK_TRANSACTION_HASH}`,
       );

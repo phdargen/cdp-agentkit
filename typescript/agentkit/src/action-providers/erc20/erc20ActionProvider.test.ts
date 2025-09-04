@@ -1,8 +1,6 @@
 import { erc20ActionProvider } from "./erc20ActionProvider";
 import { TransferSchema, GetTokenAddressSchema } from "./schemas";
 import { EvmWalletProvider } from "../../wallet-providers";
-import { encodeFunctionData, Hex } from "viem";
-import { erc20Abi as abi } from "viem";
 
 const MOCK_AMOUNT = 15;
 const MOCK_DECIMALS = 6;
@@ -43,7 +41,7 @@ describe("Get Balance Action", () => {
       multicall: mockMulticall,
       getCode: jest.fn().mockResolvedValue("0x"),
     };
-    
+
     mockWallet = {
       getAddress: jest.fn().mockReturnValue(MOCK_ADDRESS),
       getPublicClient: jest.fn().mockReturnValue(mockPublicClient),
@@ -98,7 +96,7 @@ describe("Transfer Action", () => {
       multicall: mockMulticall,
       getCode: jest.fn().mockResolvedValue("0x"),
     };
-    
+
     mockWallet = {
       sendTransaction: jest.fn(),
       waitForTransactionReceipt: jest.fn(),
@@ -118,9 +116,9 @@ describe("Transfer Action", () => {
     mockMulticall.mockResolvedValueOnce([
       { result: "MockToken" }, // name
       { result: MOCK_DECIMALS }, // decimals
-      { result: BigInt(100000 * 10 ** MOCK_DECIMALS) }, // balance 
+      { result: BigInt(100000 * 10 ** MOCK_DECIMALS) }, // balance
     ]);
-    
+
     const args = {
       amount: MOCK_AMOUNT.toString(),
       tokenAddress: MOCK_CONTRACT_ADDRESS,
@@ -128,7 +126,6 @@ describe("Transfer Action", () => {
     };
 
     const response = await actionProvider.transfer(mockWallet, args);
-
 
     expect(mockMulticall).toHaveBeenCalled();
     expect(mockWallet.sendTransaction).toHaveBeenCalled();
@@ -141,7 +138,7 @@ describe("Transfer Action", () => {
 
   it("should fail with an error", async () => {
     mockMulticall.mockRejectedValue(new Error("Failed to get token details"));
-    
+
     const args = {
       amount: MOCK_AMOUNT.toString(),
       tokenAddress: MOCK_CONTRACT_ADDRESS,
@@ -230,9 +227,7 @@ describe("Get Token Address Action", () => {
     });
 
     const response = await actionProvider.getTokenAddress(mockWallet, { symbol: "USDC" });
-    expect(response).toContain(
-      'Error: Token symbol "USDC" not found on unsupported-network',
-    );
+    expect(response).toContain('Error: Token symbol "USDC" not found on unsupported-network');
   });
 
   it("should return error for unknown token symbol", async () => {
@@ -253,8 +248,6 @@ describe("Get Token Address Action", () => {
     });
 
     const response = await actionProvider.getTokenAddress(mockWallet, { symbol: "USDC" });
-    expect(response).toContain(
-      'Error: Token symbol "USDC" not found on undefined',
-    );
+    expect(response).toContain('Error: Token symbol "USDC" not found on undefined');
   });
 });

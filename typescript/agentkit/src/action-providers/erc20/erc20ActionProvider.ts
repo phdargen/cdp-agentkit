@@ -46,14 +46,14 @@ export class ERC20ActionProvider extends ActionProvider<EvmWalletProvider> {
     walletProvider: EvmWalletProvider,
     args: z.infer<typeof GetBalanceSchema>,
   ): Promise<string> {
-    const addressToCheck = args.address || walletProvider.getAddress();
+    const address = args.address || walletProvider.getAddress();
     const tokenDetails = await getTokenDetails(walletProvider, args.tokenAddress, args.address);
 
     if (!tokenDetails) {
       return `Error: Could not fetch token details for ${args.tokenAddress}`;
     }
 
-    return `Balance of ${tokenDetails.name} (${args.tokenAddress}) at address ${addressToCheck} is ${tokenDetails.formattedBalance}`;
+    return `Balance of ${tokenDetails.name} (${args.tokenAddress}) at address ${address} is ${tokenDetails.formattedBalance}`;
   }
 
   /**
@@ -106,6 +106,7 @@ Important notes:
           .getCode({ address: args.destinationAddress as Hex })) !== "0x"
       ) {
         // If destination address is a contract, check if its an ERC20 token
+        // This assumes if the contract implements name, balance and decimals functions, it is an ERC20 token
         const destinationTokenDetails = await getTokenDetails(
           walletProvider,
           args.destinationAddress,
@@ -186,11 +187,21 @@ Important notes:
     args: z.infer<typeof GetTokenAddressSchema>,
   ): Promise<string> {
     const network = walletProvider.getNetwork();
-    const tokenAddress = TOKEN_ADDRESSES_BY_SYMBOLS[network.networkId ?? ""]?.[args.symbol];
+    const networkTokens = TOKEN_ADDRESSES_BY_SYMBOLS[network.networkId ?? ""];
+    const tokenAddress = networkTokens?.[args.symbol];
 
-    return tokenAddress
-      ? `Token address for ${args.symbol} on ${network.networkId}: ${tokenAddress}`
-      : `Error: Token symbol "${args.symbol}" not found on ${network.networkId}`;
+    if (tokenAddress) {
+      return `Token address for ${args.symbol} on ${network.networkId}: ${tokenAddress}`;
+    }
+
+    // Get available token symbols for the current network
+    const availableSymbols = networkTokens ? Object.keys(networkTokens) : [];
+    const availableSymbolsText =
+      availableSymbols.length > 0
+        ? ` Available token symbols on ${network.networkId}: ${availableSymbols.join(", ")}`
+        : ` No token symbols are configured for ${network.networkId}`;
+
+    return `Error: Token symbol "${args.symbol}" not found on ${network.networkId}.${availableSymbolsText}`;
   }
 
   /**
