@@ -198,16 +198,18 @@ export class CdpSolanaWalletProvider extends SvmWalletProvider implements Wallet
     const serializedTransaction = transaction.serialize();
     const encodedSerializedTransaction = Buffer.from(serializedTransaction).toString("base64");
 
-    const signedTransaction = await this.#cdp.solana.signTransaction({
+    const signedTransactionResponse = await this.#cdp.solana.signTransaction({
       transaction: encodedSerializedTransaction,
       address: this.#serverAccount.address,
     });
-    transaction.addSignature(
-      this.getPublicKey(),
-      Buffer.from(signedTransaction.signature, "base64"),
-    );
 
-    return transaction;
+    const signedTransactionBytes = Buffer.from(
+      signedTransactionResponse.signedTransaction,
+      "base64",
+    );
+    const signedTransaction = VersionedTransaction.deserialize(signedTransactionBytes);
+
+    return signedTransaction;
   }
 
   /**

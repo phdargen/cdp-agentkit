@@ -1,7 +1,7 @@
 import { WalletProvider } from "../../wallet-providers";
 import { walletActionProvider } from "./walletActionProvider";
 import { NativeTransferSchema } from "./schemas";
-import { formatUnits } from "viem";
+import { formatUnits, parseUnits } from "viem";
 
 describe("Wallet Action Provider", () => {
   const MOCK_ADDRESS = "0xe6b2af36b3bb8d47206a129ff11d5a2de2a63c83";
@@ -157,7 +157,10 @@ describe("Wallet Action Provider", () => {
 
       const response = await actionProvider.nativeTransfer(mockWallet, args);
 
-      expect(mockWallet.nativeTransfer).toHaveBeenCalledWith(MOCK_DESTINATION, MOCK_AMOUNT);
+      expect(mockWallet.nativeTransfer).toHaveBeenCalledWith(
+        MOCK_DESTINATION,
+        parseUnits(MOCK_AMOUNT, 18).toString(),
+      );
       expect(response).toBe(
         `Transferred ${MOCK_AMOUNT} ETH to ${MOCK_DESTINATION}\nTransaction hash: ${MOCK_TRANSACTION_HASH}`,
       );
@@ -173,7 +176,10 @@ describe("Wallet Action Provider", () => {
 
       const response = await actionProvider.nativeTransfer(mockWallet, args);
 
-      expect(mockWallet.nativeTransfer).toHaveBeenCalledWith(MOCK_DESTINATION, MOCK_AMOUNT);
+      expect(mockWallet.nativeTransfer).toHaveBeenCalledWith(
+        MOCK_DESTINATION,
+        parseUnits(MOCK_AMOUNT, 9).toString(),
+      );
       expect(response).toBe(
         `Transferred ${MOCK_AMOUNT} SOL to ${MOCK_DESTINATION}\nSignature: ${MOCK_SIGNATURE}`,
       );
