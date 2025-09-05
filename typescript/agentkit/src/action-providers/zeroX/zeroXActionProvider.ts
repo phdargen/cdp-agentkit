@@ -72,6 +72,7 @@ Important notes:
 - This only fetches a price quote and does not execute a swap
 - Supported on all EVM networks compatible with 0x API
 - Use sellToken units exactly as provided, do not convert to wei or any other units
+- Never assume token or address, they have to be provided as inputs. If only token symbol is provided, use the get_token_address tool if available to get the token address first
 `,
     schema: GetSwapPriceSchema,
   })
@@ -191,6 +192,7 @@ Important notes:
 - First fetch a price quote and only execute swap if you are happy with the indicated price
 - Supported on all EVM networks compatible with 0x API
 - Use sellToken units exactly as provided, do not convert to wei or any other units
+- Never assume token or address, they have to be provided as inputs. If only token symbol is provided, use the get_token_address tool if available to get the token address first
 `,
     schema: ExecuteSwapSchema,
   })

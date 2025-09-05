@@ -44,13 +44,20 @@ jest.mock("@solana/web3.js", () => {
   const MockPublicKey = jest.fn(() => mockPublicKey);
   MockPublicKey.prototype = mockPublicKey;
 
+  const mockVersionedTransaction = {
+    serialize: jest.fn(() => Buffer.from("mock-serialized-tx")),
+    addSignature: jest.fn(),
+  };
+
+  const MockVersionedTransaction = jest.fn(() => mockVersionedTransaction);
+  (MockVersionedTransaction as unknown as { deserialize: jest.Mock }).deserialize = jest.fn(
+    () => mockVersionedTransaction,
+  );
+
   return {
     Connection: jest.fn(() => mockConnection),
     PublicKey: MockPublicKey,
-    VersionedTransaction: jest.fn().mockImplementation(() => ({
-      serialize: jest.fn(() => Buffer.from("mock-serialized-tx")),
-      addSignature: jest.fn(),
-    })),
+    VersionedTransaction: MockVersionedTransaction,
     MessageV0: {
       compile: jest.fn(),
     },
@@ -89,9 +96,9 @@ jest.mock("@coinbase/cdp-sdk", () => {
     }),
   );
 
-  const mockSignTransaction = jest
-    .fn()
-    .mockImplementation(async () => ({ signature: MOCK_SIGNATURE }));
+  const mockSignTransaction = jest.fn().mockImplementation(async () => ({
+    signedTransaction: Buffer.from("mock-signed-transaction").toString("base64"),
+  }));
 
   const mockSolanaClient = {
     createAccount: mockCreateAccount as jest.MockedFunction<typeof mockCreateAccount>,
@@ -159,9 +166,9 @@ describe("CdpSolanaWalletProvider", () => {
         typeof mockCdpClient.solana.createAccount
       >
     ).mockResolvedValue(mockServerAccount);
-    mockCdpClient.solana.signTransaction = jest
-      .fn()
-      .mockResolvedValue({ signature: MOCK_SIGNATURE });
+    mockCdpClient.solana.signTransaction = jest.fn().mockResolvedValue({
+      signedTransaction: Buffer.from("mock-signed-transaction").toString("base64"),
+    });
 
     mockConnection.getBalance.mockResolvedValue(Number(MOCK_BALANCE));
     mockConnection.getLatestBlockhash.mockResolvedValue({
@@ -366,7 +373,7 @@ describe("CdpSolanaWalletProvider", () => {
   describe("native transfer", () => {
     it("should transfer SOL", async () => {
       const toAddress = "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin";
-      const amount = "1.0";
+      const amount = "1000000000"; // 1 SOL in lamports
 
       // Set a balance that's high enough to cover the transfer + fees
       mockConnection.getBalance.mockResolvedValueOnce(Number(2000000000n)); // 2 SOL
@@ -380,7 +387,7 @@ describe("CdpSolanaWalletProvider", () => {
       mockConnection.getBalance.mockResolvedValueOnce(Number(1000000n)); // 0.001 SOL
 
       const toAddress = "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin";
-      const amount = "1.0";
+      const amount = "1000000000"; // 1 SOL in lamports
 
       await expect(provider.nativeTransfer(toAddress, amount)).rejects.toThrow(
         "Insufficient balance",

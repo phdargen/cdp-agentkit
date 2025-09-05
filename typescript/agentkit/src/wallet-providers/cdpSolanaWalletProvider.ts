@@ -3,7 +3,6 @@ import {
   clusterApiUrl,
   ComputeBudgetProgram,
   Connection,
-  LAMPORTS_PER_SOL,
   MessageV0,
   PublicKey,
   RpcResponseAndContext,
@@ -199,16 +198,18 @@ export class CdpSolanaWalletProvider extends SvmWalletProvider implements Wallet
     const serializedTransaction = transaction.serialize();
     const encodedSerializedTransaction = Buffer.from(serializedTransaction).toString("base64");
 
-    const signedTransaction = await this.#cdp.solana.signTransaction({
+    const signedTransactionResponse = await this.#cdp.solana.signTransaction({
       transaction: encodedSerializedTransaction,
       address: this.#serverAccount.address,
     });
-    transaction.addSignature(
-      this.getPublicKey(),
-      Buffer.from(signedTransaction.signature, "base64"),
-    );
 
-    return transaction;
+    const signedTransactionBytes = Buffer.from(
+      signedTransactionResponse.signedTransaction,
+      "base64",
+    );
+    const signedTransaction = VersionedTransaction.deserialize(signedTransactionBytes);
+
+    return signedTransaction;
   }
 
   /**
@@ -285,20 +286,19 @@ export class CdpSolanaWalletProvider extends SvmWalletProvider implements Wallet
    * Transfer SOL from the wallet to another address
    *
    * @param to - The base58 encoded address to transfer the SOL to
-   * @param value - The amount of SOL to transfer (as a decimal string, e.g. "0.0001")
+   * @param value - The amount to transfer in atomic units (Lamports)
    * @returns The signature
    */
   async nativeTransfer(to: string, value: string): Promise<string> {
     const initialBalance = await this.getBalance();
-    const solAmount = parseFloat(value);
-    const lamports = BigInt(Math.floor(solAmount * LAMPORTS_PER_SOL));
+    const lamports = BigInt(value);
 
     // Check if we have enough balance (including estimated fees)
     if (initialBalance < lamports + BigInt(5000)) {
       throw new Error(
-        `Insufficient balance. Have ${Number(initialBalance) / LAMPORTS_PER_SOL} SOL, need ${
-          solAmount + 0.000005
-        } SOL (including fees)`,
+        `Insufficient balance. Have ${Number(initialBalance)} lamports, need ${
+          Number(lamports) + 5000
+        } lamports (including fees)`,
       );
     }
 

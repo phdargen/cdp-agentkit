@@ -2,7 +2,7 @@ import { encodeFunctionData, parseUnits } from "viem";
 import { ISuperTokenAbi } from "./constants";
 import { EvmWalletProvider } from "../../wallet-providers";
 import { superfluidWrapperActionProvider } from "./superfluidWrapperActionProvider";
-import { abi as ERC20ABI } from "../erc20/constants";
+import { erc20Abi as ERC20ABI } from "viem";
 
 describe("SuperfluidWrapperActionProvider", () => {
   const MOCK_ADDRESS = "0xe6b2af36b3bb8d47206a129ff11d5a2de2a63c83";

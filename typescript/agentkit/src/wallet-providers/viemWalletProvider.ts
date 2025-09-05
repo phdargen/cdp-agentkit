@@ -9,7 +9,6 @@ import {
   PublicClient as ViemPublicClient,
   ReadContractParameters,
   ReadContractReturnType,
-  parseEther,
   Abi,
   ContractFunctionName,
   ContractFunctionArgs,
@@ -246,11 +245,11 @@ export class ViemWalletProvider extends EvmWalletProvider {
    * Transfer the native asset of the network.
    *
    * @param to - The destination address.
-   * @param value - The amount to transfer in whole units (e.g. ETH)
+   * @param value - The amount to transfer in atomic units (Wei)
    * @returns The transaction hash.
    */
   async nativeTransfer(to: `0x${string}`, value: string): Promise<`0x${string}`> {
-    const atomicAmount = parseEther(value);
+    const atomicAmount = BigInt(value);
 
     const tx = await this.sendTransaction({
       to: to,

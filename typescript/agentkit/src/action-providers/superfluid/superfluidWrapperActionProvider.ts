@@ -6,7 +6,7 @@ import { ActionProvider } from "../actionProvider";
 import { Network } from "../../network";
 import { EvmWalletProvider } from "../../wallet-providers";
 import { CreateAction } from "../actionDecorator";
-import { abi as ERC20ABI } from "../erc20/constants";
+import { erc20Abi as ERC20ABI } from "viem";
 
 /**
  * SuperfluidStreamActionProvider is an action provider for wrapping superfluid token.
