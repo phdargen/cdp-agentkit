@@ -16,7 +16,7 @@ keywords = [
     "agent",
 ]
 dependencies = [
-    "cdp-sdk>=1.22.0,<2",
+    "cdp-sdk>=1.31.1,<2",
     "pydantic~=2.0",
     "web3>=7.6.0,<8",
     "python-dotenv>=1.0.1,<2",

@@ -6,6 +6,8 @@ from .action_providers import (
     ActionProvider,
     basename_action_provider,
     cdp_api_action_provider,
+    cdp_evm_wallet_action_provider,
+    cdp_smart_wallet_action_provider,
     compound_action_provider,
     create_action,
     erc20_action_provider,
