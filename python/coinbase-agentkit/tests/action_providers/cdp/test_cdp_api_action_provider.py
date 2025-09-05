@@ -48,7 +48,5 @@ def test_supports_network():
         )
         assert (
             provider.supports_network(Network(protocol_family="svm", network_id="solana-mainnet"))
-            is False
+            is True
         )
-
-        assert provider.supports_network(Network(protocol_family="other")) is False

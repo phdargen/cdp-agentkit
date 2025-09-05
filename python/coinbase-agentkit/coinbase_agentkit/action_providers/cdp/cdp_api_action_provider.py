@@ -21,7 +21,7 @@ class CdpApiActionProvider(ActionProvider[TWalletProvider]):
     """
 
     def __init__(self):
-        """Constructor for the CdpApiActionProvider class."""
+        """Initialize the CdpApiActionProvider class."""
         super().__init__("cdp_api", [])
 
     def _is_wallet_provider_with_client(self, wallet_provider: TWalletProvider) -> bool:
@@ -32,6 +32,7 @@ class CdpApiActionProvider(ActionProvider[TWalletProvider]):
 
         Returns:
             bool: True if wallet provider has get_client method.
+
         """
         return hasattr(wallet_provider, "get_client")
 
@@ -46,6 +47,7 @@ class CdpApiActionProvider(ActionProvider[TWalletProvider]):
 
         Raises:
             ValueError: If the wallet provider doesn't have a get_client method.
+
         """
         if not self._is_wallet_provider_with_client(wallet_provider):
             raise ValueError("Wallet provider is not a CDP Wallet Provider.")
@@ -61,8 +63,8 @@ You are not allowed to faucet with any other network or asset ID. If you are on 
 from another wallet and provide the user with your wallet details.""",
         schema=RequestFaucetFundsV2Schema,
     )
-    def faucet(self, wallet_provider: TWalletProvider, args: dict[str, Any]) -> str:
-        """Requests test tokens from the faucet for the default address in the wallet.
+    def request_faucet_funds(self, wallet_provider: TWalletProvider, args: dict[str, Any]) -> str:
+        """Request test tokens from the faucet for the default address in the wallet.
 
         Args:
             wallet_provider: The wallet provider to request funds from.
@@ -70,6 +72,7 @@ from another wallet and provide the user with your wallet details.""",
 
         Returns:
             A confirmation message with transaction details.
+
         """
         validated_args = RequestFaucetFundsV2Schema(**args)
         network = wallet_provider.get_network()
@@ -78,9 +81,7 @@ from another wallet and provide the user with your wallet details.""",
         if self._is_wallet_provider_with_client(wallet_provider):
             if network.protocol_family == "evm":
                 if network_id not in ["base-sepolia", "ethereum-sepolia"]:
-                    raise ValueError(
-                        "Faucet is only supported on 'base-sepolia' or 'ethereum-sepolia' evm networks."
-                    )
+                    return "Error: Faucet is only supported on 'base-sepolia' or 'ethereum-sepolia' evm networks."
 
                 token: Literal["eth", "usdc", "eurc", "cbbtc"] = validated_args.asset_id or "eth"
 
@@ -100,10 +101,10 @@ from another wallet and provide the user with your wallet details.""",
                         )
 
                 faucet_tx = loop.run_until_complete(_request_faucet())
-                return f"Received {validated_args.asset_id or 'ETH'} from the faucet. Transaction hash: {faucet_tx.transactionHash}"
+                return f"Received {validated_args.asset_id or 'ETH'} from the faucet. Transaction hash: {faucet_tx}"
             elif network.protocol_family == "svm":
                 if network_id != "solana-devnet":
-                    raise ValueError("Faucet is only supported on 'solana-devnet' solana networks.")
+                    return "Error: Faucet is only supported on 'solana-devnet' solana networks."
 
                 token: Literal["sol", "usdc"] = validated_args.asset_id or "sol"
 
@@ -122,14 +123,15 @@ from another wallet and provide the user with your wallet details.""",
                         )
 
                 faucet_tx = loop.run_until_complete(_request_faucet())
-                return f"Received {validated_args.asset_id or 'SOL'} from the faucet. Transaction signature hash: {faucet_tx.signature}"
+                return f"Received {validated_args.asset_id or 'SOL'} from the faucet. Transaction signature hash: {faucet_tx}"
             else:
-                raise ValueError("Faucet is only supported on Ethereum and Solana protocol families.")
+                return "Error: Faucet is only supported on Ethereum and Solana protocol families."
+
         else:
-            raise ValueError("Wallet provider is not a CDP Wallet Provider.")
+            return "Error: Wallet provider is not a CDP Wallet Provider."
 
     def supports_network(self, network: Network) -> bool:
-        """Checks if the CDP action provider supports the given network.
+        """Check if the CDP action provider supports the given network.
 
         NOTE: Network scoping is done at the action implementation level
 
@@ -138,6 +140,7 @@ from another wallet and provide the user with your wallet details.""",
 
         Returns:
             True if the CDP action provider supports the network, false otherwise.
+
         """
         return True
 

@@ -13,15 +13,13 @@ from ..action_decorator import create_action
 from ..action_provider import ActionProvider
 from .schemas import SwapSchema
 from .swap_utils import (
-    PERMIT2_ADDRESS,
     ERC20_ABI,
+    PERMIT2_ADDRESS,
     format_units,
     get_token_details,
     parse_units,
     retry_with_exponential_backoff,
 )
-from cdp.actions.evm.swap import AccountSwapOptions
-
 
 TWalletProvider = TypeVar("TWalletProvider", bound=CdpEvmWalletProvider)
 
@@ -34,7 +32,7 @@ class CdpEvmWalletActionProvider(ActionProvider[TWalletProvider]):
     """
 
     def __init__(self):
-        """Constructor for the CdpEvmWalletActionProvider class."""
+        """Initialize the CdpEvmWalletActionProvider class."""
         super().__init__("cdp_evm_wallet", [])
 
     def _get_client(self, wallet_provider: TWalletProvider) -> CdpClient:
@@ -45,9 +43,9 @@ class CdpEvmWalletActionProvider(ActionProvider[TWalletProvider]):
 
         Returns:
             CdpClient: The CDP client.
+
         """
         return wallet_provider.get_client()
-
 
     @create_action(
         name="get_swap_price",
@@ -65,7 +63,7 @@ Important notes:
         schema=SwapSchema,
     )
     def get_swap_price(self, wallet_provider: TWalletProvider, args: dict[str, Any]) -> str:
-        """Gets a price quote for swapping tokens using the CDP Swap API.
+        """Get a price quote for swapping tokens using the CDP Swap API.
 
         Args:
             wallet_provider: The EVM wallet provider to get the quote for.
@@ -73,6 +71,7 @@ Important notes:
 
         Returns:
             A JSON string with detailed swap price quote information.
+
         """
         validated_args = SwapSchema(**args)
 
@@ -83,10 +82,12 @@ Important notes:
 
         # Check if the network is supported
         if network_id not in ["base-mainnet", "ethereum-mainnet"]:
-            return json.dumps({
-                "success": False,
-                "error": "CDP Swap API is currently only supported on 'base-mainnet' or 'ethereum-mainnet'."
-            })
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": "CDP Swap API is currently only supported on 'base-mainnet' or 'ethereum-mainnet'.",
+                }
+            )
 
         try:
             # Get token details
@@ -95,16 +96,17 @@ Important notes:
             )
 
             client = self._get_client(wallet_provider)
-            
+
             async def _get_swap_price():
                 async with client as cdp:
                     return await cdp.evm.get_swap_price(
                         from_token=validated_args.from_token,
                         to_token=validated_args.to_token,
-                        from_amount=str(parse_units(
-                            validated_args.from_amount, 
-                            token_details["from_token_decimals"]
-                        )),
+                        from_amount=str(
+                            parse_units(
+                                validated_args.from_amount, token_details["from_token_decimals"]
+                            )
+                        ),
                         network=cdp_network,
                         taker=wallet_provider.get_address(),
                     )
@@ -119,14 +121,13 @@ Important notes:
 
             # Format the amounts properly
             to_amount_formatted = format_units(
-                swap_price.to_amount, 
-                token_details["to_token_decimals"]
+                swap_price.to_amount, token_details["to_token_decimals"]
             )
-            
+
             # Calculate price ratios safely
             from_amount_float = float(validated_args.from_amount)
             to_amount_float = float(to_amount_formatted)
-            
+
             formatted_response = {
                 "success": True,
                 "fromAmount": validated_args.from_amount,
@@ -136,17 +137,18 @@ Important notes:
                 "toTokenName": token_details["to_token_name"],
                 "toToken": validated_args.to_token,
                 "slippageBps": validated_args.slippage_bps,
-                "priceOfBuyTokenInSellToken": str(from_amount_float / to_amount_float) if to_amount_float > 0 else "",
-                "priceOfSellTokenInBuyToken": str(to_amount_float / from_amount_float) if from_amount_float > 0 else "",
+                "priceOfBuyTokenInSellToken": str(from_amount_float / to_amount_float)
+                if to_amount_float > 0
+                else "",
+                "priceOfSellTokenInBuyToken": str(to_amount_float / from_amount_float)
+                if from_amount_float > 0
+                else "",
             }
 
             return json.dumps(formatted_response)
 
         except Exception as error:
-            return json.dumps({
-                "success": False,
-                "error": f"Error fetching swap price: {error}"
-            })
+            return json.dumps({"success": False, "error": f"Error fetching swap price: {error}"})
 
     @create_action(
         name="swap",
@@ -165,7 +167,7 @@ Important notes:
         schema=SwapSchema,
     )
     def swap(self, wallet_provider: TWalletProvider, args: dict[str, Any]) -> str:
-        """Swaps tokens using the CDP client.
+        """Swap tokens using the CDP client.
 
         Args:
             wallet_provider: The EVM wallet provider to perform the swap with.
@@ -173,6 +175,7 @@ Important notes:
 
         Returns:
             A JSON string with detailed swap execution information.
+
         """
         validated_args = SwapSchema(**args)
 
@@ -183,10 +186,12 @@ Important notes:
 
         # Check if the network is supported
         if network_id not in ["base-mainnet", "ethereum-mainnet"]:
-            return json.dumps({
-                "success": False,
-                "error": "CDP Swap API is currently only supported on 'base-mainnet' or 'ethereum-mainnet'."
-            })
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": "CDP Swap API is currently only supported on 'base-mainnet' or 'ethereum-mainnet'.",
+                }
+            )
 
         try:
             # Get token details
@@ -209,10 +214,9 @@ Important notes:
                     swap_quote = await account.quote_swap(
                         from_token=validated_args.from_token,
                         to_token=validated_args.to_token,
-                        from_amount=str(parse_units(
-                            validated_args.from_amount, 
-                            from_token_decimals
-                        )),
+                        from_amount=str(
+                            parse_units(validated_args.from_amount, from_token_decimals)
+                        ),
                         network=cdp_network,
                     )
 
@@ -220,27 +224,37 @@ Important notes:
                     if not swap_quote.liquidity_available:
                         return {
                             "success": False,
-                            "error": f"No liquidity available to swap {validated_args.from_amount} {from_token_name} ({validated_args.from_token}) to {to_token_name} ({validated_args.to_token})"
+                            "error": f"No liquidity available to swap {validated_args.from_amount} {from_token_name} ({validated_args.from_token}) to {to_token_name} ({validated_args.to_token})",
                         }
 
                     # Check if balance is enough
-                    if hasattr(swap_quote, 'issues') and swap_quote.issues and hasattr(swap_quote.issues, 'balance'):
+                    if (
+                        hasattr(swap_quote, "issues")
+                        and swap_quote.issues
+                        and hasattr(swap_quote.issues, "balance")
+                    ):
                         return {
                             "success": False,
-                            "error": f"Balance is not enough to perform swap. Required: {validated_args.from_amount} {from_token_name}, but only have {format_units(swap_price.issues.balance.current_balance, from_token_decimals)} {from_token_name} ({validated_args.from_token})"
+                            "error": f"Balance is not enough to perform swap. Required: {validated_args.from_amount} {from_token_name}, but only have {format_units(swap_quote.issues.balance.current_balance, from_token_decimals)} {from_token_name} ({validated_args.from_token})",
                         }
 
                     # Check if allowance is enough
                     approval_tx_hash = None
-                    if hasattr(swap_quote, 'issues') and swap_quote.issues and hasattr(swap_quote.issues, 'allowance'):
+                    if (
+                        hasattr(swap_quote, "issues")
+                        and swap_quote.issues
+                        and hasattr(swap_quote.issues, "allowance")
+                    ):
                         # Send approval transaction
-                        approve_data = Web3().eth.contract(
-                            abi=ERC20_ABI
-                        ).encodeABI(
-                            fn_name="approve",
-                            args=[PERMIT2_ADDRESS, 2**256 - 1]  # Max uint256
+                        approve_data = (
+                            Web3()
+                            .eth.contract(abi=ERC20_ABI)
+                            .encodeABI(
+                                fn_name="approve",
+                                args=[PERMIT2_ADDRESS, 2**256 - 1],  # Max uint256
+                            )
                         )
-                        
+
                         approval_tx_hash = await cdp.evm.send_transaction(
                             address=wallet_provider.get_address(),
                             transaction={
@@ -249,7 +263,7 @@ Important notes:
                             },
                             network=cdp_network,
                         )
-                        
+
                         # Wait for approval transaction receipt and check if it was successful
                         receipt = await cdp.evm.wait_for_transaction_receipt(
                             address=wallet_provider.get_address(),
@@ -257,10 +271,7 @@ Important notes:
                             network=cdp_network,
                         )
                         if receipt.status != "success":
-                            return {
-                                "success": False,
-                                "error": "Approval transaction failed"
-                            }
+                            return {"success": False, "error": "Approval transaction failed"}
 
                     # Execute swap using the all-in-one pattern with retry logic
                     async def _perform_swap():
@@ -272,14 +283,13 @@ Important notes:
                         base_delay=5.0,
                     )
 
-                    receipt = await wallet_provider.wait_for_transaction_receipt(swap_result.transaction_hash)
+                    receipt = await wallet_provider.wait_for_transaction_receipt(
+                        swap_result.transaction_hash
+                    )
 
                     # Check if swap was successful
                     if receipt.status != "success":
-                        return {
-                            "success": False,
-                            "error": f"Swap transaction reverted"
-                        }
+                        return {"success": False, "error": "Swap transaction reverted"}
 
                     # Format the successful response
                     formatted_response = {
@@ -288,14 +298,8 @@ Important notes:
                         "fromAmount": validated_args.from_amount,
                         "fromTokenName": from_token_name,
                         "fromToken": validated_args.from_token,
-                        "toAmount": format_units(
-                            swap_quote.to_amount, 
-                            to_token_decimals
-                        ),
-                        "minToAmount": format_units(
-                            swap_quote.min_to_amount, 
-                            to_token_decimals
-                        ),
+                        "toAmount": format_units(swap_quote.to_amount, to_token_decimals),
+                        "minToAmount": format_units(swap_quote.min_to_amount, to_token_decimals),
                         "toTokenName": to_token_name,
                         "toToken": validated_args.to_token,
                         "slippageBps": validated_args.slippage_bps,
@@ -317,19 +321,17 @@ Important notes:
             return json.dumps(result)
 
         except Exception as error:
-            return json.dumps({
-                "success": False,
-                "error": f"Swap failed: {error}"
-            })
+            return json.dumps({"success": False, "error": f"Swap failed: {error}"})
 
     def supports_network(self, network: Network) -> bool:
-        """Checks if the EVM wallet action provider supports the given network.
+        """Check if the EVM wallet action provider supports the given network.
 
         Args:
             network: The network to check.
 
         Returns:
             True if the EVM wallet action provider supports the network, false otherwise.
+
         """
         return network.protocol_family == "evm"
 
@@ -339,5 +341,6 @@ def cdp_evm_wallet_action_provider() -> CdpEvmWalletActionProvider:
 
     Returns:
         CdpEvmWalletActionProvider: A new CDP EVM Wallet action provider instance.
+
     """
     return CdpEvmWalletActionProvider()

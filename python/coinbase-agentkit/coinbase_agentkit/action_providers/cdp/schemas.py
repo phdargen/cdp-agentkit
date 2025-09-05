@@ -19,7 +19,10 @@ class SwapSchema(BaseModel):
 
     from_token: str = Field(..., description="The token contract address to swap from")
     to_token: str = Field(..., description="The token contract address to swap to")
-    from_amount: str = Field(..., description="The amount of fromToken to sell in whole units (e.g., 1.5 WETH, 10.5 USDC)")
+    from_amount: str = Field(
+        ...,
+        description="The amount of fromToken to sell in whole units (e.g., 1.5 WETH, 10.5 USDC)",
+    )
     slippage_bps: int = Field(
         default=100,
         description="The maximum acceptable slippage in basis points (0-10000, default: 100 = 1%)",
@@ -45,6 +48,6 @@ class SwapSchema(BaseModel):
                 raise ValueError("Amount must be greater than 0")
         except ValueError as e:
             if "could not convert" in str(e):
-                raise ValueError("Amount must be a valid number")
+                raise ValueError("Amount must be a valid number") from e
             raise
         return v

@@ -57,6 +57,8 @@ __all__ = [
     "EthAccountWalletProvider",
     "EthAccountWalletProviderConfig",
     "cdp_api_action_provider",
+    "cdp_evm_wallet_action_provider",
+    "cdp_smart_wallet_action_provider",
     "compound_action_provider",
     "erc20_action_provider",
     "erc721_action_provider",
