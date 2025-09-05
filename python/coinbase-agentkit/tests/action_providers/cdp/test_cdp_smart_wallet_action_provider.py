@@ -1,12 +1,9 @@
 """Tests for CDP Smart Wallet action provider."""
 
-import asyncio
 import json
-from decimal import Decimal
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from eth_account import Account
 
 from coinbase_agentkit.action_providers.cdp.cdp_smart_wallet_action_provider import (
     CdpSmartWalletActionProvider,
@@ -17,7 +14,9 @@ from coinbase_agentkit.network import Network
 
 # Mock constants
 MOCK_ETH_ADDRESS = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-MOCK_USDC_ADDRESS = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"  # lowercase to match schema validation
+MOCK_USDC_ADDRESS = (
+    "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"  # lowercase to match schema validation
+)
 MOCK_WALLET_ADDRESS = "0x1234567890123456789012345678901234567890"
 MOCK_SWAP_USER_OP_HASH = "0xswap789"
 MOCK_APPROVAL_TX_HASH = "0xapproval123"
@@ -30,14 +29,14 @@ def mock_cdp_client():
     client = Mock()
     client.__aenter__ = AsyncMock(return_value=client)
     client.__aexit__ = AsyncMock(return_value=None)
-    
+
     # Mock EVM methods
     client.evm = Mock()
     client.evm.get_swap_price = AsyncMock()
     client.evm.get_account = AsyncMock()
     client.evm.send_transaction = AsyncMock()
     client.evm.wait_for_transaction_receipt = AsyncMock()
-    
+
     return client
 
 
@@ -53,10 +52,10 @@ def mock_smart_wallet_provider():
     provider._paymaster_url = MOCK_PAYMASTER_URL
     provider._get_smart_account = AsyncMock()
     provider._web3 = Mock()
-    
+
     # Mock CDP server account (not eth_account.Account)
     provider._owner = Mock()  # This should NOT be an eth_account.Account instance
-    
+
     # Mock web3 contract calls for token details - need to handle different tokens
     def mock_contract_side_effect(address, abi):
         mock_contract = Mock()
@@ -68,9 +67,9 @@ def mock_smart_wallet_provider():
             mock_contract.functions.decimals.return_value.call.return_value = 18
             mock_contract.functions.name.return_value.call.return_value = "ETH"
         return mock_contract
-    
+
     provider._web3.eth.contract.side_effect = mock_contract_side_effect
-    
+
     return provider
 
 
@@ -115,7 +114,7 @@ class TestCdpSmartWalletActionProvider:
         # Test EVM networks
         evm_network = Network(protocol_family="evm", network_id="base-mainnet")
         assert action_provider.supports_network(evm_network) is True
-        
+
         # Test non-EVM networks
         svm_network = Network(protocol_family="svm", network_id="solana-devnet")
         assert action_provider.supports_network(svm_network) is True
@@ -124,19 +123,19 @@ class TestCdpSmartWalletActionProvider:
         """Test CDP SDK network mapping."""
         assert action_provider._get_cdp_sdk_network("base-mainnet") == "base"
         assert action_provider._get_cdp_sdk_network("base-sepolia") == "base-sepolia"
-        
+
         with pytest.raises(ValueError, match="Unsupported network for smart wallets"):
             action_provider._get_cdp_sdk_network("ethereum-mainnet")
 
     @patch("coinbase_agentkit.action_providers.cdp.swap_utils.get_token_details")
     @patch("asyncio.get_event_loop")
     def test_get_swap_price_base_mainnet(
-        self, 
+        self,
         mock_get_event_loop,
         mock_get_token_details,
-        action_provider, 
-        mock_smart_wallet_provider, 
-        mock_cdp_client
+        action_provider,
+        mock_smart_wallet_provider,
+        mock_cdp_client,
     ):
         """Test get_swap_price on base-mainnet."""
         # Setup
@@ -144,34 +143,34 @@ class TestCdpSmartWalletActionProvider:
             protocol_family="evm", network_id="base-mainnet"
         )
         mock_smart_wallet_provider.get_client.return_value = mock_cdp_client
-        
+
         mock_get_token_details.return_value = {
             "from_token_decimals": 18,
             "to_token_decimals": 6,
             "from_token_name": "ETH",
-            "to_token_name": "USDC"
+            "to_token_name": "USDC",
         }
-        
+
         mock_swap_price = Mock()
         mock_swap_price.to_amount = "990000"  # 0.99 USDC
         mock_cdp_client.evm.get_swap_price.return_value = mock_swap_price
-        
+
         # Mock the event loop
         mock_loop = Mock()
         mock_loop.run_until_complete.return_value = mock_swap_price
         mock_get_event_loop.return_value = mock_loop
-        
+
         args = {
             "from_token": MOCK_ETH_ADDRESS,
             "to_token": MOCK_USDC_ADDRESS,
             "from_amount": "0.1",
-            "slippage_bps": 100
+            "slippage_bps": 100,
         }
-        
+
         # Execute
         result = action_provider.get_swap_price(mock_smart_wallet_provider, args)
         parsed_result = json.loads(result)
-        
+
         # Verify
         assert parsed_result["success"] is True
         assert parsed_result["fromAmount"] == "0.1"
@@ -182,12 +181,12 @@ class TestCdpSmartWalletActionProvider:
     @patch("coinbase_agentkit.action_providers.cdp.swap_utils.get_token_details")
     @patch("asyncio.get_event_loop")
     def test_get_swap_price_base_sepolia(
-        self, 
+        self,
         mock_get_event_loop,
         mock_get_token_details,
-        action_provider, 
-        mock_smart_wallet_provider, 
-        mock_cdp_client
+        action_provider,
+        mock_smart_wallet_provider,
+        mock_cdp_client,
     ):
         """Test get_swap_price on base-sepolia."""
         # Setup
@@ -195,33 +194,29 @@ class TestCdpSmartWalletActionProvider:
             protocol_family="evm", network_id="base-sepolia"
         )
         mock_smart_wallet_provider.get_client.return_value = mock_cdp_client
-        
+
         mock_get_token_details.return_value = {
             "from_token_decimals": 18,
             "to_token_decimals": 6,
             "from_token_name": "ETH",
-            "to_token_name": "USDC"
+            "to_token_name": "USDC",
         }
-        
+
         mock_swap_price = Mock()
         mock_swap_price.to_amount = "990000"
         mock_cdp_client.evm.get_swap_price.return_value = mock_swap_price
-        
+
         # Mock the event loop
         mock_loop = Mock()
         mock_loop.run_until_complete.return_value = mock_swap_price
         mock_get_event_loop.return_value = mock_loop
-        
-        args = {
-            "from_token": MOCK_ETH_ADDRESS,
-            "to_token": MOCK_USDC_ADDRESS,
-            "from_amount": "0.1"
-        }
-        
+
+        args = {"from_token": MOCK_ETH_ADDRESS, "to_token": MOCK_USDC_ADDRESS, "from_amount": "0.1"}
+
         # Execute
         result = action_provider.get_swap_price(mock_smart_wallet_provider, args)
         parsed_result = json.loads(result)
-        
+
         # Verify
         assert parsed_result["success"] is True
 
@@ -231,28 +226,23 @@ class TestCdpSmartWalletActionProvider:
         mock_smart_wallet_provider.get_network.return_value = Network(
             protocol_family="evm", network_id="ethereum-mainnet"
         )
-        
-        args = {
-            "from_token": MOCK_ETH_ADDRESS,
-            "to_token": MOCK_USDC_ADDRESS,
-            "from_amount": "0.1"
-        }
-        
+
+        args = {"from_token": MOCK_ETH_ADDRESS, "to_token": MOCK_USDC_ADDRESS, "from_amount": "0.1"}
+
         # Execute
         result = action_provider.get_swap_price(mock_smart_wallet_provider, args)
         parsed_result = json.loads(result)
-        
+
         # Verify
         assert parsed_result["success"] is False
-        assert "CDP Swap API for smart wallets is currently only supported on Base networks" in parsed_result["error"]
+        assert (
+            "CDP Swap API for smart wallets is currently only supported on Base networks"
+            in parsed_result["error"]
+        )
 
     @patch("coinbase_agentkit.action_providers.cdp.swap_utils.get_token_details")
     def test_get_swap_price_api_error(
-        self, 
-        mock_get_token_details,
-        action_provider, 
-        mock_smart_wallet_provider, 
-        mock_cdp_client
+        self, mock_get_token_details, action_provider, mock_smart_wallet_provider, mock_cdp_client
     ):
         """Test get_swap_price handles API errors."""
         # Setup
@@ -260,26 +250,22 @@ class TestCdpSmartWalletActionProvider:
             protocol_family="evm", network_id="base-mainnet"
         )
         mock_smart_wallet_provider.get_client.return_value = mock_cdp_client
-        
+
         mock_get_token_details.return_value = {
             "from_token_decimals": 18,
             "to_token_decimals": 6,
             "from_token_name": "ETH",
-            "to_token_name": "USDC"
+            "to_token_name": "USDC",
         }
-        
+
         mock_cdp_client.evm.get_swap_price.side_effect = Exception("API Error")
-        
-        args = {
-            "from_token": MOCK_ETH_ADDRESS,
-            "to_token": MOCK_USDC_ADDRESS,
-            "from_amount": "0.1"
-        }
-        
+
+        args = {"from_token": MOCK_ETH_ADDRESS, "to_token": MOCK_USDC_ADDRESS, "from_amount": "0.1"}
+
         # Execute
         result = action_provider.get_swap_price(mock_smart_wallet_provider, args)
         parsed_result = json.loads(result)
-        
+
         # Verify
         assert parsed_result["success"] is False
         assert "Error fetching swap price: API Error" in parsed_result["error"]
@@ -293,17 +279,13 @@ class TestCdpSmartWalletActionProvider:
         )
         # Don't set _owner attribute
         del mock_wallet_provider._owner
-        
-        args = {
-            "from_token": MOCK_ETH_ADDRESS,
-            "to_token": MOCK_USDC_ADDRESS,
-            "from_amount": "0.1"
-        }
-        
+
+        args = {"from_token": MOCK_ETH_ADDRESS, "to_token": MOCK_USDC_ADDRESS, "from_amount": "0.1"}
+
         # Execute
         result = action_provider.swap(mock_wallet_provider, args)
         parsed_result = json.loads(result)
-        
+
         # Verify
         assert parsed_result["success"] is False
         assert "Smart wallet owner account is not a CDP server account" in parsed_result["error"]
@@ -320,7 +302,7 @@ class TestCdpSmartWalletActionProvider:
         mock_smart_wallet_provider,
         mock_cdp_client,
         mock_smart_account,
-        mock_swap_quote
+        mock_swap_quote,
     ):
         """Test successful swap execution."""
         # Setup
@@ -329,29 +311,29 @@ class TestCdpSmartWalletActionProvider:
         )
         mock_smart_wallet_provider.get_client.return_value = mock_cdp_client
         mock_smart_wallet_provider._get_smart_account.return_value = mock_smart_account
-        
+
         mock_get_token_details.return_value = {
             "from_token_decimals": 18,
             "to_token_decimals": 6,
             "from_token_name": "ETH",
-            "to_token_name": "USDC"
+            "to_token_name": "USDC",
         }
-        
+
         mock_smart_account.quote_swap.return_value = mock_swap_quote
-        
+
         mock_swap_result = Mock()
         mock_swap_result.user_op_hash = MOCK_SWAP_USER_OP_HASH
         mock_swap_quote.execute.return_value = mock_swap_result
         mock_retry.return_value = mock_swap_result
-        
+
         # Mock user operation receipt
         mock_receipt = Mock()
         mock_receipt.status = "complete"
         mock_smart_account.wait_for_user_operation.return_value = mock_receipt
-        
+
         # Mock the event loop
         mock_loop = Mock()
-        
+
         # The actual result that gets returned from the async function
         async_result = {
             "success": True,
@@ -368,18 +350,18 @@ class TestCdpSmartWalletActionProvider:
         }
         mock_loop.run_until_complete.return_value = async_result
         mock_get_event_loop.return_value = mock_loop
-        
+
         args = {
             "from_token": MOCK_ETH_ADDRESS,
             "to_token": MOCK_USDC_ADDRESS,
             "from_amount": "0.1",
-            "slippage_bps": 100
+            "slippage_bps": 100,
         }
-        
+
         # Execute
         result = action_provider.swap(mock_smart_wallet_provider, args)
         parsed_result = json.loads(result)
-        
+
         # Verify
         assert parsed_result["success"] is True
         assert parsed_result["transactionHash"] == MOCK_SWAP_USER_OP_HASH
@@ -393,20 +375,19 @@ class TestCdpSmartWalletActionProvider:
         mock_smart_wallet_provider.get_network.return_value = Network(
             protocol_family="evm", network_id="ethereum-mainnet"
         )
-        
-        args = {
-            "from_token": MOCK_ETH_ADDRESS,
-            "to_token": MOCK_USDC_ADDRESS,
-            "from_amount": "0.1"
-        }
-        
+
+        args = {"from_token": MOCK_ETH_ADDRESS, "to_token": MOCK_USDC_ADDRESS, "from_amount": "0.1"}
+
         # Execute
         result = action_provider.swap(mock_smart_wallet_provider, args)
         parsed_result = json.loads(result)
-        
+
         # Verify
         assert parsed_result["success"] is False
-        assert "CDP Swap API for smart wallets is currently only supported on Base networks" in parsed_result["error"]
+        assert (
+            "CDP Swap API for smart wallets is currently only supported on Base networks"
+            in parsed_result["error"]
+        )
 
     @patch("coinbase_agentkit.action_providers.cdp.swap_utils.get_token_details")
     def test_swap_no_liquidity_available(
@@ -416,7 +397,7 @@ class TestCdpSmartWalletActionProvider:
         mock_smart_wallet_provider,
         mock_cdp_client,
         mock_smart_account,
-        mock_swap_quote
+        mock_swap_quote,
     ):
         """Test swap returns error when liquidity is not available."""
         # Setup
@@ -425,27 +406,23 @@ class TestCdpSmartWalletActionProvider:
         )
         mock_smart_wallet_provider.get_client.return_value = mock_cdp_client
         mock_smart_wallet_provider._get_smart_account.return_value = mock_smart_account
-        
+
         mock_get_token_details.return_value = {
             "from_token_decimals": 18,
             "to_token_decimals": 6,
             "from_token_name": "ETH",
-            "to_token_name": "USDC"
+            "to_token_name": "USDC",
         }
-        
+
         mock_swap_quote.liquidity_available = False
         mock_smart_account.quote_swap.return_value = mock_swap_quote
-        
-        args = {
-            "from_token": MOCK_ETH_ADDRESS,
-            "to_token": MOCK_USDC_ADDRESS,
-            "from_amount": "0.1"
-        }
-        
+
+        args = {"from_token": MOCK_ETH_ADDRESS, "to_token": MOCK_USDC_ADDRESS, "from_amount": "0.1"}
+
         # Execute
         result = action_provider.swap(mock_smart_wallet_provider, args)
         parsed_result = json.loads(result)
-        
+
         # Verify
         assert parsed_result["success"] is False
         assert "No liquidity available to swap" in parsed_result["error"]
@@ -458,7 +435,7 @@ class TestCdpSmartWalletActionProvider:
         mock_smart_wallet_provider,
         mock_cdp_client,
         mock_smart_account,
-        mock_swap_quote
+        mock_swap_quote,
     ):
         """Test swap returns error when balance is insufficient."""
         # Setup
@@ -467,14 +444,14 @@ class TestCdpSmartWalletActionProvider:
         )
         mock_smart_wallet_provider.get_client.return_value = mock_cdp_client
         mock_smart_wallet_provider._get_smart_account.return_value = mock_smart_account
-        
+
         mock_get_token_details.return_value = {
             "from_token_decimals": 18,
             "to_token_decimals": 6,
             "from_token_name": "ETH",
-            "to_token_name": "USDC"
+            "to_token_name": "USDC",
         }
-        
+
         # Mock insufficient balance
         mock_balance_issue = Mock()
         mock_balance_issue.current_balance = "50000000000000000"  # 0.05 ETH
@@ -482,17 +459,13 @@ class TestCdpSmartWalletActionProvider:
         mock_issues.balance = mock_balance_issue
         mock_swap_quote.issues = mock_issues
         mock_smart_account.quote_swap.return_value = mock_swap_quote
-        
-        args = {
-            "from_token": MOCK_ETH_ADDRESS,
-            "to_token": MOCK_USDC_ADDRESS,
-            "from_amount": "0.1"
-        }
-        
+
+        args = {"from_token": MOCK_ETH_ADDRESS, "to_token": MOCK_USDC_ADDRESS, "from_amount": "0.1"}
+
         # Execute
         result = action_provider.swap(mock_smart_wallet_provider, args)
         parsed_result = json.loads(result)
-        
+
         # Verify
         assert parsed_result["success"] is False
         assert "Balance is not enough to perform swap" in parsed_result["error"]
@@ -512,7 +485,7 @@ class TestCdpSmartWalletActionProvider:
         mock_smart_wallet_provider,
         mock_cdp_client,
         mock_smart_account,
-        mock_swap_quote
+        mock_swap_quote,
     ):
         """Test swap handles approval transaction when allowance is insufficient."""
         # Setup
@@ -522,22 +495,24 @@ class TestCdpSmartWalletActionProvider:
         mock_smart_wallet_provider.get_client.return_value = mock_cdp_client
         mock_smart_wallet_provider._get_smart_account.return_value = mock_smart_account
         mock_smart_wallet_provider.send_transaction.return_value = MOCK_APPROVAL_TX_HASH
-        mock_smart_wallet_provider.wait_for_transaction_receipt.return_value = Mock(status="complete")
-        
+        mock_smart_wallet_provider.wait_for_transaction_receipt.return_value = Mock(
+            status="complete"
+        )
+
         mock_get_token_details.return_value = {
             "from_token_decimals": 6,  # USDC decimals
-            "to_token_decimals": 18,   # ETH decimals
+            "to_token_decimals": 18,  # ETH decimals
             "from_token_name": "USDC",
-            "to_token_name": "ETH"
+            "to_token_name": "ETH",
         }
-        
+
         # Mock Web3 contract for approval
         mock_contract = Mock()
         mock_contract.encodeABI.return_value = "0xapprovaldata"
         mock_web3_instance = Mock()
         mock_web3_instance.eth.contract.return_value = mock_contract
         mock_web3.return_value = mock_web3_instance
-        
+
         # Mock allowance issue
         mock_allowance_issue = Mock()
         mock_allowance_issue.required_allowance = "100000000000000000"
@@ -546,17 +521,17 @@ class TestCdpSmartWalletActionProvider:
         mock_issues.allowance = mock_allowance_issue
         mock_swap_quote.issues = mock_issues
         mock_smart_account.quote_swap.return_value = mock_swap_quote
-        
+
         mock_swap_result = Mock()
         mock_swap_result.user_op_hash = MOCK_SWAP_USER_OP_HASH
         mock_swap_quote.execute.return_value = mock_swap_result
         mock_retry.return_value = mock_swap_result
-        
+
         # Mock user operation receipt
         mock_receipt = Mock()
         mock_receipt.status = "complete"
         mock_smart_account.wait_for_user_operation.return_value = mock_receipt
-        
+
         # Mock the event loop
         mock_loop = Mock()
         async_result = {
@@ -575,17 +550,17 @@ class TestCdpSmartWalletActionProvider:
         }
         mock_loop.run_until_complete.return_value = async_result
         mock_get_event_loop.return_value = mock_loop
-        
+
         args = {
             "from_token": MOCK_USDC_ADDRESS,  # Using USDC to trigger approval
             "to_token": MOCK_ETH_ADDRESS,
-            "from_amount": "100"
+            "from_amount": "100",
         }
-        
+
         # Execute
         result = action_provider.swap(mock_smart_wallet_provider, args)
         parsed_result = json.loads(result)
-        
+
         # Verify
         assert parsed_result["success"] is True
         assert parsed_result["approvalTxHash"] == MOCK_APPROVAL_TX_HASH
@@ -599,7 +574,7 @@ class TestCdpSmartWalletActionProvider:
         mock_smart_wallet_provider,
         mock_cdp_client,
         mock_smart_account,
-        mock_swap_quote
+        mock_swap_quote,
     ):
         """Test swap handles execution errors."""
         # Setup
@@ -608,27 +583,23 @@ class TestCdpSmartWalletActionProvider:
         )
         mock_smart_wallet_provider.get_client.return_value = mock_cdp_client
         mock_smart_wallet_provider._get_smart_account.return_value = mock_smart_account
-        
+
         mock_get_token_details.return_value = {
             "from_token_decimals": 18,
             "to_token_decimals": 6,
             "from_token_name": "ETH",
-            "to_token_name": "USDC"
+            "to_token_name": "USDC",
         }
-        
+
         mock_smart_account.quote_swap.return_value = mock_swap_quote
         mock_swap_quote.execute.side_effect = Exception("Swap execution failed")
-        
-        args = {
-            "from_token": MOCK_ETH_ADDRESS,
-            "to_token": MOCK_USDC_ADDRESS,
-            "from_amount": "0.1"
-        }
-        
+
+        args = {"from_token": MOCK_ETH_ADDRESS, "to_token": MOCK_USDC_ADDRESS, "from_amount": "0.1"}
+
         # Execute
         result = action_provider.swap(mock_smart_wallet_provider, args)
         parsed_result = json.loads(result)
-        
+
         # Verify
         assert parsed_result["success"] is False
         assert "Swap failed: Swap execution failed" in parsed_result["error"]
@@ -643,7 +614,7 @@ class TestCdpSmartWalletActionProvider:
         mock_smart_wallet_provider,
         mock_cdp_client,
         mock_smart_account,
-        mock_swap_quote
+        mock_swap_quote,
     ):
         """Test swap handles user operation revert."""
         # Setup
@@ -652,36 +623,32 @@ class TestCdpSmartWalletActionProvider:
         )
         mock_smart_wallet_provider.get_client.return_value = mock_cdp_client
         mock_smart_wallet_provider._get_smart_account.return_value = mock_smart_account
-        
+
         mock_get_token_details.return_value = {
             "from_token_decimals": 18,
             "to_token_decimals": 6,
             "from_token_name": "ETH",
-            "to_token_name": "USDC"
+            "to_token_name": "USDC",
         }
-        
+
         mock_smart_account.quote_swap.return_value = mock_swap_quote
-        
+
         mock_swap_result = Mock()
         mock_swap_result.user_op_hash = MOCK_SWAP_USER_OP_HASH
         mock_swap_quote.execute.return_value = mock_swap_result
         mock_retry.return_value = mock_swap_result
-        
+
         # Mock failed user operation receipt
         mock_receipt = Mock()
         mock_receipt.status = "failed"
         mock_smart_account.wait_for_user_operation.return_value = mock_receipt
-        
-        args = {
-            "from_token": MOCK_ETH_ADDRESS,
-            "to_token": MOCK_USDC_ADDRESS,
-            "from_amount": "0.1"
-        }
-        
+
+        args = {"from_token": MOCK_ETH_ADDRESS, "to_token": MOCK_USDC_ADDRESS, "from_amount": "0.1"}
+
         # Execute
         result = action_provider.swap(mock_smart_wallet_provider, args)
         parsed_result = json.loads(result)
-        
+
         # Verify
         assert parsed_result["success"] is False
         assert "Swap transaction reverted" in parsed_result["error"]
@@ -695,9 +662,9 @@ class TestSwapSchemaForSmartWallet:
         valid_input = {
             "from_token": MOCK_ETH_ADDRESS,
             "to_token": MOCK_USDC_ADDRESS,
-            "from_amount": "0.1"
+            "from_amount": "0.1",
         }
-        
+
         schema = SwapSchema(**valid_input)
         assert schema.from_token == MOCK_ETH_ADDRESS
         assert schema.to_token == MOCK_USDC_ADDRESS
@@ -710,9 +677,9 @@ class TestSwapSchemaForSmartWallet:
             "from_token": MOCK_USDC_ADDRESS,
             "to_token": MOCK_ETH_ADDRESS,
             "from_amount": "100",
-            "slippage_bps": 50
+            "slippage_bps": 50,
         }
-        
+
         schema = SwapSchema(**valid_input)
         assert schema.slippage_bps == 50
 
@@ -722,7 +689,7 @@ class TestSwapSchemaForSmartWallet:
             "from_token": MOCK_ETH_ADDRESS,
             # missing to_token and from_amount
         }
-        
+
         with pytest.raises(ValueError):
             SwapSchema(**invalid_input)
 
@@ -731,9 +698,9 @@ class TestSwapSchemaForSmartWallet:
         invalid_input = {
             "from_token": "not-an-address",
             "to_token": MOCK_USDC_ADDRESS,
-            "from_amount": "0.1"
+            "from_amount": "0.1",
         }
-        
+
         with pytest.raises(ValueError, match="Invalid Ethereum address format"):
             SwapSchema(**invalid_input)
 
@@ -742,9 +709,9 @@ class TestSwapSchemaForSmartWallet:
         invalid_input = {
             "from_token": MOCK_ETH_ADDRESS,
             "to_token": MOCK_USDC_ADDRESS,
-            "from_amount": "-1.0"
+            "from_amount": "-1.0",
         }
-        
+
         with pytest.raises(ValueError, match="Amount must be greater than 0"):
             SwapSchema(**invalid_input)
 
@@ -754,8 +721,8 @@ class TestSwapSchemaForSmartWallet:
             "from_token": MOCK_ETH_ADDRESS,
             "to_token": MOCK_USDC_ADDRESS,
             "from_amount": "0.1",
-            "slippage_bps": 20000  # > 10000
+            "slippage_bps": 20000,  # > 10000
         }
-        
+
         with pytest.raises(ValueError):
             SwapSchema(**invalid_input)

@@ -42,6 +42,7 @@ describe("CDP EVM Wallet Action Provider", () => {
       getClient: jest.fn(),
       sendTransaction: jest.fn(),
       waitForTransactionReceipt: jest.fn(),
+      getCdpSdkNetwork: jest.fn(),
     } as any;
 
     // Default setup for utility functions
@@ -64,6 +65,7 @@ describe("CDP EVM Wallet Action Provider", () => {
       } as any);
       mockWalletProvider.getAddress.mockReturnValue("0x1234567890123456789012345678901234567890");
       mockWalletProvider.getClient.mockReturnValue(mockCdpClient);
+      mockWalletProvider.getCdpSdkNetwork.mockReturnValue("base-sepolia");
     });
 
     it("should successfully list spend permissions for EVM wallets", async () => {
@@ -127,6 +129,7 @@ describe("CDP EVM Wallet Action Provider", () => {
       } as any);
       mockWalletProvider.getAddress.mockReturnValue("0x1234567890123456789012345678901234567890");
       mockWalletProvider.getClient.mockReturnValue(mockCdpClient);
+      mockWalletProvider.getCdpSdkNetwork.mockReturnValue("base-sepolia");
       (mockCdpClient.evm.getAccount as jest.Mock).mockResolvedValue(mockAccount);
     });
 
@@ -196,6 +199,7 @@ describe("CDP EVM Wallet Action Provider", () => {
           networkId: testCase.networkId,
         } as any);
         mockWalletProvider.getClient.mockReturnValue(mockCdpClient);
+        mockWalletProvider.getCdpSdkNetwork.mockReturnValue(testCase.expected as any);
         (mockCdpClient.evm.getAccount as jest.Mock).mockResolvedValue(mockAccount);
 
         await actionProvider.useSpendPermission(mockWalletProvider, mockArgs);
@@ -213,6 +217,7 @@ describe("CDP EVM Wallet Action Provider", () => {
         protocolFamily: "evm",
         networkId: "polygon-mainnet",
       } as any);
+      mockWalletProvider.getCdpSdkNetwork.mockReturnValue("polygon-mainnet" as any);
 
       const mockPermission = { spender: "0x1234", token: "MATIC" };
       const mockSpendResult = { status: "completed" };
@@ -300,6 +305,7 @@ describe("CDP EVM Wallet Action Provider", () => {
     beforeEach(() => {
       mockWalletProvider.getClient.mockReturnValue(mockCdpClient);
       mockWalletProvider.getAddress.mockReturnValue("0x1234567890123456789012345678901234567890");
+      mockWalletProvider.getCdpSdkNetwork.mockReturnValue("base");
       mockGetTokenDetails.mockResolvedValue({
         fromTokenDecimals: 18,
         toTokenDecimals: 6,
@@ -343,6 +349,7 @@ describe("CDP EVM Wallet Action Provider", () => {
         protocolFamily: "evm",
         networkId: "ethereum-mainnet",
       } as any);
+      mockWalletProvider.getCdpSdkNetwork.mockReturnValue("ethereum");
 
       (mockCdpClient.evm.getSwapPrice as jest.Mock).mockResolvedValue({
         toAmount: "990000",
@@ -407,6 +414,7 @@ describe("CDP EVM Wallet Action Provider", () => {
     beforeEach(() => {
       mockWalletProvider.getClient.mockReturnValue(mockCdpClient);
       mockWalletProvider.getAddress.mockReturnValue("0x1234567890123456789012345678901234567890");
+      mockWalletProvider.getCdpSdkNetwork.mockReturnValue("base");
       (mockCdpClient.evm.getAccount as jest.Mock).mockResolvedValue(mockAccount);
       mockWalletProvider.waitForTransactionReceipt.mockResolvedValue({ status: "success" });
       mockGetTokenDetails.mockResolvedValue({

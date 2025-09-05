@@ -78,7 +78,7 @@ This action is specifically designed for smart wallets and uses the smart accoun
     args: z.infer<typeof UseSpendPermissionSchema>,
   ): Promise<string> {
     const network = walletProvider.getNetwork();
-    const cdpNetwork = this.#getCdpSdkNetwork(network.networkId!);
+    const cdpNetwork = walletProvider.getCdpSdkNetwork();
 
     if (network.protocolFamily === "evm") {
       try {
@@ -140,9 +140,8 @@ Important notes:
       });
     }
 
-    const cdpNetwork = this.#getCdpSdkNetwork(networkId);
-
     try {
+      const cdpNetwork = walletProvider.getCdpSdkNetwork();
       // Get token details
       const { fromTokenDecimals, toTokenDecimals, fromTokenName, toTokenName } =
         await getTokenDetails(walletProvider, args.fromToken, args.toToken);
@@ -225,14 +224,14 @@ Important notes:
       });
     }
 
-    const cdpNetwork = this.#getCdpSdkNetwork(networkId);
-
     // Check if the owner account is a CDP server account
     if (walletProvider.ownerAccount.type === "local") {
       throw new Error("Smart wallet owner account is not a CDP server account.");
     }
 
     try {
+      const cdpNetwork = walletProvider.getCdpSdkNetwork();
+
       // Get token details
       const { fromTokenDecimals, fromTokenName, toTokenName, toTokenDecimals } =
         await getTokenDetails(walletProvider, args.fromToken, args.toToken);
@@ -357,24 +356,6 @@ Important notes:
   supportsNetwork = (_: Network): boolean => {
     return true;
   };
-
-  /**
-   * Converts the internal network ID to the format expected by the CDP SDK.
-   *
-   * @param networkId - The network ID to convert
-   * @returns The network ID in CDP SDK format
-   * @throws Error if the network is not supported
-   */
-  #getCdpSdkNetwork(networkId: string): string {
-    switch (networkId) {
-      case "base-sepolia":
-        return "base-sepolia";
-      case "base-mainnet":
-        return "base";
-      default:
-        throw new Error(`Unsupported network for smart wallets: ${networkId}`);
-    }
-  }
 }
 
 export const cdpSmartWalletActionProvider = () => new CdpSmartWalletActionProvider();
