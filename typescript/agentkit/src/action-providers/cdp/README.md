@@ -29,11 +29,15 @@ cdp/
 
 - `list_spend_permissions`: Lists spend permissions that have been granted to the current EVM wallet by a smart account.
 - `use_spend_permission`: Uses a spend permission to spend tokens on behalf of a smart account that the current EVM wallet has permission to spend.
+- `get_swap_price`: Fetches a price quote for swapping between two tokens using the CDP Swap API (does not execute swap).
+- `swap`: Executes a token swap using the CDP Swap API with automatic token approvals.
 
 ### CDP Smart Wallet Actions
 
 - `list_spend_permissions`: Lists spend permissions that have been granted to the current smart wallet by a smart account.
 - `use_spend_permission`: Uses a spend permission to spend tokens on behalf of a smart account that the current smart wallet has permission to spend.
+- `get_swap_price`: Fetches a price quote for swapping between two tokens using the CDP Swap API (does not execute swap).
+- `swap`: Executes a token swap using the CDP Swap API with automatic token approvals.
 
 ## Adding New Actions
 

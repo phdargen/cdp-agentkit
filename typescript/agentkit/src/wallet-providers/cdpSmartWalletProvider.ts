@@ -213,7 +213,7 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
       types,
       primaryType,
       message,
-      network: this.#getCdpSdkNetwork(),
+      network: this.getCdpSdkNetwork(),
     });
   }
 
@@ -246,7 +246,7 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
 
     const userOperation = await this.#cdp.evm.sendUserOperation({
       smartAccount: this.smartAccount,
-      network: this.#getCdpSdkNetwork(),
+      network: this.getCdpSdkNetwork(),
       calls,
       paymasterUrl: this.#paymasterUrl,
     });
@@ -371,7 +371,7 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
    * @returns The network ID in CDP SDK format
    * @throws Error if the network is not supported
    */
-  #getCdpSdkNetwork(): CdpSmartWalletNetwork {
+  getCdpSdkNetwork(): CdpSmartWalletNetwork {
     switch (this.#network.networkId) {
       case "base-sepolia":
         return "base-sepolia";

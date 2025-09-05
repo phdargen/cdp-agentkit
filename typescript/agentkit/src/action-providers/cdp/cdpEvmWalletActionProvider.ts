@@ -79,11 +79,11 @@ This action is specifically designed for EVM wallets and uses the EVM wallet for
     schema: UseSpendPermissionSchema,
   })
   async useSpendPermission(
-    walletProvider: WalletProvider,
+    walletProvider: CdpEvmWalletProvider,
     args: z.infer<typeof UseSpendPermissionSchema>,
   ): Promise<string> {
     const network = walletProvider.getNetwork();
-    const cdpNetwork = this.#getCdpSdkNetwork(network.networkId!);
+    const cdpNetwork = walletProvider.getCdpSdkNetwork();
 
     if (isWalletProviderWithClient(walletProvider)) {
       if (network.protocolFamily === "evm") {
@@ -148,7 +148,7 @@ Important notes:
     // Get CDP SDK network
     const network = walletProvider.getNetwork();
     const networkId = network.networkId!;
-    const cdpNetwork = this.#getCdpSdkNetwork(networkId);
+    const cdpNetwork = walletProvider.getCdpSdkNetwork();
 
     // Check if the network is supported
     if (networkId !== "base-mainnet" && networkId !== "ethereum-mainnet")
@@ -233,7 +233,7 @@ Important notes:
     // Get CDP SDK network
     const network = walletProvider.getNetwork();
     const networkId = network.networkId!;
-    const cdpNetwork = this.#getCdpSdkNetwork(networkId);
+    const cdpNetwork = walletProvider.getCdpSdkNetwork();
 
     // Check if the network is supported
     if (networkId !== "base-mainnet" && networkId !== "ethereum-mainnet")
@@ -373,28 +373,6 @@ Important notes:
     // EVM wallets support EVM networks in general
     return network.protocolFamily === "evm";
   };
-
-  /**
-   * Converts the internal network ID to the format expected by the CDP SDK.
-   *
-   * @param networkId - The network ID to convert
-   * @returns The network ID in CDP SDK format
-   * @throws Error if the network is not supported
-   */
-  #getCdpSdkNetwork(networkId: string): string {
-    switch (networkId) {
-      case "base-sepolia":
-        return "base-sepolia";
-      case "base-mainnet":
-        return "base";
-      case "ethereum-sepolia":
-        return "ethereum-sepolia";
-      case "ethereum-mainnet":
-        return "ethereum";
-      default:
-        return networkId; // For other networks, use as-is
-    }
-  }
 }
 
 export const cdpEvmWalletActionProvider = () => new CdpEvmWalletActionProvider();

@@ -90,28 +90,6 @@ from another wallet and provide the user with your wallet details.`,
    * @returns True if the CDP action provider supports the network, false otherwise.
    */
   supportsNetwork = (_: Network) => true;
-
-  /**
-   * Converts the internal network ID to the format expected by the CDP SDK.
-   *
-   * @param networkId - The network ID to convert
-   * @returns The network ID in CDP SDK format
-   * @throws Error if the network is not supported
-   */
-  #getCdpSdkNetwork(networkId: string): string {
-    switch (networkId) {
-      case "base-sepolia":
-        return "base-sepolia";
-      case "base-mainnet":
-        return "base";
-      case "ethereum-sepolia":
-        return "ethereum-sepolia";
-      case "ethereum-mainnet":
-        return "ethereum";
-      default:
-        return networkId; // For other networks, use as-is
-    }
-  }
 }
 
 export const cdpApiActionProvider = () => new CdpApiActionProvider();

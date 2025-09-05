@@ -47,6 +47,7 @@ describe("CDP Smart Wallet Action Provider", () => {
       sendTransaction: jest.fn(),
       waitForTransactionReceipt: jest.fn(),
       getPaymasterUrl: jest.fn(),
+      getCdpSdkNetwork: jest.fn(),
     } as any;
 
     // Default setup for utility functions
@@ -69,6 +70,7 @@ describe("CDP Smart Wallet Action Provider", () => {
       } as any);
       mockWalletProvider.getAddress.mockReturnValue("0x1234567890123456789012345678901234567890");
       mockWalletProvider.getClient.mockReturnValue(mockCdpClient);
+      mockWalletProvider.getCdpSdkNetwork.mockReturnValue("base-sepolia");
     });
 
     it("should successfully list spend permissions for EVM networks", async () => {
@@ -122,6 +124,7 @@ describe("CDP Smart Wallet Action Provider", () => {
       } as any);
       mockWalletProvider.getAddress.mockReturnValue("0x1234567890123456789012345678901234567890");
       mockWalletProvider.getClient.mockReturnValue(mockCdpClient);
+      mockWalletProvider.getCdpSdkNetwork.mockReturnValue("base-sepolia");
     });
 
     it("should successfully use spend permission for EVM networks", async () => {
@@ -168,6 +171,7 @@ describe("CDP Smart Wallet Action Provider", () => {
         protocolFamily: "evm",
         networkId: "base-mainnet",
       } as any);
+      mockWalletProvider.getCdpSdkNetwork.mockReturnValue("base");
 
       const mockPermission = { spender: "0x1234", token: "ETH" };
       const mockSpendResult = { status: "completed" };
@@ -191,6 +195,9 @@ describe("CDP Smart Wallet Action Provider", () => {
         protocolFamily: "evm",
         networkId: "ethereum-mainnet",
       } as any);
+      mockWalletProvider.getCdpSdkNetwork.mockImplementation(() => {
+        throw new Error("Unsupported network for smart wallets: ethereum-mainnet");
+      });
 
       await expect(actionProvider.useSpendPermission(mockWalletProvider, mockArgs)).rejects.toThrow(
         "Unsupported network for smart wallets: ethereum-mainnet",
@@ -204,7 +211,7 @@ describe("CDP Smart Wallet Action Provider", () => {
       } as any);
 
       await expect(actionProvider.useSpendPermission(mockWalletProvider, mockArgs)).rejects.toThrow(
-        "Unsupported network for smart wallets: solana-devnet",
+        "Spend permissions are currently only supported on EVM networks.",
       );
     });
 
@@ -256,6 +263,7 @@ describe("CDP Smart Wallet Action Provider", () => {
     beforeEach(() => {
       mockWalletProvider.getClient.mockReturnValue(mockCdpClient);
       mockWalletProvider.getAddress.mockReturnValue("0x1234567890123456789012345678901234567890");
+      mockWalletProvider.getCdpSdkNetwork.mockReturnValue("base");
       mockGetTokenDetails.mockResolvedValue({
         fromTokenDecimals: 18,
         toTokenDecimals: 6,
@@ -299,6 +307,7 @@ describe("CDP Smart Wallet Action Provider", () => {
         protocolFamily: "evm",
         networkId: "base-sepolia",
       } as any);
+      mockWalletProvider.getCdpSdkNetwork.mockReturnValue("base-sepolia");
 
       (mockCdpClient.evm.getSwapPrice as jest.Mock).mockResolvedValue({
         toAmount: "990000",
@@ -363,6 +372,7 @@ describe("CDP Smart Wallet Action Provider", () => {
     beforeEach(() => {
       mockWalletProvider.getClient.mockReturnValue(mockCdpClient);
       mockWalletProvider.getAddress.mockReturnValue("0x1234567890123456789012345678901234567890");
+      mockWalletProvider.getCdpSdkNetwork.mockReturnValue("base");
       mockWalletProvider.waitForTransactionReceipt.mockResolvedValue({ status: "complete" });
       mockWalletProvider.getPaymasterUrl.mockReturnValue("https://paymaster.example");
       mockGetTokenDetails.mockResolvedValue({

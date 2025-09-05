@@ -207,7 +207,7 @@ export class CdpEvmWalletProvider extends EvmWalletProvider implements WalletPro
     const result = await this.#cdp.evm.sendTransaction({
       address: this.#serverAccount.address,
       transaction: serializeTransaction(txWithGasParams as TransactionSerializable),
-      network: this.#getCdpSdkNetwork(),
+      network: this.getCdpSdkNetwork(),
     });
     return result.transactionHash;
   }
@@ -314,7 +314,7 @@ export class CdpEvmWalletProvider extends EvmWalletProvider implements WalletPro
    * @returns The network ID in CDP SDK format
    * @throws Error if the network is not supported
    */
-  #getCdpSdkNetwork(): CdpEvmNetwork {
+  getCdpSdkNetwork(): CdpEvmNetwork {
     switch (this.#network.networkId) {
       case "base-sepolia":
         return "base-sepolia";

@@ -182,6 +182,14 @@ const agent = createReactAgent({
     <td width="200"><code>use_spend_permission</code></td>
     <td width="768">Uses a spend permission to spend tokens on behalf of a smart account that the current EVM wallet has permission to spend.</td>
 </tr>
+<tr>
+    <td width="200"><code>get_swap_price</code></td>
+    <td width="768">Fetches a price quote for swapping between two tokens using the CDP Swap API (does not execute swap).</td>
+</tr>
+<tr>
+    <td width="200"><code>swap</code></td>
+    <td width="768">Executes a token swap using the CDP Swap API with automatic token approvals.</td>
+</tr>
 </table>
 </details>
 <details>
@@ -194,6 +202,14 @@ const agent = createReactAgent({
 <tr>
     <td width="200"><code>use_spend_permission</code></td>
     <td width="768">Uses a spend permission to spend tokens on behalf of a smart account that the current smart wallet has permission to spend.</td>
+</tr>
+<tr>
+    <td width="200"><code>get_swap_price</code></td>
+    <td width="768">Fetches a price quote for swapping between two tokens using the CDP Swap API (does not execute swap).</td>
+</tr>
+<tr>
+    <td width="200"><code>swap</code></td>
+    <td width="768">Executes a token swap using the CDP Swap API with automatic token approvals.</td>
 </tr>
 </table>
 </details>
