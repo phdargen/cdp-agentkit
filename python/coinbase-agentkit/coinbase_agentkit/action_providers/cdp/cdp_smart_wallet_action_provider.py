@@ -256,8 +256,6 @@ Important notes:
                         network=cdp_network,
                         paymaster_url=wallet_provider._paymaster_url,
                     )
-                    print(f"Swap quote: {swap_quote}")
-                    print(f"paymaster_url: {wallet_provider._paymaster_url}")
 
                     # Check if liquidity is available
                     if not swap_quote.liquidity_available:
