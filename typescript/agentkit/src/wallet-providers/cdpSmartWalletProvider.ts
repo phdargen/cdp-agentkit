@@ -87,8 +87,9 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
     this.#publicClient = config.publicClient;
     this.#network = config.network;
     this.#paymasterUrl = config.paymasterUrl;
-  }
 
+    this.smartAccount.useNetwork<"base-sepolia">(this.#publicClient.transport.http as "base-sepolia");
+  }
   /**
    * Configures a new CdpSmartWalletProvider with a smart wallet.
    *
@@ -340,10 +341,26 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
     // For smart wallets, we need to wait for the user operation to be confirmed
     // This is a simplified implementation - in practice you might want to poll
     // the CDP API for user operation status
-    return this.#cdp.evm.waitForUserOperation({
+
+    const userOperation0 = await this.#cdp.evm.getUserOperation({
+      smartAccount: this.smartAccount,
+      userOpHash,
+    });
+    console.log("userOperation0", userOperation0);
+
+    const receipt = await this.#cdp.evm.waitForUserOperation({
       smartAccountAddress: this.smartAccount.address,
       userOpHash,
     });
+    console.log("receipt", receipt);
+
+    const userOperation = await this.#cdp.evm.getUserOperation({
+      smartAccount: this.smartAccount,
+      userOpHash,
+    });
+    console.log("userOperation", userOperation);
+
+    return receipt;
   }
 
   /**
