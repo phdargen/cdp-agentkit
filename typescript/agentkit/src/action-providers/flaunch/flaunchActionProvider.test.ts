@@ -29,28 +29,56 @@ jest.mock("viem", () => {
       };
     }),
     parseEther: jest.fn().mockReturnValue(BigInt(100000000000000000)),
+    parseUnits: jest.fn().mockReturnValue(BigInt(100000000000000000)),
+    encodeAbiParameters: jest.fn().mockReturnValue("0xencoded"),
+    encodeFunctionData: jest.fn().mockReturnValue("0xfunctiondata"),
     zeroAddress: "0x0000000000000000000000000000000000000000",
+    zeroHash: "0x0000000000000000000000000000000000000000000000000000000000000000",
   };
 });
 
-// Mock the utils module
-jest.mock("./utils", () => ({
+// Mock the metadata_utils module
+jest.mock("./metadata_utils", () => ({
   generateTokenUri: jest.fn().mockResolvedValue("ipfs://test-uri"),
-  ethToMemecoin: jest.fn().mockReturnValue({
-    commands: "0x01",
-    inputs: ["0x1234"],
-  }),
+}));
+
+// Mock the client_utils module
+jest.mock("./client_utils", () => ({
+  ethRequiredToFlaunch: jest.fn().mockResolvedValue(BigInt(100000000000000000)),
+  getMemecoinAddressFromReceipt: jest.fn().mockReturnValue("0x1234567890123456789012345678901234567890"),
+}));
+
+// Mock the swap_utils module
+jest.mock("./swap_utils", () => ({
+  getAmountWithSlippage: jest.fn().mockImplementation(amount => amount),
   memecoinToEthWithPermit2: jest.fn().mockReturnValue({
     commands: "0x02",
     inputs: ["0x5678"],
   }),
-  getAmountWithSlippage: jest.fn().mockImplementation(amount => amount),
   getSwapAmountsFromReceipt: jest.fn().mockImplementation(() => ({
     coinsBought: BigInt(1000000000000000000),
     ethSold: BigInt(100000000000000000),
     coinsSold: BigInt(1000000000000000000),
     ethBought: BigInt(100000000000000000),
   })),
+  buyFlaunchCoin: jest.fn().mockImplementation(async (walletProvider, coinAddress, swapType, amount, slippagePercent) => {
+    // Simulate the actual behavior by calling wallet provider methods
+    const network = walletProvider.getNetwork();
+    const coinSymbol = await walletProvider.readContract({
+      address: coinAddress,
+      abi: [],
+      functionName: "symbol",
+    });
+    
+    const hash = await walletProvider.sendTransaction({
+      to: coinAddress,
+      data: "0x",
+    });
+    
+    const receipt = await walletProvider.waitForTransactionReceipt(hash);
+    
+    return `Bought ${formatEther(BigInt(1000000000000000000))} $${coinSymbol} for ${formatEther(BigInt(100000000000000000))} ETH`;
+  }),
 }));
 
 // Mock the constants used in the test
@@ -179,9 +207,10 @@ describe("FlaunchActionProvider", () => {
       const validInput = {
         name: "Test Token",
         symbol: "TEST",
-        imageUrl: "https://example.com/image.png",
+        image: "https://example.com/image.png",
         description: "A test token",
         websiteUrl: "https://example.com",
+        premineAmount: 5,
       };
       const parseResult = FlaunchSchema.safeParse(validInput);
       expect(parseResult.success).toBe(true);
@@ -191,8 +220,9 @@ describe("FlaunchActionProvider", () => {
       const invalidInput = {
         name: "",
         symbol: "",
-        imageUrl: "not-a-url",
+        image: "not-a-url",
         description: "",
+        premineAmount: 150, // Invalid: exceeds 100%
       };
       const parseResult = FlaunchSchema.safeParse(invalidInput);
       expect(parseResult.success).toBe(false);
@@ -237,6 +267,18 @@ describe("FlaunchActionProvider", () => {
         image: "https://example.com/image.png",
         description: "A test token",
         websiteUrl: "https://example.com",
+        fairLaunchPercent: 60,
+        fairLaunchDuration: 30,
+        initialMarketCapUSD: 10000,
+        creatorFeeAllocationPercent: 80,
+        creatorSplitPercent: 50,
+        splitReceivers: [
+          {
+            address: "0x1234567890123456789012345678901234567890",
+            percent: 100,
+          },
+        ],
+        preminePercent: 5,
       };
 
       const result = await provider.flaunch(mockWalletProvider, args);
@@ -246,6 +288,26 @@ describe("FlaunchActionProvider", () => {
       expect(mockWalletProvider.getNetwork).toHaveBeenCalled();
       expect(mockWalletProvider.sendTransaction).toHaveBeenCalled();
       expect(mockWalletProvider.waitForTransactionReceipt).toHaveBeenCalled();
+    });
+
+    it("should reject premineAmount exceeding fairLaunchPercent", async () => {
+      const args = {
+        name: "Test Token",
+        symbol: "TEST",
+        image: "https://example.com/image.png",
+        description: "A test token",
+        websiteUrl: "https://example.com",
+        fairLaunchPercent: 60,
+        fairLaunchDuration: 30,
+        initialMarketCapUSD: 10000,
+        creatorFeeAllocationPercent: 80,
+        creatorSplitPercent: 50,
+        splitReceivers: [],
+        preminePercent: 70, // Invalid: exceeds fairLaunchPercent of 60%
+      };
+
+      const result = await provider.flaunch(mockWalletProvider, args);
+      expect(result).toContain("premineAmount (70%) cannot exceed fairLaunchPercent (60%)");
     });
   });
 
@@ -268,7 +330,9 @@ describe("FlaunchActionProvider", () => {
     });
 
     it("should handle errors in buyCoinWithETHInput", async () => {
-      mockWalletProvider.sendTransaction.mockRejectedValueOnce(new Error("Transaction failed"));
+      // Mock buyFlaunchCoin to return an error string
+      const { buyFlaunchCoin } = require("./swap_utils");
+      buyFlaunchCoin.mockResolvedValueOnce("Error buying coin: Transaction failed");
 
       const args = {
         coinAddress: "0x1234567890123456789012345678901234567890",
@@ -300,7 +364,9 @@ describe("FlaunchActionProvider", () => {
     });
 
     it("should handle errors in buyCoinWithCoinInput", async () => {
-      mockWalletProvider.sendTransaction.mockRejectedValueOnce(new Error("Transaction failed"));
+      // Mock buyFlaunchCoin to return an error string
+      const { buyFlaunchCoin } = require("./swap_utils");
+      buyFlaunchCoin.mockResolvedValueOnce("Error buying coin: Transaction failed");
 
       const args = {
         coinAddress: "0x1234567890123456789012345678901234567890",

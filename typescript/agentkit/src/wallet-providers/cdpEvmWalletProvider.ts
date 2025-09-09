@@ -195,7 +195,11 @@ export class CdpEvmWalletProvider extends EvmWalletProvider implements WalletPro
   async sendTransaction(transaction: TransactionRequest): Promise<Hex> {
     const result = await this.#cdp.evm.sendTransaction({
       address: this.#serverAccount.address,
-      transaction: serializeTransaction(transaction as TransactionSerializable),
+      transaction: {
+        to: transaction.to as Address,
+        value: transaction.value ? BigInt(transaction.value.toString()) : 0n,
+        data: (transaction.data as Hex) || "0x",
+      },
       network: this.getCdpSdkNetwork(),
     });
     return result.transactionHash;
