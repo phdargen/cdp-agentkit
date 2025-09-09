@@ -25,36 +25,32 @@ import { BuySwapAmounts, SellSwapAmounts, PermitSingle, PoolSwapEventArgs } from
 /**
  * Upload response from Flaunch API
  */
-interface FlaunchImageUploadResponse {
-  success: boolean;
-  ipfsHash: string;
-  tokenURI: string;
-  nsfwDetection: null | {
-    isNSFW: boolean;
-    score: number;
-    message: string;
-    details: any[];
-  };
-}
-
-/**
- * Upload response from Flaunch metadata API
- */
-interface FlaunchMetadataUploadResponse {
-  success: boolean;
-  ipfsHash: string;
+interface UploadResponse {
+  IpfsHash: string;
   tokenURI: string;
 }
 
-interface FlaunchMetadataRequest {
+interface CoinMetadata {
   name: string;
   symbol: string;
   description: string;
-  imageIpfs: string;
-  websiteUrl?: string;
-  discordUrl?: string;
-  twitterUrl?: string;
-  telegramUrl?: string;
+  image: string;
+  external_link: string;
+  collaborators: string[];
+  discordUrl: string;
+  twitterUrl: string;
+  telegramUrl: string;
+}
+
+interface IPFSParams {
+  metadata: {
+    base64Image: string;
+    description: string;
+    websiteUrl?: string;
+    discordUrl?: string;
+    twitterUrl?: string;
+    telegramUrl?: string;
+  };
 }
 
 interface TokenUriParams {
@@ -71,43 +67,98 @@ interface TokenUriParams {
 /**
  * Uploads a base64 image to IPFS using Flaunch API
  *
- * @param base64Image - Base64 encoded image data (with or without data URL prefix)
- * @returns Upload response with IPFS hash and token URI
+ * @param params - Configuration and base64 image data
+ * @param params.base64Image - Base64 encoded image data
+ * @param params.name - Optional name for the uploaded file
+ * @param params.metadata - Optional metadata key-value pairs
+ * @returns Upload response with CID and other details
  */
-const uploadImageToFlaunch = async (base64Image: string): Promise<FlaunchImageUploadResponse> => {
+const uploadImageToIPFS = async (params: {
+  base64Image: string;
+  name?: string;
+  metadata?: Record<string, string>;
+}): Promise<UploadResponse> => {
   try {
-    // Ensure the base64Image has the proper data URL format
-    let formattedBase64Image = base64Image;
-    if (!base64Image.startsWith("data:")) {
-      // Default to JPEG if no prefix is provided
-      formattedBase64Image = `data:image/jpeg;base64,${base64Image}`;
-    }
-
     const response = await fetch("https://web2-api.flaunch.gg/api/v1/upload-image", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        base64Image: formattedBase64Image,
-      }),
+      body: JSON.stringify({ base64Image: params.base64Image }),
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(`Failed to upload image to Flaunch API: ${error.error || response.statusText}`);
+      throw new Error(`Failed to upload image to IPFS: ${error.message || response.statusText}`);
     }
 
     const data = await response.json();
     
     if (!data.success) {
-      throw new Error(`Failed to upload image: ${data.error}`);
+      throw new Error(`Failed to upload image to IPFS: ${data.error || 'Unknown error'}`);
     }
 
-    return data;
+    return {
+      IpfsHash: data.ipfsHash,
+      tokenURI: data.tokenURI,
+    };
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to upload image to Flaunch API: ${error.message}`);
+      throw new Error(`Failed to upload image to IPFS: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+/**
+ * Uploads JSON data to IPFS using Flaunch API
+ *
+ * @param params - Configuration and JSON data
+ * @param params.json - JSON data to upload
+ * @param params.name - Optional name for the uploaded file
+ * @param params.metadata - Optional metadata key-value pairs
+ * @returns Upload response with CID and other details
+ */
+const uploadJsonToIPFS = async (params: {
+  json: Record<string, unknown> | CoinMetadata;
+  name?: string;
+  metadata?: Record<string, string>;
+}): Promise<UploadResponse> => {
+  try {
+    const response = await fetch("https://web2-api.flaunch.gg/api/v1/upload-metadata", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: params.json.name,
+        symbol: params.json.symbol, 
+        description: params.json.description,
+        imageIpfs: params.json.image,
+        websiteUrl: params.json.external_link,
+        discordUrl: params.json.discordUrl,
+        twitterUrl: params.json.twitterUrl,
+        telegramUrl: params.json.telegramUrl,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`Failed to upload JSON to IPFS: ${error.message || response.statusText}`);
+    }
+
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(`Failed to upload metadata: ${data.error}`);
+    }
+
+    return {
+      IpfsHash: data.ipfsHash,
+      tokenURI: data.tokenURI,
+    };
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to upload JSON to IPFS: ${error.message}`);
     }
     throw error;
   }
@@ -159,64 +210,49 @@ const convertImageUrlToBase64 = async (imageUrl: string): Promise<string> => {
   }
 };
 
-/**
- * Uploads metadata to IPFS using Flaunch API
- *
- * @param metadata - Token metadata including name, symbol, description, etc.
- * @returns Upload response with IPFS hash and token URI
- */
-const uploadMetadataToFlaunch = async (metadata: FlaunchMetadataRequest): Promise<FlaunchMetadataUploadResponse> => {
-  try {
-    const response = await fetch("https://web2-api.flaunch.gg/api/v1/upload-metadata", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(metadata),
-    });
+const generateTokenUriBase64Image = async (name: string, symbol: string, params: IPFSParams) => {
+  // 1. upload image to IPFS
+  const imageRes = await uploadImageToIPFS({
+    base64Image: params.metadata.base64Image,
+  });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`Failed to upload metadata to Flaunch API: ${error.error || response.statusText}`);
-    }
-
-    const data = await response.json();
-    
-    if (!data.success) {
-      throw new Error(`Failed to upload metadata: ${data.error}`);
-    }
-
-    return data;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to upload metadata to Flaunch API: ${error.message}`);
-    }
-    throw error;
-  }
-};
-
-export const generateTokenUri = async (name: string, symbol: string, params: TokenUriParams) => {
-  // 1. Convert image URL to properly formatted base64 data URL
-  const formattedBase64Image = await convertImageUrlToBase64(params.metadata.imageUrl);
-
-  // 2. Upload image to Flaunch API
-  const imageRes = await uploadImageToFlaunch(formattedBase64Image);
-
-  // 3. Upload metadata to Flaunch API
-  const metadataRequest: FlaunchMetadataRequest = {
+  // 2. upload metadata to IPFS
+  const coinMetadata: CoinMetadata = {
     name,
     symbol,
     description: params.metadata.description,
-    imageIpfs: imageRes.ipfsHash,
-    websiteUrl: params.metadata.websiteUrl,
-    discordUrl: params.metadata.discordUrl,
-    twitterUrl: params.metadata.twitterUrl,
-    telegramUrl: params.metadata.telegramUrl,
+    image: `ipfs://${imageRes.IpfsHash}`,
+    external_link: params.metadata.websiteUrl || "",
+    collaborators: [],
+    discordUrl: params.metadata.discordUrl || "",
+    twitterUrl: params.metadata.twitterUrl || "",
+    telegramUrl: params.metadata.telegramUrl || "",
   };
 
-  const metadataRes = await uploadMetadataToFlaunch(metadataRequest);
+  const metadataRes = await uploadJsonToIPFS({
+    json: coinMetadata,
+  });
 
-  return metadataRes.tokenURI;
+  return `ipfs://${metadataRes.IpfsHash}`;
+};
+
+export const generateTokenUri = async (name: string, symbol: string, params: TokenUriParams) => {
+  // 1. get base64Image from imageUrl
+  const base64Image = await convertImageUrlToBase64(params.metadata.imageUrl);
+
+  // 2. generate token uri
+  const tokenUri = await generateTokenUriBase64Image(name, symbol, {
+    metadata: {
+      base64Image,
+      description: params.metadata.description,
+      websiteUrl: params.metadata.websiteUrl,
+      discordUrl: params.metadata.discordUrl,
+      twitterUrl: params.metadata.twitterUrl,
+      telegramUrl: params.metadata.telegramUrl,
+    },
+  });
+
+  return tokenUri;
 };
 
 export const getAmountWithSlippage = (
