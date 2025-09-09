@@ -57,13 +57,10 @@ import { BuySwapAmounts, PermitSingle, SellSwapAmounts } from "./types";
 const SUPPORTED_NETWORKS = ["base-mainnet", "base-sepolia"];
 
 /**
- * Configuration options for the FarcasterActionProvider.
+ * Configuration options for the FlaunchActionProvider.
  */
 export interface FlaunchActionProviderConfig {
-  /**
-   * Pinata JWT.
-   */
-  pinataJwt?: string;
+  // Configuration can be extended in the future if needed
 }
 
 /**
@@ -74,8 +71,6 @@ export interface FlaunchActionProviderConfig {
  * It supports all evm networks.
  */
 export class FlaunchActionProvider extends ActionProvider<EvmWalletProvider> {
-  private readonly pinataJwt: string;
-
   /**
    * Constructor for the FlaunchActionProvider.
    *
@@ -83,14 +78,6 @@ export class FlaunchActionProvider extends ActionProvider<EvmWalletProvider> {
    */
   constructor(config: FlaunchActionProviderConfig = {}) {
     super("flaunch", []);
-
-    const pinataJwt = config.pinataJwt || process.env.PINATA_JWT;
-
-    if (!pinataJwt) {
-      throw new Error("PINATA_JWT is not configured.");
-    }
-
-    this.pinataJwt = pinataJwt;
   }
 
   /**
@@ -140,8 +127,7 @@ Note:
       }
 
       // upload image & token uri to ipfs
-      const tokenUri = await generateTokenUri(args.name, {
-        pinataConfig: { jwt: this.pinataJwt },
+      const tokenUri = await generateTokenUri(args.name, args.symbol, {
         metadata: {
           imageUrl: args.imageUrl,
           description: args.description,

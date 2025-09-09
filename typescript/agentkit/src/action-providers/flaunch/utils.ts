@@ -23,43 +23,38 @@ import {
 import { BuySwapAmounts, SellSwapAmounts, PermitSingle, PoolSwapEventArgs } from "./types";
 
 /**
- * Configuration for Pinata
+ * Upload response from Flaunch API
  */
-interface PinataConfig {
-  jwt: string;
+interface FlaunchImageUploadResponse {
+  success: boolean;
+  ipfsHash: string;
+  tokenURI: string;
+  nsfwDetection: null | {
+    isNSFW: boolean;
+    score: number;
+    message: string;
+    details: any[];
+  };
 }
 
 /**
- * Upload response from Pinata
+ * Upload response from Flaunch metadata API
  */
-interface UploadResponse {
-  IpfsHash: string;
-  PinSize: number;
-  Timestamp: string;
-  isDuplicate: boolean;
+interface FlaunchMetadataUploadResponse {
+  success: boolean;
+  ipfsHash: string;
+  tokenURI: string;
 }
 
-interface CoinMetadata {
+interface FlaunchMetadataRequest {
   name: string;
+  symbol: string;
   description: string;
-  image: string;
-  external_link: string;
-  collaborators: string[];
-  discordUrl: string;
-  twitterUrl: string;
-  telegramUrl: string;
-}
-
-interface IPFSParams {
-  metadata: {
-    base64Image: string;
-    description: string;
-    websiteUrl?: string;
-    discordUrl?: string;
-    twitterUrl?: string;
-    telegramUrl?: string;
-  };
-  pinataConfig: PinataConfig;
+  imageIpfs: string;
+  websiteUrl?: string;
+  discordUrl?: string;
+  twitterUrl?: string;
+  telegramUrl?: string;
 }
 
 interface TokenUriParams {
@@ -71,204 +66,157 @@ interface TokenUriParams {
     twitterUrl?: string;
     telegramUrl?: string;
   };
-  pinataConfig: PinataConfig;
 }
 
 /**
- * Uploads a base64 image to IPFS using Pinata
+ * Uploads a base64 image to IPFS using Flaunch API
  *
- * @param params - Configuration and base64 image data
- * @param params.pinataConfig - Pinata configuration including JWT
- * @param params.base64Image - Base64 encoded image data
- * @param params.name - Optional name for the uploaded file
- * @param params.metadata - Optional metadata key-value pairs
- * @returns Upload response with CID and other details
+ * @param base64Image - Base64 encoded image data (with or without data URL prefix)
+ * @returns Upload response with IPFS hash and token URI
  */
-const uploadImageToIPFS = async (params: {
-  pinataConfig: PinataConfig;
-  base64Image: string;
-  name?: string;
-  metadata?: Record<string, string>;
-}): Promise<UploadResponse> => {
+const uploadImageToFlaunch = async (base64Image: string): Promise<FlaunchImageUploadResponse> => {
   try {
-    const formData = new FormData();
-
-    // Convert base64 to Blob and then to File
-    // Remove data URL prefix if present (e.g., "data:image/jpeg;base64,")
-    const base64Data = params.base64Image.split(",")[1] || params.base64Image;
-    const byteCharacters = atob(base64Data);
-    const byteArrays: Uint8Array[] = [];
-
-    for (let offset = 0; offset < byteCharacters.length; offset += 1024) {
-      const slice = byteCharacters.slice(offset, offset + 1024);
-      const byteNumbers = new Array(slice.length);
-      for (let i = 0; i < slice.length; i++) {
-        byteNumbers[i] = slice.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-      byteArrays.push(byteArray);
+    // Ensure the base64Image has the proper data URL format
+    let formattedBase64Image = base64Image;
+    if (!base64Image.startsWith("data:")) {
+      // Default to JPEG if no prefix is provided
+      formattedBase64Image = `data:image/jpeg;base64,${base64Image}`;
     }
 
-    // Detect mime type from base64 string
-    let mimeType = "image/png"; // default
-    if (params.base64Image.startsWith("data:")) {
-      mimeType = params.base64Image.split(";")[0].split(":")[1];
-    }
-
-    const blob = new Blob(byteArrays, { type: mimeType });
-    const fileName = params.name || `image.${mimeType.split("/")[1]}`;
-    const file = new File([blob], fileName, { type: mimeType });
-
-    formData.append("file", file);
-
-    const pinataMetadata = {
-      name: params.name || null,
-      keyvalues: params.metadata || {},
-    };
-    formData.append("pinataMetadata", JSON.stringify(pinataMetadata));
-
-    const pinataOptions = {
-      cidVersion: 1,
-    };
-    formData.append("pinataOptions", JSON.stringify(pinataOptions));
-
-    const response = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+    const response = await fetch("https://web2-api.flaunch.gg/api/v1/upload-image", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${params.pinataConfig.jwt}`,
+        "Content-Type": "application/json",
       },
-      body: formData,
+      body: JSON.stringify({
+        base64Image: formattedBase64Image,
+      }),
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(`Failed to upload image to IPFS: ${error.message || response.statusText}`);
+      throw new Error(`Failed to upload image to Flaunch API: ${error.error || response.statusText}`);
     }
 
     const data = await response.json();
-    return {
-      IpfsHash: data.IpfsHash,
-      PinSize: data.PinSize,
-      Timestamp: data.Timestamp,
-      isDuplicate: data.isDuplicate || false,
-    };
+    
+    if (!data.success) {
+      throw new Error(`Failed to upload image: ${data.error}`);
+    }
+
+    return data;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to upload image to IPFS: ${error.message}`);
+      throw new Error(`Failed to upload image to Flaunch API: ${error.message}`);
     }
     throw error;
   }
 };
 
 /**
- * Uploads JSON data to IPFS using Pinata
+ * Converts a remote image URL to a properly formatted base64 data URL
  *
- * @param params - Configuration and JSON data
- * @param params.pinataConfig - Pinata configuration including JWT
- * @param params.json - JSON data to upload
- * @param params.name - Optional name for the uploaded file
- * @param params.metadata - Optional metadata key-value pairs
- * @returns Upload response with CID and other details
+ * @param imageUrl - URL of the image to fetch and convert
+ * @returns Base64 data URL with proper MIME type detection
  */
-const uploadJsonToIPFS = async (params: {
-  pinataConfig: PinataConfig;
-  json: Record<string, unknown> | CoinMetadata;
-  name?: string;
-  metadata?: Record<string, string>;
-}): Promise<UploadResponse> => {
+const convertImageUrlToBase64 = async (imageUrl: string): Promise<string> => {
   try {
-    const requestBody = {
-      pinataOptions: {
-        cidVersion: 1,
-      },
-      pinataMetadata: {
-        name: params.name || null,
-        keyvalues: params.metadata || {},
-      },
-      pinataContent: params.json,
-    };
-
-    const response = await fetch("https://api.pinata.cloud/pinning/pinJSONToIPFS", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${params.pinataConfig.jwt}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
+    const response = await fetch(imageUrl);
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`Failed to upload JSON to IPFS: ${error.message || response.statusText}`);
+      throw new Error(`Failed to fetch image: ${response.statusText}`);
     }
 
-    const data = await response.json();
-    return {
-      IpfsHash: data.IpfsHash,
-      PinSize: data.PinSize,
-      Timestamp: data.Timestamp,
-      isDuplicate: data.isDuplicate || false,
-    };
+    const arrayBuffer = await response.arrayBuffer();
+    const base64Data = Buffer.from(arrayBuffer).toString("base64");
+    
+    // Detect MIME type from response headers
+    const contentType = response.headers.get("content-type");
+    let mimeType = "image/jpeg"; // default fallback
+    
+    if (contentType && contentType.startsWith("image/")) {
+      mimeType = contentType;
+    } else {
+      // Try to detect from URL extension as fallback
+      const urlLower = imageUrl.toLowerCase();
+      if (urlLower.includes(".png")) {
+        mimeType = "image/png";
+      } else if (urlLower.includes(".gif")) {
+        mimeType = "image/gif";
+      } else if (urlLower.includes(".webp")) {
+        mimeType = "image/webp";
+      } else if (urlLower.includes(".svg")) {
+        mimeType = "image/svg+xml";
+      }
+    }
+    
+    return `data:${mimeType};base64,${base64Data}`;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to upload JSON to IPFS: ${error.message}`);
+      throw new Error(`Failed to convert image URL to base64: ${error.message}`);
     }
     throw error;
   }
 };
 
-const generateTokenUriBase64Image = async (name: string, params: IPFSParams) => {
-  // 1. upload image to IPFS
-  const imageRes = await uploadImageToIPFS({
-    pinataConfig: params.pinataConfig,
-    base64Image: params.metadata.base64Image,
-  });
+/**
+ * Uploads metadata to IPFS using Flaunch API
+ *
+ * @param metadata - Token metadata including name, symbol, description, etc.
+ * @returns Upload response with IPFS hash and token URI
+ */
+const uploadMetadataToFlaunch = async (metadata: FlaunchMetadataRequest): Promise<FlaunchMetadataUploadResponse> => {
+  try {
+    const response = await fetch("https://web2-api.flaunch.gg/api/v1/upload-metadata", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(metadata),
+    });
 
-  // 2. upload metadata to IPFS
-  const coinMetadata: CoinMetadata = {
-    name,
-    description: params.metadata.description,
-    image: `ipfs://${imageRes.IpfsHash}`,
-    external_link: params.metadata.websiteUrl || "",
-    collaborators: [],
-    discordUrl: params.metadata.discordUrl || "",
-    twitterUrl: params.metadata.twitterUrl || "",
-    telegramUrl: params.metadata.telegramUrl || "",
-  };
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`Failed to upload metadata to Flaunch API: ${error.error || response.statusText}`);
+    }
 
-  const metadataRes = await uploadJsonToIPFS({
-    pinataConfig: params.pinataConfig,
-    json: coinMetadata,
-  });
+    const data = await response.json();
+    
+    if (!data.success) {
+      throw new Error(`Failed to upload metadata: ${data.error}`);
+    }
 
-  return `ipfs://${metadataRes.IpfsHash}`;
+    return data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to upload metadata to Flaunch API: ${error.message}`);
+    }
+    throw error;
+  }
 };
 
-export const generateTokenUri = async (name: string, params: TokenUriParams) => {
-  // 1. get base64Image from imageUrl
-  const response = await fetch(params.metadata.imageUrl);
+export const generateTokenUri = async (name: string, symbol: string, params: TokenUriParams) => {
+  // 1. Convert image URL to properly formatted base64 data URL
+  const formattedBase64Image = await convertImageUrlToBase64(params.metadata.imageUrl);
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch image: ${response.statusText}`);
-  }
+  // 2. Upload image to Flaunch API
+  const imageRes = await uploadImageToFlaunch(formattedBase64Image);
 
-  const arrayBuffer = await response.arrayBuffer();
-  const base64Image = Buffer.from(arrayBuffer).toString("base64");
+  // 3. Upload metadata to Flaunch API
+  const metadataRequest: FlaunchMetadataRequest = {
+    name,
+    symbol,
+    description: params.metadata.description,
+    imageIpfs: imageRes.ipfsHash,
+    websiteUrl: params.metadata.websiteUrl,
+    discordUrl: params.metadata.discordUrl,
+    twitterUrl: params.metadata.twitterUrl,
+    telegramUrl: params.metadata.telegramUrl,
+  };
 
-  // 2. generate token uri
-  const tokenUri = await generateTokenUriBase64Image(name, {
-    pinataConfig: params.pinataConfig,
-    metadata: {
-      base64Image,
-      description: params.metadata.description,
-      websiteUrl: params.metadata.websiteUrl,
-      discordUrl: params.metadata.discordUrl,
-      twitterUrl: params.metadata.twitterUrl,
-      telegramUrl: params.metadata.telegramUrl,
-    },
-  });
+  const metadataRes = await uploadMetadataToFlaunch(metadataRequest);
 
-  return tokenUri;
+  return metadataRes.tokenURI;
 };
 
 export const getAmountWithSlippage = (
