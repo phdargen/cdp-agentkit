@@ -192,37 +192,12 @@ export class CdpEvmWalletProvider extends EvmWalletProvider implements WalletPro
    * @param transaction - The transaction to send.
    * @returns The hash of the transaction.
    */
-  async sendTransaction(transaction: TransactionRequest): Promise<Hex> {
-    const txWithGasParams = {
-      ...transaction,
-      chainId: this.#network.chainId,
-    };
-    console.log("txWithGasParams", txWithGasParams);
-
-    if (!txWithGasParams.maxFeePerGas && !txWithGasParams.gasPrice) {
-      const feeData = await this.#publicClient.estimateFeesPerGas();
-      txWithGasParams.maxFeePerGas = feeData.maxFeePerGas;
-      txWithGasParams.maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
-    }
-    console.log("txWithGasParams2", txWithGasParams);
-
-    // if (!txWithGasParams.gas) {
-    //   try {
-    //     txWithGasParams.gas = await this.#publicClient.estimateGas({
-    //       account: this.#serverAccount.address as Address,
-    //       ...txWithGasParams,
-    //     });
-    //     console.log("txWithGasParams3", txWithGasParams);
-    //   } catch (error) {
-    //     console.warn("Failed to estimate gas, continuing without gas estimation", error);
-    //   }
-    // }
+  async sendTransaction(transaction: TransactionRequest): Promise<Hex> {   
     const result = await this.#cdp.evm.sendTransaction({
       address: this.#serverAccount.address,
-      transaction: serializeTransaction(txWithGasParams as TransactionSerializable),
+      transaction: serializeTransaction(transaction as TransactionSerializable),
       network: this.getCdpSdkNetwork(),
     });
-    console.log("result", result);
     return result.transactionHash;
   }
 

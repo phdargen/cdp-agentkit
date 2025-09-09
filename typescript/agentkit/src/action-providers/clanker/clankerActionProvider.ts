@@ -2,14 +2,16 @@ import { z } from "zod";
 import { ActionProvider } from "../actionProvider";
 import { Network } from "../../network";
 import { CreateAction } from "../actionDecorator";
-import { CdpSmartWalletProvider, EvmWalletProvider } from "../../wallet-providers";
+import { EvmWalletProvider } from "../../wallet-providers";
 import { ClankTokenSchema } from "./schemas";
 import { createClankerClient } from "./utils";
-import { encodeFunctionData } from "viem";
 
 /**
- * ClankerActionProvider provides actions for Clanker SDK operations.
+ * ClankerActionProvider provides actions for clanker operations.
  *
+ * @description
+ * This provider is designed to work with EvmWalletProvider for blockchain interactions.
+ * It supports all evm networks.
  */
 export class ClankerActionProvider extends ActionProvider<EvmWalletProvider> {
   /**
@@ -23,7 +25,8 @@ export class ClankerActionProvider extends ActionProvider<EvmWalletProvider> {
    * Clanker action provider
    *
    * @description
-   * This action deploys a clanker token using the Clanker SDK
+   * This action deploys a clanker token using the Clanker sdk
+   * It automatically includes the coin in the Clanker ecosystem
    *
    * @param walletProvider - The wallet provider instance for blockchain interactions
    * @param args - Clanker arguments (modify these to fine tune token deployment, like initial quote token and rewards config)
@@ -32,7 +35,7 @@ export class ClankerActionProvider extends ActionProvider<EvmWalletProvider> {
   @CreateAction({
     name: "clank_token",
     description: `
-This tool will launch a Clanker token using the Clanker SDK.
+his tool will launch a Clanker token using the Clanker SDK.
 It takes the following inputs:
 - tokenName: The name of the deployed token
 - tokenSymbol: The symbol of the deployed token  
@@ -60,8 +63,6 @@ It takes the following inputs:
     const lockDuration = args.lockDuration_Days * 24 * 60 * 60;
     const vestingDuration = args.vestingDuration_Days * 24 * 60 * 60;
 
-    const isSmartWallet = walletProvider instanceof CdpSmartWalletProvider;
-
     const tokenConfig = {
       name: args.tokenName,
       symbol: args.tokenSymbol,
@@ -74,7 +75,7 @@ It takes the following inputs:
         interface: args.interface,
         id: args.id,
       },
-      tokenAdmin:  isSmartWallet? walletProvider.ownerAccount.address : walletProvider.getAddress() as `0x${string}`,
+      tokenAdmin: walletProvider.getAddress() as `0x${string}`,
       vault: {
         percentage: args.vaultPercentage,
         lockupDuration: lockDuration,
@@ -84,43 +85,22 @@ It takes the following inputs:
     };
 
     try {
-      const deployTransaction = await clanker.getDeployTransaction(tokenConfig);
-      console.log("deployTransaction", deployTransaction);
-       console.log("tokenConfig", deployTransaction.args[0].tokenConfig);
+      const res = await clanker.deploy(tokenConfig);
 
-      // Encode the function data properly for sendTransaction
-      const data = encodeFunctionData({
-        abi: deployTransaction.abi,
-        functionName: deployTransaction.functionName,
-        args: deployTransaction.args,
-      });
+      if ("error" in res) {
+        return `There was an error deploying the clanker token: ${res}`;
+      }
 
-      const txHash = await walletProvider.sendTransaction({
-        to: deployTransaction.address,
-        data,
-        value: deployTransaction.value,
-      });
-      console.log("txHash", txHash);
-      const confirmed = await walletProvider.waitForTransactionReceipt(txHash);
-      console.log("confirmed", confirmed);
+      const { txHash } = res;
 
-      // const res = await clanker.deploy(deployTransaction);
+      const confirmed = await res.waitForTransaction();
+      if ("error" in confirmed) {
+        return `There was an error confirming the clanker token deployment: ${confirmed}`;
+      }
 
-      // if ("error" in res) {
-      //   return `There was an error deploying the clanker token: ${res}`;
-      // }
+      const { address } = confirmed;
 
-      // const { txHash } = res;
-
-      // const confirmed = await res.waitForTransaction();
-      // if ("error" in confirmed) {
-      //   return `There was an error confirming the clanker token deployment: ${confirmed}`;
-      // }
-
-      // const { address } = confirmed;
-
-      return `Clanker token deployed!  View the transaction at ${txHash}`;
-      // return `Clanker token deployed at ${address}!  View the transaction at ${txHash}, or view the token page at https://clanker.world/clanker/${address}`;
+      return `Clanker token deployed at ${address}!  View the transaction at ${txHash}, or view the token page at https://clanker.world/clanker/${address}`;
     } catch (error) {
       return `There was an error deploying the clanker token: ${error}`;
     }
@@ -132,8 +112,13 @@ It takes the following inputs:
    * @param network - The network to check support for
    * @returns True if the network is supported
    */
-  supportsNetwork = (network: Network) =>
-    network.networkId === "base-mainnet" || network.networkId === "base-sepolia" || network.networkId === "arbitrum-mainnet";
+  supportsNetwork(network: Network): boolean {
+    return (
+      network.networkId === "base-mainnet" ||
+      network.networkId === "base-sepolia" ||
+      network.networkId === "arbitrum-mainnet"
+    );
+  }
 }
 
 /**
