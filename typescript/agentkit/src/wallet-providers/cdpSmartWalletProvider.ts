@@ -87,9 +87,6 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
     this.#publicClient = config.publicClient;
     this.#network = config.network;
     this.#paymasterUrl = config.paymasterUrl;
-
-    this.getCdpSdkNetwork();
-
   }
   /**
    * Configures a new CdpSmartWalletProvider with a smart wallet.
@@ -344,8 +341,10 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
     });
 
     // Append transaction logs if available
-    if(receipt.status === "complete") {
-      const receiptTx = await this.#publicClient.getTransactionReceipt({ hash: receipt.transactionHash as Hex });
+    if (receipt.status === "complete") {
+      const receiptTx = await this.#publicClient.getTransactionReceipt({
+        hash: receipt.transactionHash as Hex,
+      });
       if (receiptTx.logs) return { ...receipt, logs: receiptTx.logs };
     }
 
