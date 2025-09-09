@@ -57,13 +57,6 @@ import { BuySwapAmounts, PermitSingle, SellSwapAmounts } from "./types";
 const SUPPORTED_NETWORKS = ["base-mainnet", "base-sepolia"];
 
 /**
- * Configuration options for the FlaunchActionProvider.
- */
-export interface FlaunchActionProviderConfig {
-  // Configuration can be extended in the future if needed
-}
-
-/**
  * FlaunchActionProvider provides actions for flaunch operations.
  *
  * @description
@@ -74,9 +67,8 @@ export class FlaunchActionProvider extends ActionProvider<EvmWalletProvider> {
   /**
    * Constructor for the FlaunchActionProvider.
    *
-   * @param config - The configuration options for the FlaunchActionProvider.
    */
-  constructor(config: FlaunchActionProviderConfig = {}) {
+  constructor() {
     super("flaunch", []);
   }
 
@@ -100,7 +92,7 @@ This tool allows launching a new memecoin using the flaunch protocol.
 It takes:
 - name: The name of the token
 - symbol: The symbol of the token
-- imageUrl: URL to the token image
+- image: Local image file path or URL to the token image
 - description: Description of the token
 
 - websiteUrl: (optional) URL to the token website
@@ -129,7 +121,7 @@ Note:
       // upload image & token uri to ipfs
       const tokenUri = await generateTokenUri(args.name, args.symbol, {
         metadata: {
-          imageUrl: args.imageUrl,
+          image: args.image,
           description: args.description,
           websiteUrl: args.websiteUrl,
           discordUrl: args.discordUrl,
@@ -593,8 +585,6 @@ It takes:
 /**
  * Factory function to create a new FlaunchActionProvider instance.
  *
- * @param config - Configuration options for the FlaunchActionProvider
  * @returns A new FlaunchActionProvider instance
  */
-export const flaunchActionProvider = (config?: FlaunchActionProviderConfig) =>
-  new FlaunchActionProvider(config);
+export const flaunchActionProvider = () => new FlaunchActionProvider();

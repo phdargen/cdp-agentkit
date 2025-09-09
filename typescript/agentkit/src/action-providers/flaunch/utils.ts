@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import {
   parseEther,
   encodeAbiParameters,
@@ -55,7 +57,7 @@ interface IPFSParams {
 
 interface TokenUriParams {
   metadata: {
-    imageUrl: string;
+    image: string;
     description: string;
     websiteUrl?: string;
     discordUrl?: string;
@@ -65,7 +67,39 @@ interface TokenUriParams {
 }
 
 /**
+ * Reads a local file and converts it to base64
+ *
+ * @param imageFileName - Path to the local file
+ * @returns Base64 encoded file and mime type
+ */
+async function readFileAsBase64(
+  imageFileName: string,
+): Promise<{ base64: string; mimeType: string }> {
+  return new Promise((resolve, reject) => {
+    fs.readFile(imageFileName, (err, data) => {
+      if (err) {
+        reject(new Error(`Failed to read file: ${err.message}`));
+        return;
+      }
+
+      // Determine mime type based on file extension
+      const extension = path.extname(imageFileName).toLowerCase();
+      let mimeType = "application/octet-stream"; // default
+
+      if (extension === ".png") mimeType = "image/png";
+      else if (extension === ".jpg" || extension === ".jpeg") mimeType = "image/jpeg";
+      else if (extension === ".gif") mimeType = "image/gif";
+      else if (extension === ".svg") mimeType = "image/svg+xml";
+
+      const base64 = data.toString("base64");
+      resolve({ base64, mimeType });
+    });
+  });
+}
+
+/**
  * Uploads a base64 image to IPFS using Flaunch API
+ * Rate Limit: Maximum 4 image uploads per minute per IP address
  *
  * @param params - Configuration and base64 image data
  * @param params.base64Image - Base64 encoded image data
@@ -93,9 +127,9 @@ const uploadImageToIPFS = async (params: {
     }
 
     const data = await response.json();
-    
+
     if (!data.success) {
-      throw new Error(`Failed to upload image to IPFS: ${data.error || 'Unknown error'}`);
+      throw new Error(`Failed to upload image to IPFS: ${data.error || "Unknown error"}`);
     }
 
     return {
@@ -132,7 +166,7 @@ const uploadJsonToIPFS = async (params: {
       },
       body: JSON.stringify({
         name: params.json.name,
-        symbol: params.json.symbol, 
+        symbol: params.json.symbol,
         description: params.json.description,
         imageIpfs: params.json.image,
         websiteUrl: params.json.external_link,
@@ -180,11 +214,11 @@ const convertImageUrlToBase64 = async (imageUrl: string): Promise<string> => {
 
     const arrayBuffer = await response.arrayBuffer();
     const base64Data = Buffer.from(arrayBuffer).toString("base64");
-    
+
     // Detect MIME type from response headers
     const contentType = response.headers.get("content-type");
     let mimeType = "image/jpeg"; // default fallback
-    
+
     if (contentType && contentType.startsWith("image/")) {
       mimeType = contentType;
     } else {
@@ -200,7 +234,7 @@ const convertImageUrlToBase64 = async (imageUrl: string): Promise<string> => {
         mimeType = "image/svg+xml";
       }
     }
-    
+
     return `data:${mimeType};base64,${base64Data}`;
   } catch (error) {
     if (error instanceof Error) {
@@ -237,8 +271,17 @@ const generateTokenUriBase64Image = async (name: string, symbol: string, params:
 };
 
 export const generateTokenUri = async (name: string, symbol: string, params: TokenUriParams) => {
-  // 1. get base64Image from imageUrl
-  const base64Image = await convertImageUrlToBase64(params.metadata.imageUrl);
+  // 1. get base64Image from image (url or local path)
+  let base64Image: string;
+  const image = params.metadata.image;
+
+  if (image.startsWith("https://") || image.startsWith("http://")) {
+    base64Image = await convertImageUrlToBase64(image);
+  } else {
+    // assume local file
+    const { base64, mimeType } = await readFileAsBase64(image);
+    base64Image = `data:${mimeType};base64,${base64}`;
+  }
 
   // 2. generate token uri
   const tokenUri = await generateTokenUriBase64Image(name, symbol, {

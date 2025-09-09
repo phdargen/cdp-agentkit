@@ -96,7 +96,7 @@ jest.mock("./constants", () => {
 });
 
 describe("FlaunchActionProvider", () => {
-  const provider = new FlaunchActionProvider({ pinataJwt: "test-jwt" });
+  const provider = new FlaunchActionProvider();
   let mockWalletProvider: jest.Mocked<EvmWalletProvider>;
 
   beforeEach(() => {
@@ -234,7 +234,7 @@ describe("FlaunchActionProvider", () => {
       const args = {
         name: "Test Token",
         symbol: "TEST",
-        imageUrl: "https://example.com/image.png",
+        image: "https://example.com/image.png",
         description: "A test token",
         websiteUrl: "https://example.com",
       };

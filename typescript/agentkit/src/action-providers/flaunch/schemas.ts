@@ -10,16 +10,19 @@ import { z } from "zod";
 /**
  * Schema for Flaunch token creation
  */
-export const FlaunchSchema = z.object({
-  name: z.string().min(1).describe("The name of the token"),
-  symbol: z.string().min(1).describe("The symbol of the token"),
-  imageUrl: z.string().url().describe("The URL to the token image"),
-  description: z.string().describe("The description of the token"),
-  websiteUrl: z.string().url().optional().describe("The (optional) URL to the token website"),
-  discordUrl: z.string().url().optional().describe("The (optional) URL to the token Discord"),
-  twitterUrl: z.string().url().optional().describe("The (optional) URL to the token Twitter"),
-  telegramUrl: z.string().url().optional().describe("The (optional) URL to the token Telegram"),
-});
+export const FlaunchSchema = z
+  .object({
+    name: z.string().min(1).describe("The name of the token to flaunch"),
+    symbol: z.string().min(1).describe("The symbol of the token to flaunch"),
+    image: z.string().describe("Local image file path or URL to the token image"),
+    description: z.string().describe("Description of the token"),
+    websiteUrl: z.string().url().optional().describe("URL to the token website (optional)"),
+    discordUrl: z.string().url().optional().describe("URL to the token Discord (optional)"),
+    twitterUrl: z.string().url().optional().describe("URL to the token Twitter (optional)"),
+    telegramUrl: z.string().url().optional().describe("URL to the token Telegram (optional)"),
+  })
+  .strip()
+  .describe("Instructions for creating a new memecoin using the flaunch protocol.");
 
 export const BuyCoinWithETHInputSchema = z.object({
   coinAddress: z
