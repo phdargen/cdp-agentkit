@@ -88,7 +88,8 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
     this.#network = config.network;
     this.#paymasterUrl = config.paymasterUrl;
 
-    this.smartAccount.useNetwork<"base-sepolia">(this.#publicClient.transport.http as "base-sepolia");
+    this.getCdpSdkNetwork();
+
   }
   /**
    * Configures a new CdpSmartWalletProvider with a smart wallet.
@@ -113,11 +114,6 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
     }
 
     const networkId: string = config.networkId || process.env.NETWORK_ID || "base-sepolia";
-
-    // Smart wallets are currently only supported on Base networks
-    if (!networkId.startsWith("base-")) {
-      throw new Error(`Smart wallets are only supported on Base networks. Got: ${networkId}`);
-    }
 
     const network = {
       protocolFamily: "evm" as const,
