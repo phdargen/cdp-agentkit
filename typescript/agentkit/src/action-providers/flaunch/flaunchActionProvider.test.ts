@@ -9,6 +9,7 @@ import {
 import { EvmWalletProvider } from "../../wallet-providers";
 import { Hex } from "viem";
 import { formatEther } from "viem";
+import * as swapUtils from "./swap_utils";
 
 // Mock the actual contract calls with Jest
 jest.mock("viem", () => {
@@ -45,7 +46,9 @@ jest.mock("./metadata_utils", () => ({
 // Mock the client_utils module
 jest.mock("./client_utils", () => ({
   ethRequiredToFlaunch: jest.fn().mockResolvedValue(BigInt(100000000000000000)),
-  getMemecoinAddressFromReceipt: jest.fn().mockReturnValue("0x1234567890123456789012345678901234567890"),
+  getMemecoinAddressFromReceipt: jest
+    .fn()
+    .mockReturnValue("0x1234567890123456789012345678901234567890"),
 }));
 
 // Mock the swap_utils module
@@ -61,24 +64,28 @@ jest.mock("./swap_utils", () => ({
     coinsSold: BigInt(1000000000000000000),
     ethBought: BigInt(100000000000000000),
   })),
-  buyFlaunchCoin: jest.fn().mockImplementation(async (walletProvider, coinAddress, swapType, amount, slippagePercent) => {
-    // Simulate the actual behavior by calling wallet provider methods
-    const network = walletProvider.getNetwork();
-    const coinSymbol = await walletProvider.readContract({
-      address: coinAddress,
-      abi: [],
-      functionName: "symbol",
-    });
-    
-    const hash = await walletProvider.sendTransaction({
-      to: coinAddress,
-      data: "0x",
-    });
-    
-    const receipt = await walletProvider.waitForTransactionReceipt(hash);
-    
-    return `Bought ${formatEther(BigInt(1000000000000000000))} $${coinSymbol} for ${formatEther(BigInt(100000000000000000))} ETH`;
-  }),
+  buyFlaunchCoin: jest
+    .fn()
+    .mockImplementation(
+      async (walletProvider, coinAddress, _swapType, _amount, _slippagePercent) => {
+        // Simulate the actual behavior by calling wallet provider methods
+        walletProvider.getNetwork();
+        const coinSymbol = await walletProvider.readContract({
+          address: coinAddress,
+          abi: [],
+          functionName: "symbol",
+        });
+
+        const hash = await walletProvider.sendTransaction({
+          to: coinAddress,
+          data: "0x",
+        });
+
+        await walletProvider.waitForTransactionReceipt(hash);
+
+        return `Bought ${formatEther(BigInt(1000000000000000000))} $${coinSymbol} for ${formatEther(BigInt(100000000000000000))} ETH`;
+      },
+    ),
 }));
 
 // Mock the constants used in the test
@@ -331,8 +338,9 @@ describe("FlaunchActionProvider", () => {
 
     it("should handle errors in buyCoinWithETHInput", async () => {
       // Mock buyFlaunchCoin to return an error string
-      const { buyFlaunchCoin } = require("./swap_utils");
-      buyFlaunchCoin.mockResolvedValueOnce("Error buying coin: Transaction failed");
+      (swapUtils.buyFlaunchCoin as jest.Mock).mockResolvedValueOnce(
+        "Error buying coin: Transaction failed",
+      );
 
       const args = {
         coinAddress: "0x1234567890123456789012345678901234567890",
@@ -365,8 +373,9 @@ describe("FlaunchActionProvider", () => {
 
     it("should handle errors in buyCoinWithCoinInput", async () => {
       // Mock buyFlaunchCoin to return an error string
-      const { buyFlaunchCoin } = require("./swap_utils");
-      buyFlaunchCoin.mockResolvedValueOnce("Error buying coin: Transaction failed");
+      (swapUtils.buyFlaunchCoin as jest.Mock).mockResolvedValueOnce(
+        "Error buying coin: Transaction failed",
+      );
 
       const args = {
         coinAddress: "0x1234567890123456789012345678901234567890",
