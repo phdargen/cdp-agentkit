@@ -330,23 +330,16 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
     // This is a simplified implementation - in practice you might want to poll
     // the CDP API for user operation status
 
-    const userOperation0 = await this.#cdp.evm.getUserOperation({
-      smartAccount: this.smartAccount,
-      userOpHash,
-    });
-    console.log("userOperation0", userOperation0);
-
     const receipt = await this.#cdp.evm.waitForUserOperation({
       smartAccountAddress: this.smartAccount.address,
       userOpHash,
     });
-    console.log("receipt", receipt);
 
-    const userOperation = await this.#cdp.evm.getUserOperation({
-      smartAccount: this.smartAccount,
-      userOpHash,
-    });
-    console.log("userOperation", userOperation);
+    // Append transaction logs if available
+    if(receipt.status === "complete") {
+      const receiptTx = await this.#publicClient.getTransactionReceipt({ hash: receipt.transactionHash as Hex });
+      if (receiptTx.logs) return { ...receipt, logs: receiptTx.logs };
+    }
 
     return receipt;
   }
