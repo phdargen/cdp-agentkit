@@ -87,13 +87,16 @@ It takes:
 - fairLaunchDuration: The duration of the fair launch in minutes (defaults to 30 minutes)
 - initialMarketCapUSD: The initial market cap in USD (defaults to 10000 USD)
 - preminePercent: The percentage of total supply to premine (defaults to 0%, max is equal to fairLaunchPercent)
+- creatorFeeAllocationPercent: The percentage of fees allocated to creator and optional receivers (defaults to 80%)
+- creatorSplitPercent: The percentage of fees allocated to the creator (defaults to 100%), remainder goes to fee split recipients
+- splitReceivers: Array of fee split recipients with address and percentage (optional)
 - websiteUrl: URL to the token website (optional)
 - discordUrl: URL to the token Discord (optional)
 - twitterUrl: URL to the token Twitter (optional)
 - telegramUrl: URL to the token Telegram (optional)
 
 Note:
-- If the optional fields are not provided, don't include them in the call.
+- splitReceivers must add up to exactly 100% if provided.
     `,
     schema: FlaunchSchema,
   })
@@ -109,7 +112,6 @@ Note:
       if (!chainId || !networkId) {
         throw new Error("Chain ID is not set.");
       }
-      console.log("args", args);
 
       // Validate that premineAmount does not exceed fairLaunchPercent
       if (args.preminePercent > args.fairLaunchPercent) {
@@ -118,7 +120,34 @@ Note:
         );
       }
 
-      // upload image & token uri to ipfs
+      // Prepare launch parameters
+      const initialMCapInUSDCWei = parseUnits(args.initialMarketCapUSD.toString(), 6);
+      const initialPriceParams = encodeAbiParameters([{ type: "uint256" }], [initialMCapInUSDCWei]);
+
+      const fairLaunchInBps = BigInt(args.fairLaunchPercent * 100);
+
+      // Convert premine percentage to token amount and calculate ETH required
+      const premineAmount = (TOTAL_SUPPLY * BigInt(Math.floor(args.preminePercent * 100))) / 10000n;
+      const ethRequired =
+        args.preminePercent > 0
+          ? await ethRequiredToFlaunch(walletProvider, {
+              premineAmount,
+              initialPriceParams,
+              slippagePercent: 5,
+            })
+          : 0n;
+
+      // Check ETH balance
+      if (ethRequired > 0n) {
+        const ethBalance = await walletProvider.getBalance();
+        if (ethBalance < ethRequired) {
+          throw new Error(
+            `Insufficient ETH balance. Required: ${formatEther(ethRequired)} ETH, Available: ${formatEther(ethBalance)} ETH`,
+          );
+        }
+      }
+
+      // Upload image & token uri to ipfs
       const tokenUri = await generateTokenUri(args.name, args.symbol, {
         metadata: {
           image: args.image,
@@ -130,18 +159,10 @@ Note:
         },
       });
 
-      // Convert premineAmount percentage to token amount
-      const premineAmount = (TOTAL_SUPPLY * BigInt(Math.floor(args.preminePercent * 100))) / 10000n;
-
-      const initialMCapInUSDCWei = parseUnits(args.initialMarketCapUSD.toString(), 6);
-      const initialPriceParams = encodeAbiParameters([{ type: "uint256" }], [initialMCapInUSDCWei]);
-
-      const fairLaunchInBps = BigInt(args.fairLaunchPercent * 100);
+      // Fee split configuration
       const creatorFeeAllocationInBps = args.creatorFeeAllocationPercent * 100;
-
       let creatorShare = 10000000n;
       let recipientShares: { recipient: Address; share: bigint }[] = [];
-
       if (args.creatorSplitPercent !== undefined && args.splitReceivers !== undefined) {
         const VALID_SHARE_TOTAL = 10000000n; // 5 decimals as BigInt, 100 * 10^5
         creatorShare = (BigInt(args.creatorSplitPercent) * VALID_SHARE_TOTAL) / 100n;
@@ -206,7 +227,6 @@ Note:
         initialPriceParams,
         feeCalculatorParams: "0x" as Hex,
       };
-      console.log("flaunchParams", flaunchParams);
 
       const treasuryManagerParams = {
         manager: AddressFeeSplitManagerAddress[chainId],
@@ -228,13 +248,6 @@ Note:
         merkleIPFSHash: "",
       };
 
-      const ethRequired = await ethRequiredToFlaunch(walletProvider, {
-        premineAmount,
-        initialPriceParams,
-        slippagePercent: 5,
-      });
-      console.log("ethRequired", ethRequired);
-
       const data = encodeFunctionData({
         abi: FLAUNCH_ZAP_ABI,
         functionName: "flaunch",
@@ -244,7 +257,7 @@ Note:
       const hash = await walletProvider.sendTransaction({
         to: FlaunchZapAddress[chainId],
         data,
-        value: ethRequired as bigint,
+        value: ethRequired,
       });
       const receipt = await walletProvider.waitForTransactionReceipt(hash);
 

@@ -78,17 +78,22 @@ You should only take this action when requested.  A Supertoken implementation is
         ],
       });
 
+      const superTokenFactoryAddress =
+        walletProvider.getNetwork().networkId === "base-sepolia"
+          ? (SuperTokenFactoryAddress_Base_Sepolia as `0x${string}`)
+          : (SuperTokenFactoryAddress as `0x${string}`);
+
       const createSuperTokenHash = await walletProvider.sendTransaction({
-        to:
-          walletProvider.getNetwork().networkId === "base-sepolia"
-            ? (SuperTokenFactoryAddress_Base_Sepolia as `0x${string}`)
-            : (SuperTokenFactoryAddress as `0x${string}`),
+        to: superTokenFactoryAddress,
         data: createSuperTokenData,
       });
 
       const receipt = await walletProvider.waitForTransactionReceipt(createSuperTokenHash);
 
-      const superTokenAddress = extractCreatedSuperTokenAddressAbi(receipt);
+      const superTokenAddress = extractCreatedSuperTokenAddressAbi(
+        receipt,
+        superTokenFactoryAddress,
+      );
 
       return `Created super token for ${args.erc20TokenAddress}.  Super token address at ${superTokenAddress}  Transaction hash: ${createSuperTokenHash}`;
     } catch (error) {

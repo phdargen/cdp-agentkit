@@ -7,8 +7,6 @@ import {
   CdpSmartWalletProvider,
   walletActionProvider,
   wethActionProvider,
-  clankerActionProvider,
-  flaunchActionProvider
 } from "@coinbase/agentkit";
 import { getLangChainTools } from "@coinbase/agentkit-langchain";
 import { HumanMessage } from "@langchain/core/messages";
@@ -119,8 +117,6 @@ async function initializeAgent() {
         erc20ActionProvider(),
         cdpApiActionProvider(),
         cdpSmartWalletActionProvider(),
-        clankerActionProvider(),
-        flaunchActionProvider(),
       ],
     });
 
