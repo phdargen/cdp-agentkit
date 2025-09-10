@@ -10,8 +10,6 @@ import {
   CdpSolanaWalletProvider,
   splActionProvider,
   x402ActionProvider,
-  clankerActionProvider,
-  flaunchActionProvider,
 } from "@coinbase/agentkit";
 import { getLangChainTools } from "@coinbase/agentkit-langchain";
 import { HumanMessage } from "@langchain/core/messages";
@@ -126,8 +124,6 @@ async function initializeAgent() {
             erc20ActionProvider(),
             erc721ActionProvider(),
             x402ActionProvider(),
-            // clankerActionProvider(),
-            flaunchActionProvider(),
           ]
         : isSolanaWalletProvider(walletProvider)
           ? [splActionProvider()]

@@ -63,7 +63,7 @@ export function ethRequiredToFlaunch(
     initialPriceParams: Hex;
     slippagePercent?: number;
   },
-) {
+): Promise<bigint> {
   const chainId = walletProvider.getNetwork().chainId;
   if (!chainId) throw new Error("Chain ID is not set.");
 
@@ -76,5 +76,5 @@ export function ethRequiredToFlaunch(
       BigInt(params.slippagePercent ?? 5 * 100),
       params.initialPriceParams,
     ],
-  });
+  }) as Promise<bigint>;
 }

@@ -355,7 +355,7 @@ const agent = createReactAgent({
 <table width="100%">
 <tr>
     <td width="200"><code>flaunch</code></td>
-    <td width="768">Launches a new memecoin token with customizable name, symbol, image, and metadata.</td>
+    <td width="768">Launches a new memecoin token with customizable name, symbol, image, metadata, fair launch parameters, fee allocation, and premine options.</td>
 </tr>
 <tr>
     <td width="200"><code>buyCoinWithETHInput</code></td>
