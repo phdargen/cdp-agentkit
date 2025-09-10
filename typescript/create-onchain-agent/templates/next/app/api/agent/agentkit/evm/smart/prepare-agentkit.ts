@@ -11,7 +11,7 @@ import {
 } from "@coinbase/agentkit";
 import * as fs from "fs";
 import { Address, Hex, LocalAccount } from "viem";
-import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { privateKeyToAccount } from "viem/accounts";
 
 /**
  * AgentKit Integration Route
