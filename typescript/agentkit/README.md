@@ -77,7 +77,7 @@ AgentKit is a framework for easily enabling AI agents to take actions onchain. I
 
 _Prerequisites_:
 
-- [Node.js 18+](https://nodejs.org/en/download/)
+- [Node.js v22+](https://nodejs.org/en/download/)
 - [CDP Secret API Key](https://docs.cdp.coinbase.com/get-started/docs/cdp-api-keys#creating-secret-api-keys)
 
 ## Installation
@@ -172,48 +172,6 @@ const agent = createReactAgent({
 ## Action Providers
 
 <details>
-<summary><strong>CDP EVM Wallet</strong></summary>
-<table width="100%">
-<tr>
-    <td width="200"><code>list_spend_permissions</code></td>
-    <td width="768">Lists spend permissions that have been granted to the current EVM wallet by a smart account.</td>
-</tr>
-<tr>
-    <td width="200"><code>use_spend_permission</code></td>
-    <td width="768">Uses a spend permission to spend tokens on behalf of a smart account that the current EVM wallet has permission to spend.</td>
-</tr>
-<tr>
-    <td width="200"><code>get_swap_price</code></td>
-    <td width="768">Fetches a price quote for swapping between two tokens using the CDP Swap API (does not execute swap).</td>
-</tr>
-<tr>
-    <td width="200"><code>swap</code></td>
-    <td width="768">Executes a token swap using the CDP Swap API with automatic token approvals.</td>
-</tr>
-</table>
-</details>
-<details>
-<summary><strong>CDP Smart Wallet</strong></summary>
-<table width="100%">
-<tr>
-    <td width="200"><code>list_spend_permissions</code></td>
-    <td width="768">Lists spend permissions that have been granted to the current smart wallet by a smart account.</td>
-</tr>
-<tr>
-    <td width="200"><code>use_spend_permission</code></td>
-    <td width="768">Uses a spend permission to spend tokens on behalf of a smart account that the current smart wallet has permission to spend.</td>
-</tr>
-<tr>
-    <td width="200"><code>get_swap_price</code></td>
-    <td width="768">Fetches a price quote for swapping between two tokens using the CDP Swap API (does not execute swap).</td>
-</tr>
-<tr>
-    <td width="200"><code>swap</code></td>
-    <td width="768">Executes a token swap using the CDP Swap API with automatic token approvals.</td>
-</tr>
-</table>
-</details>
-<details>
 <summary><strong>Across</strong></summary>
 <table width="100%">
 <tr>
@@ -223,6 +181,36 @@ const agent = createReactAgent({
 <tr>
     <td width="200"><code>check_deposit_status</code></td>
     <td width="768">Checks the status of a cross-chain bridge deposit on the Across Protocol (mainnet networks only).</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><strong>Alchemy</strong></summary>
+<table width="100%">
+<tr>
+    <td width="200"><code>token_prices_by_symbol</code></td>
+    <td width="768">Fetches current token prices for one or more tokens using their symbols via the Alchemy Prices API.</td>
+</tr>
+<tr>
+    <td width="200"><code>token_prices_by_address</code></td>
+    <td width="768">Fetches current token prices for tokens using network and address pairs via the Alchemy Prices API.</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><strong>Allora</strong></summary>
+<table width="100%">
+<tr>
+    <td width="200"><code>get_all_topics</code></td>
+    <td width="768">Retrieves all available inference topics from Allora Network for AI predictions.</td>
+</tr>
+<tr>
+    <td width="200"><code>get_inference_by_topic_id</code></td>
+    <td width="768">Fetches inference data for a specific topic from Allora Network using topic ID.</td>
+</tr>
+<tr>
+    <td width="200"><code>get_price_inference</code></td>
+    <td width="768">Gets price inference for a specific token and timeframe from Allora Network.</td>
 </tr>
 </table>
 </details>
@@ -266,6 +254,57 @@ const agent = createReactAgent({
 <tr>
     <td width="200"><code>get_portfolio</code></td>
     <td width="768">Retrieves portfolio details including collateral balances and borrowed amounts.</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><strong>CDP API</strong></summary>
+<table width="100%">
+<tr>
+    <td width="200"><code>request_faucet_funds</code></td>
+    <td width="768">Requests test tokens from the CDP faucet for base-sepolia, ethereum-sepolia, or solana-devnet networks.</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><strong>CDP EVM Wallet</strong></summary>
+<table width="100%">
+<tr>
+    <td width="200"><code>list_spend_permissions</code></td>
+    <td width="768">Lists spend permissions that have been granted to the current EVM wallet by a smart account.</td>
+</tr>
+<tr>
+    <td width="200"><code>use_spend_permission</code></td>
+    <td width="768">Uses a spend permission to spend tokens on behalf of a smart account that the current EVM wallet has permission to spend.</td>
+</tr>
+<tr>
+    <td width="200"><code>get_swap_price</code></td>
+    <td width="768">Fetches a price quote for swapping between two tokens using the CDP Swap API (does not execute swap).</td>
+</tr>
+<tr>
+    <td width="200"><code>swap</code></td>
+    <td width="768">Executes a token swap using the CDP Swap API with automatic token approvals.</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><strong>CDP Smart Wallet</strong></summary>
+<table width="100%">
+<tr>
+    <td width="200"><code>list_spend_permissions</code></td>
+    <td width="768">Lists spend permissions that have been granted to the current smart wallet by a smart account.</td>
+</tr>
+<tr>
+    <td width="200"><code>use_spend_permission</code></td>
+    <td width="768">Uses a spend permission to spend tokens on behalf of a smart account that the current smart wallet has permission to spend.</td>
+</tr>
+<tr>
+    <td width="200"><code>get_swap_price</code></td>
+    <td width="768">Fetches a price quote for swapping between two tokens using the CDP Swap API (does not execute swap).</td>
+</tr>
+<tr>
+    <td width="200"><code>swap</code></td>
+    <td width="768">Executes a token swap using the CDP Swap API with automatic token approvals.</td>
 </tr>
 </table>
 </details>
@@ -360,6 +399,19 @@ const agent = createReactAgent({
 <tr>
     <td width="200"><code>research_question</code></td>
     <td width="768">Queries Messari AI for comprehensive crypto research across news, market data, protocol information, and more.</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><strong>Moonwell</strong></summary>
+<table width="100%">
+<tr>
+    <td width="200"><code>mint</code></td>
+    <td width="768">Mints assets into a Moonwell MToken for lending and earning yield.</td>
+</tr>
+<tr>
+    <td width="200"><code>redeem</code></td>
+    <td width="768">Redeems assets from a Moonwell MToken to withdraw principal and earned interest.</td>
 </tr>
 </table>
 </details>
@@ -487,6 +539,43 @@ const agent = createReactAgent({
 </table>
 </details>
 <details>
+<summary><strong>Vaultsfyi</strong></summary>
+<table width="100%">
+<tr>
+    <td width="200"><code>vaults</code></td>
+    <td width="768">Retrieves a list of available yield farming vaults with filtering and sorting options.</td>
+</tr>
+<tr>
+    <td width="200"><code>vault_details</code></td>
+    <td width="768">Fetches detailed information about a specific vault including description and rewards breakdown.</td>
+</tr>
+<tr>
+    <td width="200"><code>vault_historical_data</code></td>
+    <td width="768">Gets historical APY and TVL data for a specific vault over time.</td>
+</tr>
+<tr>
+    <td width="200"><code>deposit</code></td>
+    <td width="768">Deposits assets into a selected vault to start earning yield.</td>
+</tr>
+<tr>
+    <td width="200"><code>redeem</code></td>
+    <td width="768">Redeems assets from a vault to withdraw principal and earned yield.</td>
+</tr>
+<tr>
+    <td width="200"><code>claim</code></td>
+    <td width="768">Claims rewards from a vault without withdrawing the principal deposit.</td>
+</tr>
+<tr>
+    <td width="200"><code>balances</code></td>
+    <td width="768">Retrieves user's native token and ERC20 token balances across supported networks.</td>
+</tr>
+<tr>
+    <td width="200"><code>positions</code></td>
+    <td width="768">Gets user's current positions in vaults including balances and unclaimed rewards.</td>
+</tr>
+</table>
+</details>
+<details>
 <summary><strong>Wallet</strong></summary>
 <table width="100%">
 <tr>
@@ -539,6 +628,19 @@ const agent = createReactAgent({
 </table>
 </details>
 <details>
+<summary><strong>SPL</strong></summary>
+<table width="100%">
+<tr>
+    <td width="200"><code>get_balance</code></td>
+    <td width="768">Retrieves the balance of SPL tokens for a specified address on Solana.</td>
+</tr>
+<tr>
+    <td width="200"><code>transfer</code></td>
+    <td width="768">Transfers SPL tokens to another address on the Solana network.</td>
+</tr>
+</table>
+</details>
+<details>
 <summary><strong>x402</strong></summary>
 <table width="100%">
 <tr>
@@ -553,6 +655,10 @@ it will return payment details that can be used on retry.</td>
 <tr>
     <td width="200"><code>make_http_request_with_x402</code></td>
     <td width="768">Combines make_http_request and retry_http_request_with_x402 into a single step.</td>
+</tr>
+</table>
+</details>
+<details>
 <summary><strong>ZeroX</strong></summary>
 <table width="100%">
 <tr>
