@@ -227,6 +227,23 @@ const agent = createReactAgent({
 </table>
 </details>
 <details>
+<summary><strong>Base Account</strong></summary>
+<table width="100%">
+<tr>
+    <td width="200"><code>list_base_account_spend_permissions</code></td>
+    <td width="768">Lists spend permissions that have been granted to the current wallet by a Base Account, with support for any ERC20 token.</td>
+</tr>
+<tr>
+    <td width="200"><code>spend_from_base_account_permission</code></td>
+    <td width="768">Uses a spend permission to transfer tokens from a Base Account to the current wallet, with support for any ERC20 token.</td>
+</tr>
+<tr>
+    <td width="200"><code>revoke_base_account_spend_permission</code></td>
+    <td width="768">Revokes a spend permission that was previously granted by a Base Account, with support for any ERC20 token.</td>
+</tr>
+</table>
+</details>
+<details>
 <summary><strong>Basename</strong></summary>
 <table width="100%">
 <tr>

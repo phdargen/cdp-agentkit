@@ -18,29 +18,25 @@ baseAccount/
 - `list_base_account_spend_permissions`: List spend permissions granted by a Base Account
 
   - Takes a Base Account address and returns spend permissions where the current wallet is the spender
-  - Returns **USDC spend permissions** with details like allowance, period, and timestamps
+  - Returns **spend permissions for any ERC20 token** with details like allowance, period, timestamps, and token information
+  - Automatically formats token amounts using proper decimals and displays token names
   - Useful to see what spending allowances have been granted before using them
 
-- `spend_from_base_account_permission`: Use a spend permission to transfer USDC
+- `spend_from_base_account_permission`: Use a spend permission to transfer tokens
 
-  - Takes a Base Account address and an amount in USDC
-  - Automatically finds and uses the first valid spend permission
-  - Transfers **USDC tokens** from the Base Account to the current wallet
+  - Takes a Base Account address and optionally an amount, token address, and permission index
+  - Automatically finds and uses the specified or first valid spend permission
+  - Supports **any ERC20 token** with spend permissions (not just USDC)
+  - If no amount is specified, withdraws the full remaining allowance
+  - Transfers tokens from the Base Account to the current wallet
   - Returns transaction details upon success
 
 - `revoke_base_account_spend_permission`: Revoke a spend permission
 
   - Takes a Base Account address and optionally a permission index
   - Permanently revokes the specified spend permission
+  - Supports **any ERC20 token** with spend permissions
   - Returns **transaction hash** upon success
-
-## Dependencies
-
-This action provider requires the `@base-org/account` package to be installed:
-
-```bash
-npm install @base-org/account
-```
 
 ## Adding New Actions
 
@@ -56,9 +52,11 @@ The Base Account provider only supports **Base mainnet** (`base-mainnet`), as Ba
 
 ## Notes
 
-- Base Account spend permissions are specifically designed for USDC tokens
+- Base Account spend permissions support **any ERC20 token** (not limited to USDC)
 - Users must grant permissions through the Base Account UI before they can be used
 - All spend operations automatically find and use valid permissions
 - Permissions have time-based limits and spending allowances
+- Token amounts are automatically formatted with proper decimals and display token names
+- If no specific amount is provided, the full remaining allowance will be used
 
 For more information on **Base Account spend permissions**, visit [Base Account Documentation](https://docs.base.org/base-account).
