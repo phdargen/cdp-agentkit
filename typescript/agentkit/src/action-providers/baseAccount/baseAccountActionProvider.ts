@@ -12,6 +12,14 @@ import {
 } from "./schemas";
 import { formatTimestamp, formatPeriod } from "./utils";
 
+/**
+ * Simple delay utility to add timeouts between API calls
+ *
+ * @param ms - Milliseconds to delay
+ * @returns Promise that resolves after the specified delay
+ */
+const delay = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
+
 // Base Account spend permission types
 interface PermissionData {
   account?: string;
@@ -110,7 +118,6 @@ Important notes:
 
       // Fetch permissions
       const permissions = await fetchUserSpendPermissions(baseAccount, spenderAddress);
-      console.log("permissions", permissions);
 
       if (permissions.length === 0) {
         return JSON.stringify({
@@ -221,6 +228,9 @@ Important notes:
         tokenAddress,
       );
 
+      // Add small delay to avoid rate limit errors
+      await delay(4000);
+
       if (permissions.length === 0) {
         const errorMsg = tokenAddress
           ? `No spend permissions found for Base Account with token ${tokenAddress}.`
@@ -278,6 +288,9 @@ Important notes:
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const status = await getPermissionStatus(_permission as any);
 
+      // Add small delay to avoid rate limit errors
+      await delay(4000);
+
       // Determine amount to spend - use provided amount or full remaining allowance
       const amountInAtomicUnits = args.amount
         ? parseUnits(args.amount.toString(), tokenDetails.decimals)
@@ -301,6 +314,9 @@ Important notes:
       // Prepare the spend transaction - returns an array of calls
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const spendCalls = await prepareSpendCallData(_permission as any, amountInAtomicUnits);
+
+      // Add small delay to avoid rate limit errors before transaction execution
+      await delay(4000);
 
       // Take the first call from the array (there should be one for spend operations)
       if (!spendCalls || spendCalls.length === 0) {
@@ -406,6 +422,9 @@ Important notes:
 
       // Use the specified permission (convert to 0-based index)
       const _permission = permissions[permissionIndex - 1];
+
+      // Add small delay to avoid rate limit errors
+      await delay(4000);
 
       // Prepare the revoke transaction
       const { prepareRevokeCallData } = await import("@base-org/account/spend-permission");
