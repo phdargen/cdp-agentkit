@@ -215,7 +215,8 @@ DO NOT use this action directly without first trying make_http_request!`,
 
       const api = withPaymentInterceptor(
         axios.create({}),
-        account,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        account as any,
         paymentSelector as unknown as Parameters<typeof withPaymentInterceptor>[2],
       );
 
@@ -292,7 +293,8 @@ Unless specifically instructed otherwise, prefer the two-step approach with make
   ): Promise<string> {
     try {
       const account = walletProvider.toSigner();
-      const api = withPaymentInterceptor(axios.create({}), account);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const api = withPaymentInterceptor(axios.create({}), account as any);
 
       const response = await api.request({
         url: args.url,

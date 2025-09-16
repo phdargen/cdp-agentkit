@@ -41,9 +41,13 @@
   "dependencies": {
     "@across-protocol/app-sdk": "^0.2.0",
     "@alloralabs/allora-sdk": "^0.1.0",
+<<<<<<< HEAD
     "@coinbase/cdp-sdk": "^1.36.1",
+=======
+    "@coinbase/cdp-sdk": "^1.38.0",
+>>>>>>> 56a08e9d (bump x402 version)
     "@coinbase/coinbase-sdk": "^0.20.0",
-    "@coinbase/x402": "^0.5.1",
+    "@coinbase/x402": "^0.6.3",
     "@jup-ag/api": "^6.0.39",
     "@privy-io/public-api": "2.18.5",
     "@privy-io/server-auth": "1.18.4",
@@ -65,8 +69,8 @@
     "reflect-metadata": "^0.2.2",
     "twitter-api-v2": "^1.18.2",
     "viem": "^2.22.16",
-    "x402": "^0.5.1",
-    "x402-axios": "^0.5.1",
+    "x402": "^0.6.0",
+    "x402-axios": "^0.6.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
