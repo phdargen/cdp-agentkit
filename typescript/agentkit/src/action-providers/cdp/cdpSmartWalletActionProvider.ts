@@ -5,8 +5,9 @@ import { CreateAction } from "../actionDecorator";
 import { ActionProvider } from "../actionProvider";
 import { UseSpendPermissionSchema, ListSpendPermissionsSchema, SwapSchema } from "./schemas";
 import { listSpendPermissionsForSpender, findLatestSpendPermission } from "./spendPermissionUtils";
-import { getTokenDetails, PERMIT2_ADDRESS, retryWithExponentialBackoff } from "./swapUtils";
+import { getTokenDetails, PERMIT2_ADDRESS } from "./swapUtils";
 import { Hex, formatUnits, parseUnits, maxUint256, encodeFunctionData, erc20Abi } from "viem";
+import { retryWithExponentialBackoff } from "../../utils";
 
 import type { Network } from "../../network";
 import type { Address } from "viem";

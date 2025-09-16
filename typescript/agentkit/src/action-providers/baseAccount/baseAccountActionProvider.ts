@@ -11,34 +11,8 @@ import {
   RevokeBaseAccountSpendPermissionSchema,
 } from "./schemas";
 import { formatTimestamp, formatPeriod } from "./utils";
-
-/**
- * Simple delay utility to add timeouts between API calls
- *
- * @param ms - Milliseconds to delay
- * @returns Promise that resolves after the specified delay
- */
-const delay = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
-
-// Base Account spend permission types
-interface PermissionData {
-  account?: string;
-  spender?: string;
-  token?: string;
-  allowance?: bigint | string;
-  period?: number;
-  start?: number;
-  end?: number;
-}
-
-interface FetchedPermission {
-  permissionHash?: string;
-  signature?: string;
-  chainId?: number;
-  createdAt?: number;
-  permission?: PermissionData;
-  allowance?: bigint | string;
-}
+import { FetchedPermission } from "./types";
+import { retryWithExponentialBackoff } from "../../utils";
 
 /**
  * Fetch spend permissions for a user account from a spender address
@@ -102,8 +76,8 @@ It takes the following inputs:
 
 Important notes:
 - This tool is specifically designed for Base Account spend permissions
-- It returns token spend permissions with proper token names and formatted allowances for any ERC20 token
-- The user must have previously granted spend permissions through the UI for any permissions to be found
+- The returned period is the time duration for resetting the used allowance on a recurring basis within the start and end timestamps
+- The returned allowance is the maximum allowed value to spend within each period
 `,
     schema: ListBaseAccountSpendPermissionsSchema,
   })
@@ -116,8 +90,12 @@ Important notes:
       const baseAccount = getAddress(args.baseAccount);
       const spenderAddress = getAddress(walletProvider.getAddress());
 
-      // Fetch permissions
-      const permissions = await fetchUserSpendPermissions(baseAccount, spenderAddress);
+      // Fetch permissions with retry logic
+      const permissions = await retryWithExponentialBackoff(
+        () => fetchUserSpendPermissions(baseAccount, spenderAddress),
+        3, // Max 3 retries
+        1000, // 1s base delay
+      );
 
       if (permissions.length === 0) {
         return JSON.stringify({
@@ -221,15 +199,12 @@ Important notes:
       const spenderAddress = getAddress(walletProvider.getAddress());
       const tokenAddress = args.tokenAddress ? getAddress(args.tokenAddress) : undefined;
 
-      // Fetch permissions to find a valid one
-      const permissions = await fetchUserSpendPermissions(
-        baseAccount,
-        spenderAddress,
-        tokenAddress,
+      // Fetch permissions to find a valid one with retry logic
+      const permissions = await retryWithExponentialBackoff(
+        () => fetchUserSpendPermissions(baseAccount, spenderAddress, tokenAddress),
+        3, // Max 3 retries
+        1000, // 1s base delay
       );
-
-      // Add small delay to avoid rate limit errors
-      await delay(4000);
 
       if (permissions.length === 0) {
         const errorMsg = tokenAddress
@@ -285,11 +260,13 @@ Important notes:
       const { getPermissionStatus, prepareSpendCallData } = await import(
         "@base-org/account/spend-permission"
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const status = await getPermissionStatus(_permission as any);
-
-      // Add small delay to avoid rate limit errors
-      await delay(4000);
+      const status = await retryWithExponentialBackoff(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        () => getPermissionStatus(_permission as any),
+        3, // Max 3 retries
+        1000, // 1s base delay
+        2000, // 2s initial delay
+      );
 
       // Determine amount to spend - use provided amount or full remaining allowance
       const amountInAtomicUnits = args.amount
@@ -312,11 +289,13 @@ Important notes:
       }
 
       // Prepare the spend transaction - returns an array of calls
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const spendCalls = await prepareSpendCallData(_permission as any, amountInAtomicUnits);
-
-      // Add small delay to avoid rate limit errors before transaction execution
-      await delay(4000);
+      const spendCalls = await retryWithExponentialBackoff(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        () => prepareSpendCallData(_permission as any, amountInAtomicUnits),
+        3, // Max 3 retries
+        1000, // 1s base delay
+        2000, // 2s initial delay
+      );
 
       // Take the first call from the array (there should be one for spend operations)
       if (!spendCalls || spendCalls.length === 0) {
@@ -381,9 +360,7 @@ Important notes:
 - This permanently revokes the spend permission - it cannot be undone
 - The Base Account must have previously granted a spend permission to the current agent
 - This tool automatically finds and revokes the specified token spend permission
-- After revocation, the permission can no longer be used for spending
 - This is specifically designed for Base Account spend permissions on Base mainnet
-- Supports any ERC20 token with spend permissions
 `,
     schema: RevokeBaseAccountSpendPermissionSchema,
   })
@@ -396,8 +373,12 @@ Important notes:
       const baseAccount = getAddress(args.baseAccount);
       const spenderAddress = getAddress(walletProvider.getAddress());
 
-      // Fetch permissions to find the one to revoke
-      const permissions = await fetchUserSpendPermissions(baseAccount, spenderAddress);
+      // Fetch permissions to find the one to revoke with retry logic
+      const permissions = await retryWithExponentialBackoff(
+        () => fetchUserSpendPermissions(baseAccount, spenderAddress),
+        3, // Max 3 retries
+        1000, // 1s base delay
+      );
 
       if (permissions.length === 0) {
         return JSON.stringify({
@@ -422,9 +403,6 @@ Important notes:
 
       // Use the specified permission (convert to 0-based index)
       const _permission = permissions[permissionIndex - 1];
-
-      // Add small delay to avoid rate limit errors
-      await delay(4000);
 
       // Prepare the revoke transaction
       const { prepareRevokeCallData } = await import("@base-org/account/spend-permission");
