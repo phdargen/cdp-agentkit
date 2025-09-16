@@ -57,16 +57,12 @@ export class PythActionProvider extends ActionProvider {
       });
     }
 
-    console.log("data", data);
-
     const filteredData = data.filter(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (item: any) =>
         item.attributes.base.toLowerCase() === args.tokenSymbol.toLowerCase() &&
         item.attributes.quote_currency.toLowerCase() === args.quoteCurrency.toLowerCase(),
     );
-
-    console.log("filteredData", filteredData);
 
     if (filteredData.length === 0) {
       return JSON.stringify({
@@ -143,7 +139,6 @@ action to retrieve the price feed ID before invoking the pyth_fetch_price action
         error: `No price data found for ${args.priceFeedID}`,
       });
     }
-    console.log("parsedData", parsedData);
 
     // Helper function to format price
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

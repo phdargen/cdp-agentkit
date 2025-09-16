@@ -407,7 +407,7 @@ const agent = createReactAgent({
 </tr>
 <tr>
     <td width="200"><code>fetch_price_feed_id</code></td>
-    <td width="768">Retrieves the unique price feed identifier for a given token symbol.</td>
+    <td width="768">Retrieves the unique price feed identifier for a given asset symbol.</td>
 </tr>
 </table>
 </details>
