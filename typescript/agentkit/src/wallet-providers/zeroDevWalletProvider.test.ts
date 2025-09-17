@@ -255,7 +255,8 @@ describe("ZeroDevWalletProvider", () => {
 
   describe("signing operations", () => {
     it("should sign a hash", async () => {
-      const testHash = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as `0x${string}`;
+      const testHash =
+        "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as `0x${string}`;
       const signature = await provider.sign(testHash);
 
       expect(mockKernelAccount.sign).toHaveBeenCalledWith({
