@@ -126,7 +126,7 @@ async function initializeAgent() {
             x402ActionProvider(),
           ]
         : isSolanaWalletProvider(walletProvider)
-          ? [splActionProvider()]
+          ? [splActionProvider(), x402ActionProvider()]
           : []),
     ];
 

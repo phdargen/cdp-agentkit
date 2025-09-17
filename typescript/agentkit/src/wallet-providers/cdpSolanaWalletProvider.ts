@@ -51,9 +51,9 @@ interface ConfigureCdpSolanaWalletProviderWithWalletOptions {
  */
 export class CdpSolanaWalletProvider extends SvmWalletProvider implements WalletProviderWithClient {
   #connection: Connection;
-  #serverAccount: Awaited<ReturnType<typeof CdpClient.prototype.solana.createAccount>>;
   #cdp: CdpClient;
   #network: Network;
+  public serverAccount: Awaited<ReturnType<typeof CdpClient.prototype.solana.createAccount>>;
 
   /**
    * Constructs a new CdpSolanaWalletProvider.
@@ -63,7 +63,7 @@ export class CdpSolanaWalletProvider extends SvmWalletProvider implements Wallet
   private constructor(config: ConfigureCdpSolanaWalletProviderWithWalletOptions) {
     super();
 
-    this.#serverAccount = config.serverAccount;
+    this.serverAccount = config.serverAccount;
     this.#cdp = config.cdp;
     this.#connection = config.connection;
     this.#network = config.network;
@@ -138,8 +138,8 @@ export class CdpSolanaWalletProvider extends SvmWalletProvider implements Wallet
    */
   async exportWallet(): Promise<{ name: string | undefined; address: `0x${string}` }> {
     return {
-      name: this.#serverAccount.name,
-      address: this.#serverAccount.address as `0x${string}`,
+      name: this.serverAccount.name,
+      address: this.serverAccount.address as `0x${string}`,
     };
   }
 
@@ -158,7 +158,7 @@ export class CdpSolanaWalletProvider extends SvmWalletProvider implements Wallet
    * @returns The wallet's public key
    */
   getPublicKey(): PublicKey {
-    return new PublicKey(this.#serverAccount.address);
+    return new PublicKey(this.serverAccount.address);
   }
 
   /**
@@ -167,7 +167,7 @@ export class CdpSolanaWalletProvider extends SvmWalletProvider implements Wallet
    * @returns The base58 encoded address of the wallet
    */
   getAddress(): string {
-    return this.#serverAccount.address;
+    return this.serverAccount.address;
   }
 
   /**
@@ -200,7 +200,7 @@ export class CdpSolanaWalletProvider extends SvmWalletProvider implements Wallet
 
     const signedTransactionResponse = await this.#cdp.solana.signTransaction({
       transaction: encodedSerializedTransaction,
-      address: this.#serverAccount.address,
+      address: this.serverAccount.address,
     });
 
     const signedTransactionBytes = Buffer.from(

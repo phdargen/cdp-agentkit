@@ -8,7 +8,7 @@ import {
   DirectX402RequestSchema,
   ListX402ServicesSchema,
 } from "./schemas";
-import { EvmWalletProvider } from "../../wallet-providers";
+import { CdpSolanaWalletProvider, EvmWalletProvider, SvmWalletProvider, WalletProvider } from "../../wallet-providers";
 import axios, { AxiosError } from "axios";
 import { withPaymentInterceptor, decodeXPaymentResponse } from "x402-axios";
 import { PaymentRequirements } from "x402/types";
@@ -27,7 +27,7 @@ const SUPPORTED_NETWORKS = ["base-mainnet", "base-sepolia", "solana-mainnet", "s
 /**
  * X402ActionProvider provides actions for making HTTP requests, with optional x402 payment handling.
  */
-export class X402ActionProvider extends ActionProvider<EvmWalletProvider> {
+export class X402ActionProvider extends ActionProvider<EvmWalletProvider | SvmWalletProvider> {
   /**
    * Creates a new instance of X402ActionProvider.
    * Initializes the provider with x402 capabilities.
@@ -291,10 +291,11 @@ DO NOT use this action directly without first trying make_http_request!`,
     schema: RetryWithX402Schema,
   })
   async retryWithX402(
-    walletProvider: EvmWalletProvider,
+    walletProvider: WalletProvider,
     args: z.infer<typeof RetryWithX402Schema>,
   ): Promise<string> {
     try {
+
       // Check network compatibility before attempting payment
       const walletNetwork = getX402Network(walletProvider.getNetwork());
       const selectedNetwork = args.selectedPaymentOption.network;
@@ -311,9 +312,16 @@ DO NOT use this action directly without first trying make_http_request!`,
         );
       }
 
-      // Make the request with payment handling
-      const account = walletProvider.toSigner();
+      if ( !(walletProvider instanceof CdpSolanaWalletProvider || walletProvider instanceof EvmWalletProvider)) {
+        return JSON.stringify({
+          error: true,
+          message: "Unsupported wallet provider",
+          details: "Only CdpSolanaWalletProvider and EvmWalletProvider are supported",
+        }, null, 2);
+      }
+      const account = walletProvider instanceof CdpSolanaWalletProvider ? walletProvider.serverAccount : walletProvider.toSigner();
 
+      // Make the request with payment handling
       const paymentSelector = (accepts: PaymentRequirements[]) => {
         const { scheme, network, maxAmountRequired, asset } = args.selectedPaymentOption;
 
@@ -418,11 +426,20 @@ Unless specifically instructed otherwise, prefer the two-step approach with make
     schema: DirectX402RequestSchema,
   })
   async makeHttpRequestWithX402(
-    walletProvider: EvmWalletProvider,
+    walletProvider: WalletProvider,
     args: z.infer<typeof DirectX402RequestSchema>,
   ): Promise<string> {
     try {
-      const account = walletProvider.toSigner();
+      console.log("make_http_request_with_x402 called with args", args);
+
+      if ( !(walletProvider instanceof CdpSolanaWalletProvider || walletProvider instanceof EvmWalletProvider)) {
+        return JSON.stringify({
+          error: true,
+          message: "Unsupported wallet provider",
+          details: "Only CdpSolanaWalletProvider and EvmWalletProvider are supported",
+        }, null, 2);
+      }
+      const account = walletProvider instanceof CdpSolanaWalletProvider ? walletProvider.serverAccount : walletProvider.toSigner();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const api = withPaymentInterceptor(axios.create({}), account as any);
 
@@ -469,7 +486,7 @@ Unless specifically instructed otherwise, prefer the two-step approach with make
    * @returns True if the network is supported, false otherwise
    */
   supportsNetwork = (network: Network) =>
-    network.protocolFamily === "evm" && SUPPORTED_NETWORKS.includes(network.networkId!);
+    SUPPORTED_NETWORKS.includes(network.networkId!);
 }
 
 export const x402ActionProvider = () => new X402ActionProvider();
