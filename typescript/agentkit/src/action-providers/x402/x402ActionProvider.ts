@@ -14,8 +14,9 @@ import { withPaymentInterceptor, decodeXPaymentResponse } from "x402-axios";
 import { PaymentRequirements } from "x402/types";
 import { useFacilitator } from "x402/verify";
 import { facilitator } from "@coinbase/x402";
+import { getX402Network, handleHttpError, formatPaymentOption } from "./utils";
 
-const SUPPORTED_NETWORKS = ["base-mainnet", "base-sepolia"];
+const SUPPORTED_NETWORKS = ["base-mainnet", "base-sepolia", "solana-mainnet", "solana-devnet"];
 
 /**
  * X402ActionProvider provides actions for making HTTP requests, with optional x402 payment handling.
@@ -30,15 +31,15 @@ export class X402ActionProvider extends ActionProvider<EvmWalletProvider> {
   }
 
   /**
-   * Lists available x402 services with optional filtering.
+   * Discovers available x402 services with optional filtering.
    *
    * @param args - Optional filters: asset and maxPrice
    * @returns JSON string with the list of services (possibly filtered)
    */
   @CreateAction({
-    name: "list_x402_services",
+    name: "discover_x402_services",
     description:
-      "List available x402 services. Optionally filter by a maximum price in base units.",
+      "Discover available x402 services. Optionally filter by a maximum price in base units.",
     schema: ListX402ServicesSchema,
   })
   async listX402Services(args: z.infer<typeof ListX402ServicesSchema>): Promise<string> {
@@ -137,18 +138,37 @@ If you receive a 402 Payment Required response, use retry_http_request_with_x402
         );
       }
 
+      // Check if wallet network matches any available payment options
+      const walletNetwork = getX402Network(walletProvider.getNetwork());
+      const availableNetworks = response.data.accepts.map(option => option.network);
+      const hasMatchingNetwork = availableNetworks.includes(walletNetwork);
+
+      let paymentOptionsText = `The wallet network ${walletNetwork} does not match any available payment options (${availableNetworks.join(", ")}).`;
+      // Format payment options for matching networks
+      if (hasMatchingNetwork) {
+        const matchingOptions = response.data.accepts.filter(
+          option => option.network === walletNetwork,
+        );
+        const formattedOptions = await Promise.all(
+          matchingOptions.map(option => formatPaymentOption(option, walletProvider)),
+        );
+        paymentOptionsText = `The payment options are: ${formattedOptions.join(", ")}`;
+      }
+
       return JSON.stringify({
         status: "error_402_payment_required",
         acceptablePaymentOptions: response.data.accepts,
         nextSteps: [
           "Inform the user that the requested server replied with a 402 Payment Required response.",
-          `The payment options are: ${response.data.accepts.map(option => `${option.asset} ${option.maxAmountRequired} ${option.network}`).join(", ")}`,
-          "Ask the user if they want to retry the request with payment.",
-          `Use retry_http_request_with_x402 to retry the request with payment.`,
+          paymentOptionsText,
+          hasMatchingNetwork ? "Ask the user if they want to retry the request with payment." : "",
+          hasMatchingNetwork
+            ? `Use retry_http_request_with_x402 to retry the request with payment.`
+            : "",
         ],
       });
     } catch (error) {
-      return this.handleHttpError(error as AxiosError, args.url);
+      return handleHttpError(error as AxiosError, args.url);
     }
   }
 
@@ -178,6 +198,22 @@ DO NOT use this action directly without first trying make_http_request!`,
     args: z.infer<typeof RetryWithX402Schema>,
   ): Promise<string> {
     try {
+      // Check network compatibility before attempting payment
+      const walletNetwork = getX402Network(walletProvider.getNetwork());
+      const selectedNetwork = args.selectedPaymentOption.network;
+
+      if (walletNetwork !== selectedNetwork) {
+        return JSON.stringify(
+          {
+            error: true,
+            message: "Network mismatch",
+            details: `Wallet is on ${walletNetwork} but payment requires ${selectedNetwork}`,
+          },
+          null,
+          2,
+        );
+      }
+
       // Make the request with payment handling
       const account = walletProvider.toSigner();
 
@@ -250,7 +286,7 @@ DO NOT use this action directly without first trying make_http_request!`,
         },
       });
     } catch (error) {
-      return this.handleHttpError(error as AxiosError, args.url);
+      return handleHttpError(error as AxiosError, args.url);
     }
   }
 
@@ -275,6 +311,7 @@ This action combines both steps into one, which means:
 - No chance to review payment details before paying
 - No confirmation step
 - Automatic payment processing
+- Assumes payment option is compatible with wallet network
 
 EXAMPLES:
 - Production: make_http_request_with_x402("https://api.example.com/data")
@@ -324,7 +361,7 @@ Unless specifically instructed otherwise, prefer the two-step approach with make
         2,
       );
     } catch (error) {
-      return this.handleHttpError(error as AxiosError, args.url);
+      return handleHttpError(error as AxiosError, args.url);
     }
   }
 
@@ -336,52 +373,6 @@ Unless specifically instructed otherwise, prefer the two-step approach with make
    */
   supportsNetwork = (network: Network) =>
     network.protocolFamily === "evm" && SUPPORTED_NETWORKS.includes(network.networkId!);
-
-  /**
-   * Helper method to handle HTTP errors consistently.
-   *
-   * @param error - The axios error to handle
-   * @param url - The URL that was being accessed when the error occurred
-   * @returns A JSON string containing formatted error details
-   */
-  private handleHttpError(error: AxiosError, url: string): string {
-    if (error.response) {
-      return JSON.stringify(
-        {
-          error: true,
-          message: `HTTP ${error.response.status} error when accessing ${url}`,
-          details: (error.response.data as { error?: string })?.error || error.response.statusText,
-          suggestion: "Check if the URL is correct and the API is available.",
-        },
-        null,
-        2,
-      );
-    }
-
-    if (error.request) {
-      return JSON.stringify(
-        {
-          error: true,
-          message: `Network error when accessing ${url}`,
-          details: error.message,
-          suggestion: "Check your internet connection and verify the API endpoint is accessible.",
-        },
-        null,
-        2,
-      );
-    }
-
-    return JSON.stringify(
-      {
-        error: true,
-        message: `Error making request to ${url}`,
-        details: error.message,
-        suggestion: "Please check the request parameters and try again.",
-      },
-      null,
-      2,
-    );
-  }
 }
 
 export const x402ActionProvider = () => new X402ActionProvider();
