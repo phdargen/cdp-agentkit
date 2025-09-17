@@ -3,11 +3,11 @@ import { z } from "zod";
 // Schema for listing x402 services
 export const ListX402ServicesSchema = z
   .object({
-    maxPrice: z
+    maxUsdcPrice: z
       .number()
       .optional()
       .describe(
-        "Optional maximum price in the same base units used by the service (e.g., 100000 for $0.10 USDC with 6 decimals)",
+        "Optional maximum price in USDC whole units (e.g., 0.1 for 0.10 USDC). Only USDC payment options will be considered when this filter is applied.",
       ),
   })
   .strip()

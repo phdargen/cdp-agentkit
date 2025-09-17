@@ -9,6 +9,7 @@ x402/
 ├── x402ActionProvider.ts         # Main provider with x402 payment functionality
 ├── schemas.ts                    # x402 action schemas
 ├── index.ts                      # Main exports
+├── utils.ts                      # Utility functions
 └── README.md                     # This file
 ```
 
@@ -22,7 +23,7 @@ x402/
 ### Alternative Action
 
 - `make_http_request_with_x402`: Direct payment-enabled requests (skips confirmation flow)
-- `list_x402_services`: List available x402 services (optionally filter by asset and price)
+- `discover_x402_services`: Discover available x402 services (optionally filter by asset and price)
 
 ## Overview
 
@@ -71,15 +72,10 @@ Retries request with payment after 402:
   method: "GET",                    // Optional, defaults to GET
   headers: { "Accept": "..." },     // Optional
   body: { ... },                    // Optional
-  paymentOption: {                  // Payment details from 402 response
+  selectedPaymentOption: {           // Payment details from 402 response
     scheme: "exact",
     network: "base-sepolia",
     maxAmountRequired: "1000",
-    resource: "https://api.example.com/data",
-    description: "Access to data",
-    mimeType: "application/json",
-    payTo: "0x...",
-    maxTimeoutSeconds: 300,
     asset: "0x..."
   }
 }
@@ -98,26 +94,24 @@ Direct payment-enabled requests (use with caution):
 }
 ```
 
-### `list_x402_services` Action
+### `discover_x402_services` Action
 
-Fetches available services and optionally filters them by maximum price (base units). The action defaults to USDC on the current network (base-mainnet or base-sepolia):
+Fetches available services and optionally filters them by maximum price in USDC whole units. The action defaults to USDC on the current network:
 
 ```typescript
 {
-  maxPrice: 100000 // optional (e.g., < $0.10 with 6 decimals)
+  maxUsdcPrice: 0.1 // optional (e.g., 0.1 for $0.10 USDC)
 }
 ```
 
-Example filtering for USDC services under $0.10 (6 decimals):
+Example filtering for USDC services under $0.10:
 
 ```ts
-const maxPrice = 100000;
+const maxUsdcPrice = 0.1;
 
-const services = await list_x402_services({ maxPrice });
+const services = await discover_x402_services({ maxUsdcPrice });
 
-// The action uses USDC by default per network:
-// - base-mainnet: 0x833589fcd6edb6e08f4c7c32d4f71b54bda02913
-// - base-sepolia: 0x036CbD53842c5426634e7929541eC2318f3dCF7e
+
 ```
 
 ## Response Format

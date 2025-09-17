@@ -14,7 +14,13 @@ import { withPaymentInterceptor, decodeXPaymentResponse } from "x402-axios";
 import { PaymentRequirements } from "x402/types";
 import { useFacilitator } from "x402/verify";
 import { facilitator } from "@coinbase/x402";
-import { getX402Network, handleHttpError, formatPaymentOption } from "./utils";
+import {
+  getX402Network,
+  handleHttpError,
+  formatPaymentOption,
+  convertWholeUnitsToAtomic,
+  isUsdcAsset,
+} from "./utils";
 
 const SUPPORTED_NETWORKS = ["base-mainnet", "base-sepolia", "solana-mainnet", "solana-devnet"];
 
@@ -33,42 +39,134 @@ export class X402ActionProvider extends ActionProvider<EvmWalletProvider> {
   /**
    * Discovers available x402 services with optional filtering.
    *
-   * @param args - Optional filters: asset and maxPrice
-   * @returns JSON string with the list of services (possibly filtered)
+   * @param walletProvider - The wallet provider to use for network filtering
+   * @param args - Optional filters: maxUsdcPrice
+   * @returns JSON string with the list of services (filtered by network and description)
    */
   @CreateAction({
     name: "discover_x402_services",
     description:
-      "Discover available x402 services. Optionally filter by a maximum price in base units.",
+      "Discover available x402 services. Optionally filter by a maximum price in whole units of USDC (only USDC payment options will be considered when filter is applied).",
     schema: ListX402ServicesSchema,
   })
-  async listX402Services(args: z.infer<typeof ListX402ServicesSchema>): Promise<string> {
+  async discoverX402Services(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof ListX402ServicesSchema>,
+  ): Promise<string> {
     try {
       const { list } = useFacilitator(facilitator);
       const services = await list();
-      console.log("services", services);
+      if (!services || !services.items) {
+        return JSON.stringify({
+          error: true,
+          message: "No services found",
+        });
+      }
 
-      // Only filter by maxPrice when a positive number is provided; otherwise, return all services
-      const hasValidMaxPrice =
-        typeof args.maxPrice === "number" && Number.isFinite(args.maxPrice) && args.maxPrice > 0;
+      // Get the current wallet network
+      const walletNetwork = getX402Network(walletProvider.getNetwork());
 
-      const filtered = services?.items
-        ? hasValidMaxPrice
-          ? services.items.filter(item => {
-              const accepts = Array.isArray(item.accepts) ? item.accepts : [];
-              return accepts.some(req => {
-                const requirement = Number(req.maxAmountRequired);
-                return Number.isFinite(requirement) && requirement <= (args.maxPrice as number);
-              });
-            })
-          : services.items
-        : [];
-      console.log("filtered", filtered);
+      // Filter services by network, description, and optional USDC price
+      const hasValidMaxUsdcPrice =
+        typeof args.maxUsdcPrice === "number" &&
+        Number.isFinite(args.maxUsdcPrice) &&
+        args.maxUsdcPrice > 0;
+
+      const filteredServices = services.items.filter(item => {
+        // Filter by network - only include services that accept the current wallet network
+        const accepts = Array.isArray(item.accepts) ? item.accepts : [];
+        const hasMatchingNetwork = accepts.some(req => req.network === walletNetwork);
+
+        // Filter out services with empty or default descriptions
+        const hasDescription = accepts.some(
+          req =>
+            req.description &&
+            req.description.trim() !== "" &&
+            req.description.trim() !== "Access to protected content",
+        );
+
+        return hasMatchingNetwork && hasDescription;
+      });
+
+      // Apply USDC price filtering if maxUsdcPrice is provided (only consider USDC assets)
+      let priceFilteredServices = filteredServices;
+      if (hasValidMaxUsdcPrice) {
+        priceFilteredServices = [];
+        for (const item of filteredServices) {
+          const accepts = Array.isArray(item.accepts) ? item.accepts : [];
+          let shouldInclude = false;
+
+          for (const req of accepts) {
+            if (req.network === walletNetwork && req.asset && req.maxAmountRequired) {
+              // Only consider USDC assets when maxUsdcPrice filter is applied
+              if (isUsdcAsset(req.asset, walletProvider)) {
+                try {
+                  const maxUsdcPriceAtomic = await convertWholeUnitsToAtomic(
+                    args.maxUsdcPrice as number,
+                    req.asset,
+                    walletProvider,
+                  );
+                  if (maxUsdcPriceAtomic) {
+                    const requirement = BigInt(req.maxAmountRequired);
+                    const maxUsdcPriceAtomicBigInt = BigInt(maxUsdcPriceAtomic);
+                    if (requirement <= maxUsdcPriceAtomicBigInt) {
+                      shouldInclude = true;
+                      break;
+                    }
+                  }
+                } catch {
+                  // If conversion fails, skip this requirement
+                  continue;
+                }
+              }
+            }
+          }
+
+          if (shouldInclude) {
+            priceFilteredServices.push(item);
+          }
+        }
+      }
+
+      // Format the filtered services
+      const filtered = await Promise.all(
+        priceFilteredServices.map(async item => {
+          const accepts = Array.isArray(item.accepts) ? item.accepts : [];
+          const matchingAccept = accepts.find(req => req.network === walletNetwork);
+
+          // Format amount if available
+          let formattedMaxAmount = matchingAccept?.maxAmountRequired;
+          if (matchingAccept?.maxAmountRequired && matchingAccept?.asset) {
+            formattedMaxAmount = await formatPaymentOption(
+              {
+                asset: matchingAccept.asset,
+                maxAmountRequired: matchingAccept.maxAmountRequired,
+                network: matchingAccept.network,
+              },
+              walletProvider,
+            );
+          }
+
+          return {
+            resource: item.resource,
+            description: matchingAccept?.description || "",
+            cost: formattedMaxAmount,
+            ...(matchingAccept?.outputSchema?.input && {
+              input: matchingAccept.outputSchema.input,
+            }),
+            ...(matchingAccept?.outputSchema?.output && {
+              output: matchingAccept.outputSchema.output,
+            }),
+            ...(item.metadata && item.metadata.length > 0 && { metadata: item.metadata }),
+          };
+        }),
+      );
 
       return JSON.stringify(
         {
           success: true,
-          total: services?.items?.length ?? 0,
+          walletNetwork,
+          total: services.items.length,
           returned: filtered.length,
           items: filtered,
         },
@@ -82,7 +180,6 @@ export class X402ActionProvider extends ActionProvider<EvmWalletProvider> {
           error: true,
           message: "Failed to list x402 services",
           details: message,
-          suggestion: "Ensure @coinbase/x402 is configured and the facilitator is reachable.",
         },
         null,
         2,

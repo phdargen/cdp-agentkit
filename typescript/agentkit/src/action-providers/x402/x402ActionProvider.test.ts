@@ -228,14 +228,17 @@ describe("X402ActionProvider", () => {
       const mockList = jest.fn().mockResolvedValue({
         items: [
           {
-            id: "svc-1",
-            name: "Service 1",
+            resource: "https://example.com/service1",
+            metadata: { category: "test" },
             accepts: [
               {
                 asset: "0xUSDC",
                 maxAmountRequired: "90000",
                 network: "base-sepolia",
                 scheme: "exact",
+                description: "Test service 1",
+                outputSchema: { type: "object" },
+                extra: { name: "USDC" },
               },
             ],
           },
@@ -244,7 +247,10 @@ describe("X402ActionProvider", () => {
 
       mockUseFacilitator.mockReturnValue({ list: mockList });
 
-      const result = await provider.listX402Services({});
+      const result = await provider.discoverX402Services(
+        makeMockWalletProvider("base-sepolia"),
+        {},
+      );
       const parsed = JSON.parse(result);
       expect(parsed.success).toBe(true);
       expect(parsed.total).toBe(1);
@@ -256,35 +262,47 @@ describe("X402ActionProvider", () => {
       const mockList = jest.fn().mockResolvedValue({
         items: [
           {
-            id: "svc-1",
+            resource: "https://example.com/service1",
+            metadata: { category: "test" },
             accepts: [
               {
-                asset: "0xUSDC",
-                maxAmountRequired: "90000",
+                asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Real USDC address for base-sepolia
+                maxAmountRequired: "90000", // 0.09 USDC (should pass 0.1 filter)
                 network: "base-sepolia",
                 scheme: "exact",
+                description: "Test service 1",
+                outputSchema: { type: "object" },
+                extra: { name: "USDC" },
               },
             ],
           },
           {
-            id: "svc-2",
+            resource: "https://example.com/service2",
+            metadata: { category: "test" },
             accepts: [
               {
-                asset: "0xUSDC",
-                maxAmountRequired: "150000",
+                asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Real USDC address for base-sepolia
+                maxAmountRequired: "150000", // 0.15 USDC (should fail 0.1 filter)
                 network: "base-sepolia",
                 scheme: "exact",
+                description: "Test service 2",
+                outputSchema: { type: "object" },
+                extra: { name: "USDC" },
               },
             ],
           },
           {
-            id: "svc-3",
+            resource: "https://example.com/service3",
+            metadata: { category: "test" },
             accepts: [
               {
-                asset: "0xOTHER",
-                maxAmountRequired: "50000",
+                asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Real USDC address for base-sepolia
+                maxAmountRequired: "50000", // 0.05 USDC (should pass 0.1 filter)
                 network: "base-sepolia",
                 scheme: "exact",
+                description: "Test service 3",
+                outputSchema: { type: "object" },
+                extra: { name: "USDC" },
               },
             ],
           },
@@ -293,20 +311,25 @@ describe("X402ActionProvider", () => {
 
       mockUseFacilitator.mockReturnValue({ list: mockList });
 
-      const result = await provider.listX402Services({
-        maxPrice: 100000,
+      const result = await provider.discoverX402Services(makeMockWalletProvider("base-sepolia"), {
+        maxUsdcPrice: 0.1,
       });
       const parsed = JSON.parse(result);
       expect(parsed.success).toBe(true);
       expect(parsed.returned).toBe(2);
-      expect(parsed.items.map(item => item.id)).toEqual(expect.arrayContaining(["svc-1", "svc-3"]));
+      expect(parsed.items.map(item => item.resource)).toEqual(
+        expect.arrayContaining(["https://example.com/service1", "https://example.com/service3"]),
+      );
     });
 
     it("should handle errors from facilitator", async () => {
       const mockList = jest.fn().mockRejectedValue(new Error("boom"));
       mockUseFacilitator.mockReturnValue({ list: mockList });
 
-      const result = await provider.listX402Services({});
+      const result = await provider.discoverX402Services(
+        makeMockWalletProvider("base-sepolia"),
+        {},
+      );
       const parsed = JSON.parse(result);
       expect(parsed.error).toBe(true);
       expect(parsed.message).toContain("Failed to list x402 services");
