@@ -41,11 +41,7 @@
   "dependencies": {
     "@across-protocol/app-sdk": "^0.2.0",
     "@alloralabs/allora-sdk": "^0.1.0",
-<<<<<<< HEAD
-    "@coinbase/cdp-sdk": "^1.36.1",
-=======
     "@coinbase/cdp-sdk": "^1.38.0",
->>>>>>> 56a08e9d (bump x402 version)
     "@coinbase/coinbase-sdk": "^0.20.0",
     "@coinbase/x402": "^0.6.3",
     "@jup-ag/api": "^6.0.39",

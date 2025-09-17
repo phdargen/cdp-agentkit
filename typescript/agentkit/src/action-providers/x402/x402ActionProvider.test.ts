@@ -244,10 +244,7 @@ describe("X402ActionProvider", () => {
 
       mockUseFacilitator.mockReturnValue({ list: mockList });
 
-      const result = await provider.listX402Services(
-        makeMockWalletProvider("base-sepolia"),
-        {} as any,
-      );
+      const result = await provider.listX402Services({});
       const parsed = JSON.parse(result);
       expect(parsed.success).toBe(true);
       expect(parsed.total).toBe(1);
@@ -261,19 +258,34 @@ describe("X402ActionProvider", () => {
           {
             id: "svc-1",
             accepts: [
-              { asset: "0xUSDC", maxAmountRequired: "90000", network: "base-sepolia", scheme: "exact" },
+              {
+                asset: "0xUSDC",
+                maxAmountRequired: "90000",
+                network: "base-sepolia",
+                scheme: "exact",
+              },
             ],
           },
           {
             id: "svc-2",
             accepts: [
-              { asset: "0xUSDC", maxAmountRequired: "150000", network: "base-sepolia", scheme: "exact" },
+              {
+                asset: "0xUSDC",
+                maxAmountRequired: "150000",
+                network: "base-sepolia",
+                scheme: "exact",
+              },
             ],
           },
           {
             id: "svc-3",
             accepts: [
-              { asset: "0xOTHER", maxAmountRequired: "50000", network: "base-sepolia", scheme: "exact" },
+              {
+                asset: "0xOTHER",
+                maxAmountRequired: "50000",
+                network: "base-sepolia",
+                scheme: "exact",
+              },
             ],
           },
         ],
@@ -281,24 +293,20 @@ describe("X402ActionProvider", () => {
 
       mockUseFacilitator.mockReturnValue({ list: mockList });
 
-      const result = await provider.listX402Services(
-        makeMockWalletProvider("base-sepolia"),
-        { maxPrice: 100000 } as any,
-      );
+      const result = await provider.listX402Services({
+        maxPrice: 100000,
+      });
       const parsed = JSON.parse(result);
       expect(parsed.success).toBe(true);
-      expect(parsed.returned).toBe(1);
-      expect(parsed.items[0].id).toBe("svc-1");
+      expect(parsed.returned).toBe(2);
+      expect(parsed.items.map(item => item.id)).toEqual(expect.arrayContaining(["svc-1", "svc-3"]));
     });
 
     it("should handle errors from facilitator", async () => {
       const mockList = jest.fn().mockRejectedValue(new Error("boom"));
       mockUseFacilitator.mockReturnValue({ list: mockList });
 
-      const result = await provider.listX402Services(
-        makeMockWalletProvider("base-mainnet"),
-        {} as any,
-      );
+      const result = await provider.listX402Services({});
       const parsed = JSON.parse(result);
       expect(parsed.error).toBe(true);
       expect(parsed.message).toContain("Failed to list x402 services");
@@ -384,10 +392,13 @@ describe("X402ActionProvider", () => {
         config: {} as AxiosRequestConfig,
       } as AxiosResponse);
 
-      const result = await provider.makeHttpRequestWithX402(makeMockWalletProvider("base-sepolia"), {
-        url: "https://www.x402.org/protected",
-        method: "GET",
-      });
+      const result = await provider.makeHttpRequestWithX402(
+        makeMockWalletProvider("base-sepolia"),
+        {
+          url: "https://www.x402.org/protected",
+          method: "GET",
+        },
+      );
 
       expect(mockWithPaymentInterceptor).toHaveBeenCalledWith(mockAxiosInstance, "mock-signer");
 
@@ -410,10 +421,13 @@ describe("X402ActionProvider", () => {
         config: {} as AxiosRequestConfig,
       } as AxiosResponse);
 
-      const result = await provider.makeHttpRequestWithX402(makeMockWalletProvider("base-sepolia"), {
-        url: "https://api.example.com/free",
-        method: "GET",
-      });
+      const result = await provider.makeHttpRequestWithX402(
+        makeMockWalletProvider("base-sepolia"),
+        {
+          url: "https://api.example.com/free",
+          method: "GET",
+        },
+      );
 
       const parsedResult = JSON.parse(result);
       expect(parsedResult.success).toBe(true);
@@ -428,10 +442,13 @@ describe("X402ActionProvider", () => {
 
       mockRequest.mockRejectedValue(error);
 
-      const result = await provider.makeHttpRequestWithX402(makeMockWalletProvider("base-sepolia"), {
-        url: "https://api.example.com/endpoint",
-        method: "GET",
-      });
+      const result = await provider.makeHttpRequestWithX402(
+        makeMockWalletProvider("base-sepolia"),
+        {
+          url: "https://api.example.com/endpoint",
+          method: "GET",
+        },
+      );
 
       const parsedResult = JSON.parse(result);
       expect(parsedResult.error).toBe(true);

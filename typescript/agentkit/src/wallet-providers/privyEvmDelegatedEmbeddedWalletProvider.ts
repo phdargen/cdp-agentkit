@@ -222,6 +222,34 @@ export class PrivyEvmDelegatedEmbeddedWalletProvider extends WalletProvider {
   }
 
   /**
+   * Signs a raw hash.
+   *
+   * @param hash - The hash to sign.
+   * @returns The signed hash.
+   */
+  async sign(hash: `0x${string}`): Promise<Hex> {
+    const body = {
+      address: this.#address,
+      chain_type: "ethereum",
+      method: "personal_sign",
+      params: {
+        message: hash,
+        encoding: "hex",
+      },
+    };
+
+    try {
+      const response = await this.executePrivyRequest<PrivyResponse<{ signature: Hex }>>(body);
+      return response.data?.signature;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Hash signing failed: ${error.message}`);
+      }
+      throw new Error("Hash signing failed");
+    }
+  }
+
+  /**
    * Signs a message.
    *
    * @param message - The message to sign.

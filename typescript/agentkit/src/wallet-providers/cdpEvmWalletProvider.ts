@@ -140,6 +140,16 @@ export class CdpEvmWalletProvider extends EvmWalletProvider implements WalletPro
   }
 
   /**
+   * Signs a raw hash.
+   *
+   * @param hash - The hash to sign.
+   * @returns The signed hash.
+   */
+  async sign(hash: `0x${string}`): Promise<Hex> {
+    return this.#serverAccount.sign({ hash });
+  }
+
+  /**
    * Signs a message.
    *
    * @param message - The message to sign.

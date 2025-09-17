@@ -206,6 +206,26 @@ export class LegacyCdpWalletProvider extends EvmWalletProvider {
   }
 
   /**
+   * Signs a raw hash.
+   *
+   * @param hash - The hash to sign.
+   * @returns The signed hash.
+   */
+  async sign(hash: `0x${string}`): Promise<`0x${string}`> {
+    if (!this.#cdpWallet) {
+      throw new Error("Wallet not initialized");
+    }
+
+    const payload = await this.#cdpWallet.createPayloadSignature(hash);
+
+    if (payload.getStatus() === "pending" && payload?.wait) {
+      await payload.wait(); // needed for Server-Signers
+    }
+
+    return payload.getSignature() as `0x${string}`;
+  }
+
+  /**
    * Signs a message.
    *
    * @param message - The message to sign.

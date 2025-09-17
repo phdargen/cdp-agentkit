@@ -32,7 +32,6 @@ export class X402ActionProvider extends ActionProvider<EvmWalletProvider> {
   /**
    * Lists available x402 services with optional filtering.
    *
-   * @param _walletProvider - Unused for this action; listing does not require a wallet
    * @param args - Optional filters: asset and maxPrice
    * @returns JSON string with the list of services (possibly filtered)
    */
@@ -42,10 +41,7 @@ export class X402ActionProvider extends ActionProvider<EvmWalletProvider> {
       "List available x402 services. Optionally filter by a maximum price in base units.",
     schema: ListX402ServicesSchema,
   })
-  async listX402Services(
-    walletProvider: EvmWalletProvider,
-    args: z.infer<typeof ListX402ServicesSchema>,
-  ): Promise<string> {
+  async listX402Services(args: z.infer<typeof ListX402ServicesSchema>): Promise<string> {
     try {
       const { list } = useFacilitator(facilitator);
       const services = await list();
@@ -56,15 +52,15 @@ export class X402ActionProvider extends ActionProvider<EvmWalletProvider> {
         typeof args.maxPrice === "number" && Number.isFinite(args.maxPrice) && args.maxPrice > 0;
 
       const filtered = services?.items
-        ? (hasValidMaxPrice
-            ? services.items.filter(item => {
-                const accepts = Array.isArray(item.accepts) ? item.accepts : [];
-                return accepts.some(req => {
-                  const requirement = Number(req.maxAmountRequired);
-                  return Number.isFinite(requirement) && requirement <= (args.maxPrice as number);
-                });
-              })
-            : services.items)
+        ? hasValidMaxPrice
+          ? services.items.filter(item => {
+              const accepts = Array.isArray(item.accepts) ? item.accepts : [];
+              return accepts.some(req => {
+                const requirement = Number(req.maxAmountRequired);
+                return Number.isFinite(requirement) && requirement <= (args.maxPrice as number);
+              });
+            })
+          : services.items
         : [];
       console.log("filtered", filtered);
 
