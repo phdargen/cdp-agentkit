@@ -144,6 +144,7 @@ describe("CdpEvmWalletProvider", () => {
 
     mockServerAccount = {
       address: MOCK_ADDRESS,
+      sign: jest.fn().mockResolvedValue(MOCK_SIGNATURE),
       signMessage: jest.fn().mockResolvedValue(MOCK_SIGNATURE),
       signTypedData: jest.fn().mockResolvedValue(MOCK_SIGNATURE),
     } as unknown as jest.Mocked<EvmServerAccount>;
@@ -270,6 +271,13 @@ describe("CdpEvmWalletProvider", () => {
   // =========================================================
 
   describe("signing operations", () => {
+    it("should sign a hash", async () => {
+      const testHash = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as `0x${string}`;
+      const signature = await provider.sign(testHash);
+      expect(mockServerAccount.sign).toHaveBeenCalledWith({ hash: testHash });
+      expect(signature).toBe(MOCK_SIGNATURE);
+    });
+
     it("should sign messages", async () => {
       const signature = await provider.signMessage("Hello, world!");
       expect(mockServerAccount.signMessage).toHaveBeenCalledWith({ message: "Hello, world!" });

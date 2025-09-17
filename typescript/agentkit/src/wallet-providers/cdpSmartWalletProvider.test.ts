@@ -138,6 +138,7 @@ describe("CdpSmartWalletProvider", () => {
 
     mockOwnerAccount = {
       address: MOCK_ADDRESS,
+      sign: jest.fn().mockResolvedValue(MOCK_SIGNATURE),
       signMessage: jest.fn().mockResolvedValue(MOCK_SIGNATURE),
       signTypedData: jest.fn().mockResolvedValue(MOCK_SIGNATURE),
     } as unknown as jest.Mocked<EvmServerAccount>;
@@ -242,9 +243,35 @@ describe("CdpSmartWalletProvider", () => {
   // =========================================================
 
   describe("signing operations", () => {
-    it("should throw error for direct message signing", async () => {
-      await expect(provider.signMessage("Hello, world!")).rejects.toThrow(
-        "Direct message signing not supported for smart wallets. Use sendTransaction instead.",
+    it("should sign a hash using owner account", async () => {
+      const testHash = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as `0x${string}`;
+      const signature = await provider.sign(testHash);
+      
+      expect(mockOwnerAccount.sign).toHaveBeenCalledWith({ hash: testHash });
+      expect(signature).toBe(MOCK_SIGNATURE);
+    });
+
+    it("should throw error when owner account does not support raw hash signing", async () => {
+      // Create a provider with an owner account that doesn't have sign method
+      const ownerAccountWithoutSign = {
+        address: MOCK_ADDRESS,
+        signMessage: jest.fn().mockResolvedValue(MOCK_SIGNATURE),
+        signTypedData: jest.fn().mockResolvedValue(MOCK_SIGNATURE),
+      } as unknown as jest.Mocked<EvmServerAccount>;
+
+      const providerWithUnsupportedOwner = await CdpSmartWalletProvider.configureWithWallet({
+        apiKeyId: "test-key-id",
+        apiKeySecret: "test-key-secret",
+        walletSecret: "test-wallet-secret",
+        networkId: MOCK_NETWORK_ID,
+      });
+
+      // Replace the owner account with one that doesn't support signing
+      (providerWithUnsupportedOwner as any).ownerAccount = ownerAccountWithoutSign;
+
+      const testHash = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as `0x${string}`;
+      await expect(providerWithUnsupportedOwner.sign(testHash)).rejects.toThrow(
+        "Owner account does not support raw hash signing"
       );
     });
 
