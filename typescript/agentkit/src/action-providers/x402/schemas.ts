@@ -1,5 +1,18 @@
 import { z } from "zod";
 
+// Schema for listing x402 services
+export const ListX402ServicesSchema = z
+  .object({
+    maxUsdcPrice: z
+      .number()
+      .optional()
+      .describe(
+        "Optional maximum price in USDC whole units (e.g., 0.1 for 0.10 USDC). Only USDC payment options will be considered when this filter is applied.",
+      ),
+  })
+  .strip()
+  .describe("Parameters for listing x402 services with optional filtering");
+
 // Schema for initial HTTP request
 export const HttpRequestSchema = z
   .object({

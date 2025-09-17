@@ -113,6 +113,7 @@ describe("ViemWalletProvider", () => {
 
     const mockAccount = {
       address: MOCK_ADDRESS as Address,
+      sign: jest.fn().mockResolvedValue(MOCK_SIGNATURE),
     } as unknown as jest.Mocked<Account>;
 
     mockPublicClient = {
@@ -218,6 +219,16 @@ describe("ViemWalletProvider", () => {
   });
 
   describe("signing operations", () => {
+    it("should sign a hash", async () => {
+      const testHash =
+        "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as `0x${string}`;
+      const signature = await provider.sign(testHash);
+      expect(mockWalletClient.account?.sign).toHaveBeenCalledWith({
+        hash: testHash,
+      });
+      expect(signature).toBe(MOCK_SIGNATURE);
+    });
+
     it("should sign a message", async () => {
       const signature = await provider.signMessage(MOCK_MESSAGE);
       expect(mockWalletClient.signMessage).toHaveBeenCalledWith({

@@ -188,15 +188,27 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
   }
 
   /**
+   * Signs a raw hash using the owner account.
+   *
+   * @param _hash - The hash to sign.
+   * @returns The signed hash.
+   */
+  async sign(_hash: Hex): Promise<Hex> {
+    if (!this.ownerAccount.sign) {
+      throw new Error("Owner account does not support raw hash signing");
+    }
+
+    return this.ownerAccount.sign({ hash: _hash });
+  }
+
+  /**
    * Signs a message using the owner account.
    *
    * @param _message - The message to sign.
    * @returns The signed message.
    */
   async signMessage(_message: string): Promise<Hex> {
-    throw new Error(
-      "Direct message signing not supported for smart wallets. Use sendTransaction instead.",
-    );
+    return this.ownerAccount.signMessage({ message: _message });
   }
 
   /**

@@ -542,6 +542,10 @@ const agent = createReactAgent({
 <summary><strong>x402</strong></summary>
 <table width="100%">
 <tr>
+    <td width="200"><code>discover_x402_services</code></td>
+    <td width="768">Discover available x402 services with optional filtering by maximum USDC price.</td>
+</tr>
+<tr>
     <td width="200"><code>make_http_request</code></td>
     <td width="768">Makes a basic HTTP request to an API endpoint. If the endpoint requires payment (returns 402),
 it will return payment details that can be used on retry.</td>
@@ -553,6 +557,10 @@ it will return payment details that can be used on retry.</td>
 <tr>
     <td width="200"><code>make_http_request_with_x402</code></td>
     <td width="768">Combines make_http_request and retry_http_request_with_x402 into a single step.</td>
+</tr>
+</table>
+</details>
+<details>
 <summary><strong>ZeroX</strong></summary>
 <table width="100%">
 <tr>

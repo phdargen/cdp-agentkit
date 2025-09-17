@@ -172,6 +172,20 @@ export class ZeroDevWalletProvider extends EvmWalletProvider {
   }
 
   /**
+   * Signs a raw hash using the Kernel account.
+   *
+   * @param hash - The hash to sign.
+   * @returns The signed hash.
+   */
+  async sign(hash: `0x${string}`): Promise<Hex> {
+    if (!this.#kernelAccount.sign) {
+      throw new Error("Kernel account does not support raw hash signing");
+    }
+
+    return this.#kernelAccount.sign({ hash });
+  }
+
+  /**
    * Signs a message using the Kernel account.
    *
    * @param message - The message to sign.
