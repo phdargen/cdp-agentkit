@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { CreateAction } from "../actionDecorator";
 import { ActionProvider } from "../actionProvider";
-import { WalletProvider } from "../../wallet-providers";
+import { WalletProvider, CdpSmartWalletProvider } from "../../wallet-providers";
 import { Network } from "../../network";
 import { formatUnits, parseUnits } from "viem";
 
@@ -75,6 +75,9 @@ export class WalletActionProvider extends ActionProvider {
         "Wallet Details:",
         `- Provider: ${name}`,
         `- Address: ${address}`,
+        ...(walletProvider instanceof CdpSmartWalletProvider
+          ? [`- Owner Address: ${walletProvider.ownerAccount.address}`]
+          : []),
         "- Network:",
         `  * Protocol Family: ${network.protocolFamily}`,
         `  * Network ID: ${network.networkId || "N/A"}`,
