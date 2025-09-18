@@ -8,6 +8,7 @@ import {
   walletActionProvider,
   WalletProvider,
   wethActionProvider,
+  x402ActionProvider,
 } from "@coinbase/agentkit";
 import * as fs from "fs";
 
@@ -83,6 +84,7 @@ export async function prepareAgentkitAndWalletProvider(): Promise<{
       walletSecret: process.env.CDP_WALLET_SECRET,
       networkId: process.env.NETWORK_ID || "base-sepolia",
       address: walletDataStr ? JSON.parse(walletDataStr).address : undefined,
+      rpcUrl: process.env.RPC_URL,
     });
 
     // Initialize AgentKit: https://docs.cdp.coinbase.com/agentkit/docs/agent-actions
@@ -95,6 +97,7 @@ export async function prepareAgentkitAndWalletProvider(): Promise<{
         erc20ActionProvider(),
         cdpApiActionProvider(),
         cdpEvmWalletActionProvider(),
+        x402ActionProvider(),
       ],
     });
 
