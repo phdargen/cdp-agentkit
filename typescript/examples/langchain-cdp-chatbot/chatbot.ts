@@ -10,6 +10,7 @@ import {
   CdpSolanaWalletProvider,
   splActionProvider,
   x402ActionProvider,
+  bankrActionProvider,
 } from "@coinbase/agentkit";
 import { getLangChainTools } from "@coinbase/agentkit-langchain";
 import { HumanMessage } from "@langchain/core/messages";
@@ -94,7 +95,7 @@ async function initializeAgent() {
   try {
     // Initialize LLM
     const llm = new ChatOpenAI({
-      model: "gpt-4o-mini",
+      model: "gpt-5-nano",
     });
 
     // Configure CDP Wallet Provider
@@ -124,6 +125,7 @@ async function initializeAgent() {
             erc20ActionProvider(),
             erc721ActionProvider(),
             x402ActionProvider(),
+            bankrActionProvider(),
           ]
         : isSolanaWalletProvider(walletProvider)
           ? [splActionProvider()]
