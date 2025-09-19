@@ -5,11 +5,13 @@ import { CdpEvmWalletActionProvider } from "./cdpEvmWalletActionProvider";
 import { ListSpendPermissionsSchema, UseSpendPermissionSchema, SwapSchema } from "./schemas";
 import * as spendPermissionUtils from "./spendPermissionUtils";
 import * as swapUtils from "./swapUtils";
+import * as utils from "../../utils";
 
 // Mock the CDP SDK and utility functions
 jest.mock("@coinbase/cdp-sdk");
 jest.mock("./spendPermissionUtils");
 jest.mock("./swapUtils");
+jest.mock("../../utils");
 
 describe("CDP EVM Wallet Action Provider", () => {
   let actionProvider: CdpEvmWalletActionProvider;
@@ -17,7 +19,7 @@ describe("CDP EVM Wallet Action Provider", () => {
   let mockCdpClient: jest.Mocked<CdpClient>;
   let mockAccount: any;
   const mockGetTokenDetails = swapUtils.getTokenDetails as jest.Mock;
-  const mockRetryWithExponentialBackoff = swapUtils.retryWithExponentialBackoff as jest.Mock;
+  const mockRetryWithExponentialBackoff = utils.retryWithExponentialBackoff as jest.Mock;
 
   beforeEach(() => {
     jest.clearAllMocks();
