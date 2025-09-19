@@ -323,6 +323,17 @@ export class SolanaKeypairWalletProvider extends SvmWalletProvider {
   }
 
   /**
+   * Sign a message.
+   *
+   * @param _ - The message to sign as a Uint8Array (unused)
+   * @returns Never - throws an error as message signing is not supported yet
+   */
+  async signMessage(_: Uint8Array): Promise<Uint8Array> {
+    throw new Error("Message signing is not supported yet for SolanaKeypairWalletProvider");
+  }
+  
+
+  /**
    * Request SOL tokens from the Solana faucet. This method only works on devnet and testnet networks.
    *
    * @param lamports - The amount of lamports (1 SOL = 1,000,000,000 lamports) to request from the faucet
@@ -330,5 +341,17 @@ export class SolanaKeypairWalletProvider extends SvmWalletProvider {
    */
   async requestAirdrop(lamports: number): Promise<string> {
     return await this.#connection.requestAirdrop(this.#keypair.publicKey, lamports);
+
+  }
+
+
+  /**
+   * Get the keypair for this wallet.
+   *
+   * @returns The CryptoKeyPair for KeyPairSigner compatibility
+   */
+  getKeyPair(): CryptoKeyPair {
+    throw new Error("getKeyPair is not supported for SolanaKeypairWalletProvider");
   }
 }
+
