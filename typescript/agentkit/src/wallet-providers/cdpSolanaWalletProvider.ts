@@ -51,9 +51,9 @@ interface ConfigureCdpSolanaWalletProviderWithWalletOptions {
  */
 export class CdpSolanaWalletProvider extends SvmWalletProvider implements WalletProviderWithClient {
   #connection: Connection;
-  #serverAccount: Awaited<ReturnType<typeof CdpClient.prototype.solana.createAccount>>;
   #cdp: CdpClient;
   #network: Network;
+  public serverAccount: Awaited<ReturnType<typeof CdpClient.prototype.solana.createAccount>>;
 
   /**
    * Constructs a new CdpSolanaWalletProvider.
@@ -63,7 +63,7 @@ export class CdpSolanaWalletProvider extends SvmWalletProvider implements Wallet
   private constructor(config: ConfigureCdpSolanaWalletProviderWithWalletOptions) {
     super();
 
-    this.#serverAccount = config.serverAccount;
+    this.serverAccount = config.serverAccount;
     this.#cdp = config.cdp;
     this.#connection = config.connection;
     this.#network = config.network;
@@ -138,8 +138,8 @@ export class CdpSolanaWalletProvider extends SvmWalletProvider implements Wallet
    */
   async exportWallet(): Promise<{ name: string | undefined; address: `0x${string}` }> {
     return {
-      name: this.#serverAccount.name,
-      address: this.#serverAccount.address as `0x${string}`,
+      name: this.serverAccount.name,
+      address: this.serverAccount.address as `0x${string}`,
     };
   }
 
@@ -158,7 +158,7 @@ export class CdpSolanaWalletProvider extends SvmWalletProvider implements Wallet
    * @returns The wallet's public key
    */
   getPublicKey(): PublicKey {
-    return new PublicKey(this.#serverAccount.address);
+    return new PublicKey(this.serverAccount.address);
   }
 
   /**
@@ -167,7 +167,7 @@ export class CdpSolanaWalletProvider extends SvmWalletProvider implements Wallet
    * @returns The base58 encoded address of the wallet
    */
   getAddress(): string {
-    return this.#serverAccount.address;
+    return this.serverAccount.address;
   }
 
   /**
@@ -200,7 +200,7 @@ export class CdpSolanaWalletProvider extends SvmWalletProvider implements Wallet
 
     const signedTransactionResponse = await this.#cdp.solana.signTransaction({
       transaction: encodedSerializedTransaction,
-      address: this.#serverAccount.address,
+      address: this.serverAccount.address,
     });
 
     const signedTransactionBytes = Buffer.from(
@@ -283,6 +283,26 @@ export class CdpSolanaWalletProvider extends SvmWalletProvider implements Wallet
   }
 
   /**
+   * Sign a message.
+   *
+   * @param message - The message to sign as a Uint8Array
+   * @returns The signature as a Uint8Array
+   */
+  async signMessage(message: Uint8Array): Promise<Uint8Array> {
+    // Convert Uint8Array to string for CDP SDK
+    const messageString = Buffer.from(message).toString('utf8');
+    
+    const { signature } = await this.#cdp.solana.signMessage({
+      address: this.serverAccount.address,
+      message: messageString,
+    });
+    
+    // Convert signature string back to Uint8Array
+    // CDP returns signature as a hex string, convert to bytes
+    return new Uint8Array(Buffer.from(signature, 'hex'));
+  }
+
+  /**
    * Transfer SOL from the wallet to another address
    *
    * @param to - The base58 encoded address to transfer the SOL to
@@ -330,4 +350,13 @@ export class CdpSolanaWalletProvider extends SvmWalletProvider implements Wallet
 
     return signature;
   }
+
+    /**
+   * Get the keypair for this wallet.
+   *
+   * @returns The CryptoKeyPair for KeyPairSigner compatibility
+   */
+    getKeyPair(): CryptoKeyPair {
+      throw new Error("getKeyPair is not supported for SolanaKeypairWalletProvider");
+    }
 }

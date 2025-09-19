@@ -250,4 +250,23 @@ export class PrivySvmWalletProvider extends SvmWalletProvider {
   getPublicKey(): PublicKey {
     return new PublicKey(this.#address);
   }
+
+  /**
+   * Sign a message.
+   *
+   * @param _ - The message to sign as a Uint8Array (unused)
+   * @returns Never - throws an error as message signing is not supported yet
+   */
+  async signMessage(_: Uint8Array): Promise<Uint8Array> {
+    throw new Error("Message signing is not supported yet for PrivySvmWalletProvider");
+  }
+
+    /**
+   * Get the keypair for this wallet.
+   *
+   * @returns The CryptoKeyPair for KeyPairSigner compatibility
+   */
+    getKeyPair(): CryptoKeyPair {
+      throw new Error("getKeyPair is not supported for SolanaKeypairWalletProvider");
+    }
 }
