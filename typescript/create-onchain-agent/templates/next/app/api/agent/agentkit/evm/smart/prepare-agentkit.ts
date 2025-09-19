@@ -8,10 +8,11 @@ import {
   walletActionProvider,
   WalletProvider,
   wethActionProvider,
+  x402ActionProvider,
 } from "@coinbase/agentkit";
 import * as fs from "fs";
 import { Address, Hex, LocalAccount } from "viem";
-import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { privateKeyToAccount } from "viem/accounts";
 
 /**
  * AgentKit Integration Route
@@ -114,6 +115,7 @@ export async function prepareAgentkitAndWalletProvider(): Promise<{
         erc20ActionProvider(),
         cdpApiActionProvider(),
         cdpSmartWalletActionProvider(),
+        x402ActionProvider(),
       ],
     });
 
