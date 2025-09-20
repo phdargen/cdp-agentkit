@@ -88,7 +88,6 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
     this.#network = config.network;
     this.#paymasterUrl = config.paymasterUrl;
   }
-
   /**
    * Configures a new CdpSmartWalletProvider with a smart wallet.
    *
@@ -112,11 +111,6 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
     }
 
     const networkId: string = config.networkId || process.env.NETWORK_ID || "base-sepolia";
-
-    // Smart wallets are currently only supported on Base networks
-    if (!networkId.startsWith("base-")) {
-      throw new Error(`Smart wallets are only supported on Base networks. Got: ${networkId}`);
-    }
 
     const network = {
       protocolFamily: "evm" as const,
@@ -340,10 +334,21 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
     // For smart wallets, we need to wait for the user operation to be confirmed
     // This is a simplified implementation - in practice you might want to poll
     // the CDP API for user operation status
-    return this.#cdp.evm.waitForUserOperation({
+
+    const receipt = await this.#cdp.evm.waitForUserOperation({
       smartAccountAddress: this.smartAccount.address,
       userOpHash,
     });
+
+    // Append transaction logs if available
+    if (receipt.status === "complete") {
+      const receiptTx = await this.#publicClient.getTransactionReceipt({
+        hash: receipt.transactionHash as Hex,
+      });
+      if (receiptTx.logs) return { ...receipt, logs: receiptTx.logs };
+    }
+
+    return receipt;
   }
 
   /**

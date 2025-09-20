@@ -12,264 +12,22 @@ import {
 import {
   FLETHAddress,
   FLETHHooksAddress,
-  FlaunchPositionManagerAddress,
+  FlaunchPositionManagerV1_1Address,
   IV4RouterAbiExactInput,
   IV4RouterAbiExactOutput,
   V4Actions,
   URCommands,
   UNIVERSAL_ROUTER_ABI,
-  POSITION_MANAGER_ABI,
+  POSITION_MANAGERV1_1_ABI,
+  QuoterAddress,
+  QUOTER_ABI,
+  ERC20_ABI,
+  UniversalRouterAddress,
 } from "./constants";
 import { BuySwapAmounts, SellSwapAmounts, PermitSingle, PoolSwapEventArgs } from "./types";
-
-/**
- * Configuration for Pinata
- */
-interface PinataConfig {
-  jwt: string;
-}
-
-/**
- * Upload response from Pinata
- */
-interface UploadResponse {
-  IpfsHash: string;
-  PinSize: number;
-  Timestamp: string;
-  isDuplicate: boolean;
-}
-
-interface CoinMetadata {
-  name: string;
-  description: string;
-  image: string;
-  external_link: string;
-  collaborators: string[];
-  discordUrl: string;
-  twitterUrl: string;
-  telegramUrl: string;
-}
-
-interface IPFSParams {
-  metadata: {
-    base64Image: string;
-    description: string;
-    websiteUrl?: string;
-    discordUrl?: string;
-    twitterUrl?: string;
-    telegramUrl?: string;
-  };
-  pinataConfig: PinataConfig;
-}
-
-interface TokenUriParams {
-  metadata: {
-    imageUrl: string;
-    description: string;
-    websiteUrl?: string;
-    discordUrl?: string;
-    twitterUrl?: string;
-    telegramUrl?: string;
-  };
-  pinataConfig: PinataConfig;
-}
-
-/**
- * Uploads a base64 image to IPFS using Pinata
- *
- * @param params - Configuration and base64 image data
- * @param params.pinataConfig - Pinata configuration including JWT
- * @param params.base64Image - Base64 encoded image data
- * @param params.name - Optional name for the uploaded file
- * @param params.metadata - Optional metadata key-value pairs
- * @returns Upload response with CID and other details
- */
-const uploadImageToIPFS = async (params: {
-  pinataConfig: PinataConfig;
-  base64Image: string;
-  name?: string;
-  metadata?: Record<string, string>;
-}): Promise<UploadResponse> => {
-  try {
-    const formData = new FormData();
-
-    // Convert base64 to Blob and then to File
-    // Remove data URL prefix if present (e.g., "data:image/jpeg;base64,")
-    const base64Data = params.base64Image.split(",")[1] || params.base64Image;
-    const byteCharacters = atob(base64Data);
-    const byteArrays: Uint8Array[] = [];
-
-    for (let offset = 0; offset < byteCharacters.length; offset += 1024) {
-      const slice = byteCharacters.slice(offset, offset + 1024);
-      const byteNumbers = new Array(slice.length);
-      for (let i = 0; i < slice.length; i++) {
-        byteNumbers[i] = slice.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-      byteArrays.push(byteArray);
-    }
-
-    // Detect mime type from base64 string
-    let mimeType = "image/png"; // default
-    if (params.base64Image.startsWith("data:")) {
-      mimeType = params.base64Image.split(";")[0].split(":")[1];
-    }
-
-    const blob = new Blob(byteArrays, { type: mimeType });
-    const fileName = params.name || `image.${mimeType.split("/")[1]}`;
-    const file = new File([blob], fileName, { type: mimeType });
-
-    formData.append("file", file);
-
-    const pinataMetadata = {
-      name: params.name || null,
-      keyvalues: params.metadata || {},
-    };
-    formData.append("pinataMetadata", JSON.stringify(pinataMetadata));
-
-    const pinataOptions = {
-      cidVersion: 1,
-    };
-    formData.append("pinataOptions", JSON.stringify(pinataOptions));
-
-    const response = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${params.pinataConfig.jwt}`,
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`Failed to upload image to IPFS: ${error.message || response.statusText}`);
-    }
-
-    const data = await response.json();
-    return {
-      IpfsHash: data.IpfsHash,
-      PinSize: data.PinSize,
-      Timestamp: data.Timestamp,
-      isDuplicate: data.isDuplicate || false,
-    };
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to upload image to IPFS: ${error.message}`);
-    }
-    throw error;
-  }
-};
-
-/**
- * Uploads JSON data to IPFS using Pinata
- *
- * @param params - Configuration and JSON data
- * @param params.pinataConfig - Pinata configuration including JWT
- * @param params.json - JSON data to upload
- * @param params.name - Optional name for the uploaded file
- * @param params.metadata - Optional metadata key-value pairs
- * @returns Upload response with CID and other details
- */
-const uploadJsonToIPFS = async (params: {
-  pinataConfig: PinataConfig;
-  json: Record<string, unknown> | CoinMetadata;
-  name?: string;
-  metadata?: Record<string, string>;
-}): Promise<UploadResponse> => {
-  try {
-    const requestBody = {
-      pinataOptions: {
-        cidVersion: 1,
-      },
-      pinataMetadata: {
-        name: params.name || null,
-        keyvalues: params.metadata || {},
-      },
-      pinataContent: params.json,
-    };
-
-    const response = await fetch("https://api.pinata.cloud/pinning/pinJSONToIPFS", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${params.pinataConfig.jwt}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`Failed to upload JSON to IPFS: ${error.message || response.statusText}`);
-    }
-
-    const data = await response.json();
-    return {
-      IpfsHash: data.IpfsHash,
-      PinSize: data.PinSize,
-      Timestamp: data.Timestamp,
-      isDuplicate: data.isDuplicate || false,
-    };
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to upload JSON to IPFS: ${error.message}`);
-    }
-    throw error;
-  }
-};
-
-const generateTokenUriBase64Image = async (name: string, params: IPFSParams) => {
-  // 1. upload image to IPFS
-  const imageRes = await uploadImageToIPFS({
-    pinataConfig: params.pinataConfig,
-    base64Image: params.metadata.base64Image,
-  });
-
-  // 2. upload metadata to IPFS
-  const coinMetadata: CoinMetadata = {
-    name,
-    description: params.metadata.description,
-    image: `ipfs://${imageRes.IpfsHash}`,
-    external_link: params.metadata.websiteUrl || "",
-    collaborators: [],
-    discordUrl: params.metadata.discordUrl || "",
-    twitterUrl: params.metadata.twitterUrl || "",
-    telegramUrl: params.metadata.telegramUrl || "",
-  };
-
-  const metadataRes = await uploadJsonToIPFS({
-    pinataConfig: params.pinataConfig,
-    json: coinMetadata,
-  });
-
-  return `ipfs://${metadataRes.IpfsHash}`;
-};
-
-export const generateTokenUri = async (name: string, params: TokenUriParams) => {
-  // 1. get base64Image from imageUrl
-  const response = await fetch(params.metadata.imageUrl);
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch image: ${response.statusText}`);
-  }
-
-  const arrayBuffer = await response.arrayBuffer();
-  const base64Image = Buffer.from(arrayBuffer).toString("base64");
-
-  // 2. generate token uri
-  const tokenUri = await generateTokenUriBase64Image(name, {
-    pinataConfig: params.pinataConfig,
-    metadata: {
-      base64Image,
-      description: params.metadata.description,
-      websiteUrl: params.metadata.websiteUrl,
-      discordUrl: params.metadata.discordUrl,
-      twitterUrl: params.metadata.twitterUrl,
-      telegramUrl: params.metadata.telegramUrl,
-    },
-  });
-
-  return tokenUri;
-};
+import { EvmWalletProvider } from "../../wallet-providers";
+import { NETWORK_ID_TO_VIEM_CHAIN } from "../../network";
+import { formatEther } from "viem";
 
 export const getAmountWithSlippage = (
   amount: bigint | undefined,
@@ -304,7 +62,7 @@ export const ethToMemecoin = (params: {
 }) => {
   const flETH = FLETHAddress[params.chainId];
   const flETHHooks = FLETHHooksAddress[params.chainId];
-  const flaunchHooks = FlaunchPositionManagerAddress[params.chainId];
+  const flaunchHooks = FlaunchPositionManagerV1_1Address[params.chainId];
 
   // Determine actions based on swapType
   const v4Actions = ("0x" +
@@ -464,7 +222,7 @@ export const ethToMemecoin = (params: {
 };
 
 // @notice Before calling the UniversalRouter the user must have:
-// 1. Given the Permit2 contract allowance to spend the memecoin
+// Given the Permit2 contract allowance to spend the memecoin
 export const memecoinToEthWithPermit2 = (params: {
   chainId: number;
   memecoin: Address;
@@ -477,7 +235,7 @@ export const memecoinToEthWithPermit2 = (params: {
   const flETH = FLETHAddress[params.chainId];
 
   const flETHHooks = FLETHHooksAddress[params.chainId];
-  const flaunchHooks = FlaunchPositionManagerAddress[params.chainId];
+  const flaunchHooks = FlaunchPositionManagerV1_1Address[params.chainId];
   const v4Actions = ("0x" +
     V4Actions.SWAP_EXACT_IN +
     V4Actions.SETTLE_ALL +
@@ -698,12 +456,14 @@ export const getSwapAmountsFromReceipt = ({
   const filteredPoolSwapEvent = receipt.logs
     .map(log => {
       try {
-        if (log.address.toLowerCase() !== FlaunchPositionManagerAddress[chainId].toLowerCase()) {
+        if (
+          log.address.toLowerCase() !== FlaunchPositionManagerV1_1Address[chainId].toLowerCase()
+        ) {
           return null;
         }
 
         const event = decodeEventLog({
-          abi: POSITION_MANAGER_ABI,
+          abi: POSITION_MANAGERV1_1_ABI,
           data: log.data,
           topics: log.topics,
         });
@@ -720,3 +480,156 @@ export const getSwapAmountsFromReceipt = ({
     chainId,
   });
 };
+
+/**
+ * Buys a flaunch coin using ETH input.
+ *
+ * @param walletProvider - The wallet provider instance for blockchain interactions
+ * @param coinAddress - The address of the coin to buy
+ * @param swapType - The type of swap to perform
+ * @param swapParams - The parameters for the swap
+ * @param swapParams.amountIn - The amount of ETH to spend (for EXACT_IN)
+ * @param swapParams.amountOut - The amount of coins to buy (for EXACT_OUT)
+ * @param slippagePercent - The slippage percentage
+ * @returns A promise that resolves to a string describing the transaction result
+ */
+export async function buyFlaunchCoin(
+  walletProvider: EvmWalletProvider,
+  coinAddress: string,
+  swapType: "EXACT_IN" | "EXACT_OUT",
+  swapParams: {
+    amountIn?: string;
+    amountOut?: string;
+  },
+  slippagePercent: number,
+): Promise<string> {
+  const network = walletProvider.getNetwork();
+  const chainId = network.chainId;
+  const networkId = network.networkId;
+
+  if (!chainId || !networkId) {
+    throw new Error("Chain ID is not set.");
+  }
+
+  try {
+    let amountIn: bigint | undefined;
+    let amountOutMin: bigint | undefined;
+    let amountOut: bigint | undefined;
+    let amountInMax: bigint | undefined;
+
+    if (swapType === "EXACT_IN") {
+      amountIn = parseEther(swapParams.amountIn!);
+
+      const quoteResult = await walletProvider.getPublicClient().simulateContract({
+        address: QuoterAddress[chainId],
+        abi: QUOTER_ABI,
+        functionName: "quoteExactInput",
+        args: [
+          {
+            exactAmount: amountIn,
+            exactCurrency: zeroAddress, // ETH
+            path: [
+              {
+                fee: 0,
+                tickSpacing: 60,
+                hookData: "0x",
+                hooks: FLETHHooksAddress[chainId],
+                intermediateCurrency: FLETHAddress[chainId],
+              },
+              {
+                fee: 0,
+                tickSpacing: 60,
+                hooks: FlaunchPositionManagerV1_1Address[chainId],
+                hookData: "0x",
+                intermediateCurrency: coinAddress,
+              },
+            ],
+          },
+        ],
+      });
+      amountOutMin = getAmountWithSlippage(
+        quoteResult.result[0], // amountOut
+        (slippagePercent / 100).toFixed(18).toString(),
+        swapType,
+      );
+    } else {
+      // EXACT_OUT
+      amountOut = parseEther(swapParams.amountOut!);
+
+      const quoteResult = await walletProvider.getPublicClient().simulateContract({
+        address: QuoterAddress[chainId],
+        abi: QUOTER_ABI,
+        functionName: "quoteExactOutput",
+        args: [
+          {
+            path: [
+              {
+                intermediateCurrency: zeroAddress,
+                fee: 0,
+                tickSpacing: 60,
+                hookData: "0x",
+                hooks: FLETHHooksAddress[chainId],
+              },
+              {
+                intermediateCurrency: FLETHAddress[chainId],
+                fee: 0,
+                tickSpacing: 60,
+                hooks: FlaunchPositionManagerV1_1Address[chainId],
+                hookData: "0x",
+              },
+            ],
+            exactCurrency: coinAddress as Address,
+            exactAmount: amountOut,
+          },
+        ],
+      });
+      amountInMax = getAmountWithSlippage(
+        quoteResult.result[0], // amountIn
+        (slippagePercent / 100).toFixed(18).toString(),
+        swapType,
+      );
+    }
+
+    const { commands, inputs } = ethToMemecoin({
+      sender: walletProvider.getAddress() as Address,
+      memecoin: coinAddress as Address,
+      chainId: Number(chainId),
+      referrer: zeroAddress,
+      swapType,
+      amountIn,
+      amountOutMin,
+      amountOut,
+      amountInMax,
+    });
+
+    const data = encodeFunctionData({
+      abi: UNIVERSAL_ROUTER_ABI,
+      functionName: "execute",
+      args: [commands, inputs],
+    });
+
+    const hash = await walletProvider.sendTransaction({
+      to: UniversalRouterAddress[chainId],
+      data,
+      value: swapType === "EXACT_IN" ? amountIn : amountInMax,
+    });
+
+    const receipt = await walletProvider.waitForTransactionReceipt(hash);
+    const swapAmounts = getSwapAmountsFromReceipt({
+      receipt,
+      coinAddress: coinAddress as Address,
+      chainId: Number(chainId),
+    }) as BuySwapAmounts;
+
+    const coinSymbol = await walletProvider.readContract({
+      address: coinAddress as Address,
+      abi: ERC20_ABI,
+      functionName: "symbol",
+    });
+
+    return `Bought ${formatEther(swapAmounts.coinsBought)} $${coinSymbol} for ${formatEther(swapAmounts.ethSold)} ETH\n
+      Tx hash: [${hash}](${NETWORK_ID_TO_VIEM_CHAIN[networkId].blockExplorers?.default.url}/tx/${hash})`;
+  } catch (error) {
+    return `Error buying coin: ${error}`;
+  }
+}

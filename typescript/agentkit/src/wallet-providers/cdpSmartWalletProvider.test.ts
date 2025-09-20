@@ -185,17 +185,6 @@ describe("CdpSmartWalletProvider", () => {
       expect(provider.getNetwork()).toEqual(MOCK_NETWORK);
     });
 
-    it("should throw error for non-Base networks", async () => {
-      await expect(
-        CdpSmartWalletProvider.configureWithWallet({
-          apiKeyId: "test-key-id",
-          apiKeySecret: "test-key-secret",
-          walletSecret: "test-wallet-secret",
-          networkId: "ethereum-sepolia",
-        }),
-      ).rejects.toThrow("Smart wallets are only supported on Base networks");
-    });
-
     it("should create smart account with name", async () => {
       await CdpSmartWalletProvider.configureWithWallet({
         apiKeyId: "test-key-id",

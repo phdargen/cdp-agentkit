@@ -59,11 +59,17 @@ function pickTokenLike(args: unknown): `0x${string}` | null {
  * Extracts the super token address using the contract abi
  *
  * @param receipt - the transaction receipt from creating the super token
+ * @param factoryAddress - the address of the factory that created the super token
  * @returns - The contract address of the created Super Token
  */
-export function extractCreatedSuperTokenAddressAbi(receipt: TxReceipt): `0x${string}` {
-  const factory = receipt.to?.toLowerCase();
-  if (!factory) throw new Error("Missing receipt.to (factory address)");
+export function extractCreatedSuperTokenAddressAbi(
+  receipt: TxReceipt,
+  factoryAddress: `0x${string}`,
+): `0x${string}` {
+  const factory = factoryAddress.toLowerCase();
+  if (!factory) throw new Error("Missing factory address");
+  console.log("factory", factory);
+  console.log("receipt.logs", receipt.logs);
 
   for (const log of receipt.logs) {
     if (log.address.toLowerCase() !== factory) continue;

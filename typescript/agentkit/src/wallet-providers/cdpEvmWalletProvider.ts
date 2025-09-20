@@ -193,30 +193,13 @@ export class CdpEvmWalletProvider extends EvmWalletProvider implements WalletPro
    * @returns The hash of the transaction.
    */
   async sendTransaction(transaction: TransactionRequest): Promise<Hex> {
-    const txWithGasParams = {
-      ...transaction,
-      chainId: this.#network.chainId,
-    };
-
-    if (!txWithGasParams.maxFeePerGas && !txWithGasParams.gasPrice) {
-      const feeData = await this.#publicClient.estimateFeesPerGas();
-      txWithGasParams.maxFeePerGas = feeData.maxFeePerGas;
-      txWithGasParams.maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
-    }
-
-    if (!txWithGasParams.gas) {
-      try {
-        txWithGasParams.gas = await this.#publicClient.estimateGas({
-          account: this.#serverAccount.address as Address,
-          ...txWithGasParams,
-        });
-      } catch (error) {
-        console.warn("Failed to estimate gas, continuing without gas estimation", error);
-      }
-    }
     const result = await this.#cdp.evm.sendTransaction({
       address: this.#serverAccount.address,
-      transaction: serializeTransaction(txWithGasParams as TransactionSerializable),
+      transaction: {
+        to: transaction.to as Address,
+        value: transaction.value ? BigInt(transaction.value.toString()) : 0n,
+        data: (transaction.data as Hex) || "0x",
+      },
       network: this.getCdpSdkNetwork(),
     });
     return result.transactionHash;
