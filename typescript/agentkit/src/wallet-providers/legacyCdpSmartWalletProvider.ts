@@ -152,6 +152,18 @@ export class LegacyCdpSmartWalletProvider extends EvmWalletProvider {
   }
 
   /**
+   * Stub for hash signing
+   *
+   * @throws as signing hashes is not implemented for SmartWallets.
+   *
+   * @param _ - The hash to sign.
+   * @returns The signed hash.
+   */
+  async sign(_: `0x${string}`): Promise<Hex> {
+    throw new Error("Not implemented");
+  }
+
+  /**
    * Stub for message signing
    *
    * @throws as signing messages is not implemented for SmartWallets.
@@ -351,7 +363,7 @@ export class LegacyCdpSmartWalletProvider extends EvmWalletProvider {
    * Transfer the native asset of the network.
    *
    * @param to - The destination address.
-   * @param value - The amount to transfer in Wei.
+   * @param value - The amount to transfer in atomic units (Wei).
    * @returns The transaction hash.
    */
   async nativeTransfer(to: Address, value: string): Promise<Hex> {

@@ -206,6 +206,26 @@ export class LegacyCdpWalletProvider extends EvmWalletProvider {
   }
 
   /**
+   * Signs a raw hash.
+   *
+   * @param hash - The hash to sign.
+   * @returns The signed hash.
+   */
+  async sign(hash: `0x${string}`): Promise<`0x${string}`> {
+    if (!this.#cdpWallet) {
+      throw new Error("Wallet not initialized");
+    }
+
+    const payload = await this.#cdpWallet.createPayloadSignature(hash);
+
+    if (payload.getStatus() === "pending" && payload?.wait) {
+      await payload.wait(); // needed for Server-Signers
+    }
+
+    return payload.getSignature() as `0x${string}`;
+  }
+
+  /**
    * Signs a message.
    *
    * @param message - The message to sign.
@@ -551,7 +571,7 @@ export class LegacyCdpWalletProvider extends EvmWalletProvider {
    * Transfer the native asset of the network.
    *
    * @param to - The destination address.
-   * @param value - The amount to transfer in Wei.
+   * @param value - The amount to transfer in atomic units (Wei).
    * @returns The transaction hash.
    */
   async nativeTransfer(to: `0x${string}`, value: string): Promise<`0x${string}`> {

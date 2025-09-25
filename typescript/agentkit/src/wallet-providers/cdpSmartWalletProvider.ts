@@ -17,6 +17,18 @@ import { Network, NETWORK_ID_TO_CHAIN_ID, NETWORK_ID_TO_VIEM_CHAIN } from "../ne
 import { EvmWalletProvider } from "./evmWalletProvider";
 import { WalletProviderWithClient, CdpSmartWalletProviderConfig } from "./cdpShared";
 
+/**
+ * Supported network types for CDP SDK smart wallet operations
+ */
+type CdpSmartWalletNetwork =
+  | "base"
+  | "base-sepolia"
+  | "ethereum"
+  | "ethereum-sepolia"
+  | "polygon"
+  | "arbitrum"
+  | "optimism";
+
 interface ConfigureCdpSmartWalletProviderWithWalletOptions {
   /**
    * The CDP client of the wallet.
@@ -54,9 +66,9 @@ interface ConfigureCdpSmartWalletProviderWithWalletOptions {
  */
 export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletProviderWithClient {
   public smartAccount: EvmSmartAccount;
+  public ownerAccount: LocalAccount | EvmServerAccount;
 
   #publicClient: PublicClient;
-  #ownerAccount: LocalAccount | EvmServerAccount;
   #cdp: CdpClient;
   #network: Network;
   #paymasterUrl?: string;
@@ -70,13 +82,12 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
     super();
 
     this.smartAccount = config.smartAccount;
-    this.#ownerAccount = config.ownerAccount;
+    this.ownerAccount = config.ownerAccount;
     this.#cdp = config.cdp;
     this.#publicClient = config.publicClient;
     this.#network = config.network;
     this.#paymasterUrl = config.paymasterUrl;
   }
-
   /**
    * Configures a new CdpSmartWalletProvider with a smart wallet.
    *
@@ -100,11 +111,6 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
     }
 
     const networkId: string = config.networkId || process.env.NETWORK_ID || "base-sepolia";
-
-    // Smart wallets are currently only supported on Base networks
-    if (!networkId.startsWith("base-")) {
-      throw new Error(`Smart wallets are only supported on Base networks. Got: ${networkId}`);
-    }
 
     const network = {
       protocolFamily: "evm" as const,
@@ -171,8 +177,22 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
     return {
       name: this.smartAccount.name,
       address: this.smartAccount.address as Address,
-      ownerAddress: this.#ownerAccount.address as Address,
+      ownerAddress: this.ownerAccount.address as Address,
     };
+  }
+
+  /**
+   * Signs a raw hash using the owner account.
+   *
+   * @param _hash - The hash to sign.
+   * @returns The signed hash.
+   */
+  async sign(_hash: Hex): Promise<Hex> {
+    if (!this.ownerAccount.sign) {
+      throw new Error("Owner account does not support raw hash signing");
+    }
+
+    return this.ownerAccount.sign({ hash: _hash });
   }
 
   /**
@@ -182,9 +202,7 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
    * @returns The signed message.
    */
   async signMessage(_message: string): Promise<Hex> {
-    throw new Error(
-      "Direct message signing not supported for smart wallets. Use sendTransaction instead.",
-    );
+    return this.ownerAccount.signMessage({ message: _message });
   }
 
   /**
@@ -201,7 +219,7 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
       types,
       primaryType,
       message,
-      network: this.#getCdpSdkNetwork(),
+      network: this.getCdpSdkNetwork(),
     });
   }
 
@@ -234,7 +252,7 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
 
     const userOperation = await this.#cdp.evm.sendUserOperation({
       smartAccount: this.smartAccount,
-      network: this.#getCdpSdkNetwork(),
+      network: this.getCdpSdkNetwork(),
       calls,
       paymasterUrl: this.#paymasterUrl,
     });
@@ -316,10 +334,21 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
     // For smart wallets, we need to wait for the user operation to be confirmed
     // This is a simplified implementation - in practice you might want to poll
     // the CDP API for user operation status
-    return this.#cdp.evm.waitForUserOperation({
+
+    const receipt = await this.#cdp.evm.waitForUserOperation({
       smartAccountAddress: this.smartAccount.address,
       userOpHash,
     });
+
+    // Append transaction logs if available
+    if (receipt.status === "complete") {
+      const receiptTx = await this.#publicClient.getTransactionReceipt({
+        hash: receipt.transactionHash as Hex,
+      });
+      if (receiptTx.logs) return { ...receipt, logs: receiptTx.logs };
+    }
+
+    return receipt;
   }
 
   /**
@@ -342,7 +371,7 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
    * Transfer the native asset of the network using smart wallet.
    *
    * @param to - The destination address.
-   * @param value - The amount to transfer in Wei.
+   * @param value - The amount to transfer in atomic units (Wei).
    * @returns The user operation hash.
    */
   async nativeTransfer(to: Address, value: string): Promise<Hex> {
@@ -356,15 +385,25 @@ export class CdpSmartWalletProvider extends EvmWalletProvider implements WalletP
   /**
    * Converts the internal network ID to the format expected by the CDP SDK.
    *
-   * @returns The network ID in CDP SDK format ("base-sepolia" or "base")
+   * @returns The network ID in CDP SDK format
    * @throws Error if the network is not supported
    */
-  #getCdpSdkNetwork(): "base-sepolia" | "base" {
+  getCdpSdkNetwork(): CdpSmartWalletNetwork {
     switch (this.#network.networkId) {
       case "base-sepolia":
         return "base-sepolia";
       case "base-mainnet":
         return "base";
+      case "ethereum-mainnet":
+        return "ethereum";
+      case "ethereum-sepolia":
+        return "ethereum-sepolia";
+      case "polygon-mainnet":
+        return "polygon";
+      case "arbitrum-mainnet":
+        return "arbitrum";
+      case "optimism-mainnet":
+        return "optimism";
       default:
         throw new Error(`Unsupported network for smart wallets: ${this.#network.networkId}`);
     }

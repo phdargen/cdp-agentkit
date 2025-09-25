@@ -18,6 +18,18 @@ import { Network, NETWORK_ID_TO_CHAIN_ID, NETWORK_ID_TO_VIEM_CHAIN } from "../ne
 import { EvmWalletProvider } from "./evmWalletProvider";
 import { WalletProviderWithClient, CdpWalletProviderConfig } from "./cdpShared";
 
+/**
+ * Supported network types for CDP SDK EVM transactions
+ */
+type CdpEvmNetwork =
+  | "base"
+  | "base-sepolia"
+  | "ethereum"
+  | "ethereum-sepolia"
+  | "polygon"
+  | "arbitrum"
+  | "optimism";
+
 interface ConfigureCdpEvmWalletProviderWithWalletOptions {
   /**
    * The CDP client of the wallet.
@@ -128,6 +140,16 @@ export class CdpEvmWalletProvider extends EvmWalletProvider implements WalletPro
   }
 
   /**
+   * Signs a raw hash.
+   *
+   * @param hash - The hash to sign.
+   * @returns The signed hash.
+   */
+  async sign(hash: `0x${string}`): Promise<Hex> {
+    return this.#serverAccount.sign({ hash });
+  }
+
+  /**
    * Signs a message.
    *
    * @param message - The message to sign.
@@ -171,31 +193,14 @@ export class CdpEvmWalletProvider extends EvmWalletProvider implements WalletPro
    * @returns The hash of the transaction.
    */
   async sendTransaction(transaction: TransactionRequest): Promise<Hex> {
-    const txWithGasParams = {
-      ...transaction,
-      chainId: this.#network.chainId,
-    };
-
-    if (!txWithGasParams.maxFeePerGas && !txWithGasParams.gasPrice) {
-      const feeData = await this.#publicClient.estimateFeesPerGas();
-      txWithGasParams.maxFeePerGas = feeData.maxFeePerGas;
-      txWithGasParams.maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
-    }
-
-    if (!txWithGasParams.gas) {
-      try {
-        txWithGasParams.gas = await this.#publicClient.estimateGas({
-          account: this.#serverAccount.address as Address,
-          ...txWithGasParams,
-        });
-      } catch (error) {
-        console.warn("Failed to estimate gas, continuing without gas estimation", error);
-      }
-    }
     const result = await this.#cdp.evm.sendTransaction({
       address: this.#serverAccount.address,
-      transaction: serializeTransaction(txWithGasParams as TransactionSerializable),
-      network: this.#getCdpSdkNetwork(),
+      transaction: {
+        to: transaction.to as Address,
+        value: transaction.value ? BigInt(transaction.value.toString()) : 0n,
+        data: (transaction.data as Hex) || "0x",
+      },
+      network: this.getCdpSdkNetwork(),
     });
     return result.transactionHash;
   }
@@ -285,7 +290,7 @@ export class CdpEvmWalletProvider extends EvmWalletProvider implements WalletPro
    * Transfer the native asset of the network.
    *
    * @param to - The destination address.
-   * @param value - The amount to transfer in Wei.
+   * @param value - The amount to transfer in atomic units (Wei).
    * @returns The transaction hash.
    */
   async nativeTransfer(to: Address, value: string): Promise<Hex> {
@@ -299,17 +304,27 @@ export class CdpEvmWalletProvider extends EvmWalletProvider implements WalletPro
   /**
    * Converts the internal network ID to the format expected by the CDP SDK.
    *
-   * @returns The network ID in CDP SDK format ("base-sepolia" or "base")
+   * @returns The network ID in CDP SDK format
    * @throws Error if the network is not supported
    */
-  #getCdpSdkNetwork(): "base-sepolia" | "base" {
+  getCdpSdkNetwork(): CdpEvmNetwork {
     switch (this.#network.networkId) {
       case "base-sepolia":
         return "base-sepolia";
       case "base-mainnet":
         return "base";
+      case "ethereum-mainnet":
+        return "ethereum";
+      case "ethereum-sepolia":
+        return "ethereum-sepolia";
+      case "polygon-mainnet":
+        return "polygon";
+      case "arbitrum-mainnet":
+        return "arbitrum";
+      case "optimism-mainnet":
+        return "optimism";
       default:
-        throw new Error(`Unsupported network: ${this.#network.networkId}`);
+        throw new Error(`Unsupported network for CDP SDK: ${this.#network.networkId}`);
     }
   }
 }

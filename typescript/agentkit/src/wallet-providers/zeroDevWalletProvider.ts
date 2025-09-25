@@ -131,9 +131,10 @@ export class ZeroDevWalletProvider extends EvmWalletProvider {
     const bundlerRpc = `https://rpc.zerodev.app/api/v3/bundler/${config.projectId}`;
 
     // Create public client
+    const rpcUrl = config.rpcUrl || process.env.RPC_URL;
     const publicClient = createPublicClient({
       chain,
-      transport: http(),
+      transport: rpcUrl ? http(rpcUrl) : http(),
     });
 
     // Create ECDSA validator
@@ -168,6 +169,20 @@ export class ZeroDevWalletProvider extends EvmWalletProvider {
       kernelAccount as SmartAccount<KernelSmartAccountImplementation>,
       intentClient,
     );
+  }
+
+  /**
+   * Signs a raw hash using the Kernel account.
+   *
+   * @param hash - The hash to sign.
+   * @returns The signed hash.
+   */
+  async sign(hash: `0x${string}`): Promise<Hex> {
+    if (!this.#kernelAccount.sign) {
+      throw new Error("Kernel account does not support raw hash signing");
+    }
+
+    return this.#kernelAccount.sign({ hash });
   }
 
   /**
@@ -343,12 +358,11 @@ export class ZeroDevWalletProvider extends EvmWalletProvider {
    * Transfer the native asset of the network.
    *
    * @param to - The destination address.
-   * @param value - The amount to transfer in whole units (e.g. ETH).
+   * @param value - The amount to transfer in atomic units (Wei).
    * @returns The transaction hash.
    */
   async nativeTransfer(to: string, value: string): Promise<string> {
-    // Convert value to wei (assuming value is in whole units)
-    const valueInWei = BigInt(parseFloat(value) * 10 ** 18);
+    const valueInWei = BigInt(value);
 
     // Get the chain ID from the network
     const chainId = parseInt(this.#network.chainId || "1");

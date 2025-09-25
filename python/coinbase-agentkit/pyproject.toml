@@ -1,6 +1,6 @@
 [project]
 name = "coinbase-agentkit"
-version = "0.7.1"
+version = "0.7.3"
 description = "Coinbase AgentKit"
 authors = [{ name = "John Peterson", email = "john.peterson@coinbase.com" }]
 requires-python = "~=3.10"
@@ -16,7 +16,7 @@ keywords = [
     "agent",
 ]
 dependencies = [
-    "cdp-sdk>=1.22.0,<2",
+    "cdp-sdk>=1.31.1,<2",
     "pydantic~=2.0",
     "web3>=7.6.0,<8",
     "python-dotenv>=1.0.1,<2",

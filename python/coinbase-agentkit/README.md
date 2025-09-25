@@ -242,6 +242,34 @@ This section provides a detailed list of all available action providers and thei
 </details>
 
 <details>
+<summary><strong>CDP EVM Wallet</strong></summary>
+<table width="100%">
+<tr>
+    <td width="200"><code>get_swap_price</code></td>
+    <td width="768">Fetches a price quote for swapping between two tokens using the CDP Swap API (does not execute swap).</td>
+</tr>
+<tr>
+    <td width="200"><code>swap</code></td>
+    <td width="768">Executes a token swap using the CDP Swap API with automatic token approvals.</td>
+</tr>
+</table>
+</details>
+
+<details>
+<summary><strong>CDP Smart Wallet</strong></summary>
+<table width="100%">
+<tr>
+    <td width="200"><code>get_swap_price</code></td>
+    <td width="768">Fetches a price quote for swapping between two tokens using the CDP Swap API (does not execute swap).</td>
+</tr>
+<tr>
+    <td width="200"><code>swap</code></td>
+    <td width="768">Executes a token swap using the CDP Swap API with automatic token approvals.</td>
+</tr>
+</table>
+</details>
+
+<details>
 <summary><strong>Compound</strong></summary>
 <table width="100%">
 <tr>
@@ -412,7 +440,7 @@ This section provides a detailed list of all available action providers and thei
 </tr>
 <tr>
     <td width="200"><code>fetch_price_feed_id</code></td>
-    <td width="768">Retrieves the unique price feed identifier for a given token symbol.</td>
+    <td width="768">Retrieves the unique price feed identifier for a given asset symbol.</td>
 </tr>
 </table>
 </details>
@@ -629,6 +657,7 @@ from coinbase_agentkit import (
     CdpEvmWalletProvider,
     CdpEvmWalletProviderConfig,
     cdp_api_action_provider,
+    cdp_evm_wallet_action_provider,
     erc20_action_provider,
     pyth_action_provider,
     wallet_action_provider,
@@ -648,6 +677,7 @@ agentkit = AgentKit(AgentKitConfig(
     wallet_provider=wallet_provider,
     action_providers=[
         cdp_api_action_provider(),
+        cdp_evm_wallet_action_provider(),
         erc20_action_provider(),
         pyth_action_provider(),
         wallet_action_provider(),
@@ -731,7 +761,7 @@ You can enable gasless transactions by providing a paymaster URL:
 ```python
 from coinbase_agentkit import CdpSmartWalletProvider, CdpSmartWalletProviderConfig
 
-wallet_provider = CdpSmartWalletProvider(CdpSmartWalletProvideronfig(
+wallet_provider = CdpSmartWalletProvider(CdpSmartWalletProviderConfig(
     api_key_id="CDP API KEY ID",
     api_key_secret="CDP API KEY SECRET",
     wallet_secret="CDP WALLET SECRET",
@@ -751,6 +781,7 @@ from coinbase_agentkit import (
     CdpSmartWalletProvider,
     CdpSmartWalletProviderConfig,
     cdp_api_action_provider,
+    cdp_smart_wallet_action_provider,
     erc20_action_provider,
     pyth_action_provider,
     wallet_action_provider,
@@ -771,6 +802,7 @@ agentkit = AgentKit(AgentKitConfig(
     wallet_provider=wallet_provider,
     action_providers=[
         cdp_api_action_provider(),
+        cdp_smart_wallet_action_provider(),
         erc20_action_provider(),
         pyth_action_provider(),
         wallet_action_provider(),

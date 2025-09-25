@@ -6,6 +6,7 @@ import {
   erc20ActionProvider,
   erc721ActionProvider,
   cdpApiActionProvider,
+  cdpEvmWalletActionProvider,
   CdpSolanaWalletProvider,
   splActionProvider,
   x402ActionProvider,
@@ -67,7 +68,7 @@ validateEnvironment();
  * @returns True if the wallet provider is an EVM provider, false otherwise
  */
 function isEvmWalletProvider(
-  walletProvider: CdpEvmWalletProvider,
+  walletProvider: CdpEvmWalletProvider | CdpSolanaWalletProvider,
 ): walletProvider is CdpEvmWalletProvider {
   return walletProvider instanceof CdpEvmWalletProvider;
 }
@@ -97,22 +98,28 @@ async function initializeAgent() {
     });
 
     // Configure CDP Wallet Provider
+    const networkId = process.env.NETWORK_ID || "base-sepolia";
+    const isSolana = networkId.includes("solana");
+
     const cdpWalletConfig = {
       apiKeyId: process.env.CDP_API_KEY_ID,
       apiKeySecret: process.env.CDP_API_KEY_SECRET,
       walletSecret: process.env.CDP_WALLET_SECRET,
       idempotencyKey: process.env.IDEMPOTENCY_KEY,
       address: process.env.ADDRESS as `0x${string}` | undefined,
-      networkId: process.env.NETWORK_ID,
+      networkId,
       rpcUrl: process.env.RPC_URL,
     };
 
-    const walletProvider = await CdpEvmWalletProvider.configureWithWallet(cdpWalletConfig);
+    const walletProvider = isSolana
+      ? await CdpSolanaWalletProvider.configureWithWallet(cdpWalletConfig)
+      : await CdpEvmWalletProvider.configureWithWallet(cdpWalletConfig);
     const actionProviders = [
       walletActionProvider(),
       cdpApiActionProvider(),
       ...(isEvmWalletProvider(walletProvider)
         ? [
+            cdpEvmWalletActionProvider(),
             wethActionProvider(),
             erc20ActionProvider(),
             erc721ActionProvider(),

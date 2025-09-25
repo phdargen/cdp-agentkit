@@ -7,6 +7,7 @@ import {
   pythActionProvider,
   walletActionProvider,
   wethActionProvider,
+  x402ActionProvider,
 } from "@coinbase/agentkit";
 
 /**
@@ -22,6 +23,9 @@ export async function getAgentKit(): Promise<AgentKit> {
       apiKeySecret: process.env.CDP_API_KEY_SECRET,
       walletSecret: process.env.CDP_WALLET_SECRET,
       networkId: process.env.NETWORK_ID || "base-sepolia",
+      address: process.env.ADDRESS as `0x${string}` | undefined,
+      rpcUrl: process.env.RPC_URL,
+      idempotencyKey: process.env.IDEMPOTENCY_KEY,
     });
 
     // Initialize AgentKit: https://docs.cdp.coinbase.com/agentkit/docs/agent-actions
@@ -34,6 +38,7 @@ export async function getAgentKit(): Promise<AgentKit> {
         erc20ActionProvider(),
         cdpApiActionProvider(),
         cdpEvmWalletActionProvider(),
+        x402ActionProvider(),
       ],
     });
 

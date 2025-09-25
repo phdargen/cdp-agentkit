@@ -7,8 +7,12 @@
         "CDP_API_KEY_ID": "",
         "CDP_API_KEY_SECRET": "",
         "CDP_WALLET_SECRET": "",
-        "PRIVATE_KEY": "",
-        "NETWORK_ID": "base-sepolia"
+        "NETWORK_ID": "base-sepolia",
+        "ADDRESS": "",
+        "OWNER_ADDRESS": "",
+        "PAYMASTER_URL": "",
+        "RPC_URL": "",
+        "IDEMPOTENCY_KEY": ""
       }
     }
   }

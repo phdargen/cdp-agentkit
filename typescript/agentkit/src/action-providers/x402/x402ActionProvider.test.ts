@@ -4,10 +4,17 @@ import { Network } from "../../network";
 import { AxiosError, AxiosResponse, AxiosRequestConfig, AxiosInstance } from "axios";
 import axios from "axios";
 import * as x402axios from "x402-axios";
+import * as x402Verify from "x402/verify";
+
+// Mock external facilitator dependency
+jest.mock("@coinbase/x402", () => ({
+  facilitator: {},
+}));
 
 // Mock modules
 jest.mock("axios");
 jest.mock("x402-axios");
+jest.mock("x402/verify");
 
 // Create mock functions
 const mockRequest = jest.fn();
@@ -53,6 +60,7 @@ const mockAxios = {
 
 const mockWithPaymentInterceptor = jest.fn().mockReturnValue(mockAxiosInstance);
 const mockDecodeXPaymentResponse = jest.fn();
+const mockUseFacilitator = jest.fn();
 
 // Override the mocked modules
 (axios as jest.Mocked<typeof axios>).create = mockAxios.create;
@@ -62,11 +70,14 @@ const mockDecodeXPaymentResponse = jest.fn();
 // Mock x402-axios functions
 jest.mocked(x402axios.withPaymentInterceptor).mockImplementation(mockWithPaymentInterceptor);
 jest.mocked(x402axios.decodeXPaymentResponse).mockImplementation(mockDecodeXPaymentResponse);
+jest.mocked(x402Verify.useFacilitator).mockImplementation(mockUseFacilitator);
 
 // Mock wallet provider
-const mockWalletProvider = {
-  toSigner: jest.fn().mockReturnValue("mock-signer"),
-} as unknown as EvmWalletProvider;
+const makeMockWalletProvider = (networkId: string) =>
+  ({
+    toSigner: jest.fn().mockReturnValue("mock-signer"),
+    getNetwork: jest.fn().mockReturnValue({ protocolFamily: "evm", networkId }),
+  }) as unknown as EvmWalletProvider;
 
 // Sample responses based on real examples
 const MOCK_PAYMENT_INFO_RESPONSE = {
@@ -162,7 +173,7 @@ describe("X402ActionProvider", () => {
         config: {} as AxiosRequestConfig,
       } as AxiosResponse);
 
-      const result = await provider.makeHttpRequest(mockWalletProvider, {
+      const result = await provider.makeHttpRequest(makeMockWalletProvider("base-sepolia"), {
         url: "https://api.example.com/free",
         method: "GET",
       });
@@ -181,7 +192,7 @@ describe("X402ActionProvider", () => {
         config: {} as AxiosRequestConfig,
       } as AxiosResponse);
 
-      const result = await provider.makeHttpRequest(mockWalletProvider, {
+      const result = await provider.makeHttpRequest(makeMockWalletProvider("base-sepolia"), {
         url: "https://www.x402.org/protected",
         method: "GET",
       });
@@ -201,7 +212,7 @@ describe("X402ActionProvider", () => {
 
       mockRequest.mockRejectedValue(error);
 
-      const result = await provider.makeHttpRequest(mockWalletProvider, {
+      const result = await provider.makeHttpRequest(makeMockWalletProvider("base-sepolia"), {
         url: "https://api.example.com/endpoint",
         method: "GET",
       });
@@ -209,6 +220,119 @@ describe("X402ActionProvider", () => {
       const parsedResult = JSON.parse(result);
       expect(parsedResult.error).toBe(true);
       expect(parsedResult.message).toContain("Network error");
+    });
+  });
+
+  describe("listX402Services", () => {
+    it("should list services without filters", async () => {
+      const mockList = jest.fn().mockResolvedValue({
+        items: [
+          {
+            resource: "https://example.com/service1",
+            metadata: { category: "test" },
+            accepts: [
+              {
+                asset: "0xUSDC",
+                maxAmountRequired: "90000",
+                network: "base-sepolia",
+                scheme: "exact",
+                description: "Test service 1",
+                outputSchema: { type: "object" },
+                extra: { name: "USDC" },
+              },
+            ],
+          },
+        ],
+      });
+
+      mockUseFacilitator.mockReturnValue({ list: mockList });
+
+      const result = await provider.discoverX402Services(
+        makeMockWalletProvider("base-sepolia"),
+        {},
+      );
+      const parsed = JSON.parse(result);
+      expect(parsed.success).toBe(true);
+      expect(parsed.total).toBe(1);
+      expect(parsed.returned).toBe(1);
+      expect(parsed.items.length).toBe(1);
+    });
+
+    it("should filter services by asset and maxPrice", async () => {
+      const mockList = jest.fn().mockResolvedValue({
+        items: [
+          {
+            resource: "https://example.com/service1",
+            metadata: { category: "test" },
+            accepts: [
+              {
+                asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Real USDC address for base-sepolia
+                maxAmountRequired: "90000", // 0.09 USDC (should pass 0.1 filter)
+                network: "base-sepolia",
+                scheme: "exact",
+                description: "Test service 1",
+                outputSchema: { type: "object" },
+                extra: { name: "USDC" },
+              },
+            ],
+          },
+          {
+            resource: "https://example.com/service2",
+            metadata: { category: "test" },
+            accepts: [
+              {
+                asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Real USDC address for base-sepolia
+                maxAmountRequired: "150000", // 0.15 USDC (should fail 0.1 filter)
+                network: "base-sepolia",
+                scheme: "exact",
+                description: "Test service 2",
+                outputSchema: { type: "object" },
+                extra: { name: "USDC" },
+              },
+            ],
+          },
+          {
+            resource: "https://example.com/service3",
+            metadata: { category: "test" },
+            accepts: [
+              {
+                asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Real USDC address for base-sepolia
+                maxAmountRequired: "50000", // 0.05 USDC (should pass 0.1 filter)
+                network: "base-sepolia",
+                scheme: "exact",
+                description: "Test service 3",
+                outputSchema: { type: "object" },
+                extra: { name: "USDC" },
+              },
+            ],
+          },
+        ],
+      });
+
+      mockUseFacilitator.mockReturnValue({ list: mockList });
+
+      const result = await provider.discoverX402Services(makeMockWalletProvider("base-sepolia"), {
+        maxUsdcPrice: 0.1,
+      });
+      const parsed = JSON.parse(result);
+      expect(parsed.success).toBe(true);
+      expect(parsed.returned).toBe(2);
+      expect(parsed.items.map(item => item.resource)).toEqual(
+        expect.arrayContaining(["https://example.com/service1", "https://example.com/service3"]),
+      );
+    });
+
+    it("should handle errors from facilitator", async () => {
+      const mockList = jest.fn().mockRejectedValue(new Error("boom"));
+      mockUseFacilitator.mockReturnValue({ list: mockList });
+
+      const result = await provider.discoverX402Services(
+        makeMockWalletProvider("base-sepolia"),
+        {},
+      );
+      const parsed = JSON.parse(result);
+      expect(parsed.error).toBe(true);
+      expect(parsed.message).toContain("Failed to list x402 services");
     });
   });
 
@@ -226,7 +350,7 @@ describe("X402ActionProvider", () => {
         config: {} as AxiosRequestConfig,
       } as AxiosResponse);
 
-      const result = await provider.retryWithX402(mockWalletProvider, {
+      const result = await provider.retryWithX402(makeMockWalletProvider("base-sepolia"), {
         url: "https://www.x402.org/protected",
         method: "GET",
         selectedPaymentOption: {
@@ -260,7 +384,7 @@ describe("X402ActionProvider", () => {
 
       mockRequest.mockRejectedValue(error);
 
-      const result = await provider.retryWithX402(mockWalletProvider, {
+      const result = await provider.retryWithX402(makeMockWalletProvider("base-sepolia"), {
         url: "https://www.x402.org/protected",
         method: "GET",
         selectedPaymentOption: {
@@ -291,10 +415,13 @@ describe("X402ActionProvider", () => {
         config: {} as AxiosRequestConfig,
       } as AxiosResponse);
 
-      const result = await provider.makeHttpRequestWithX402(mockWalletProvider, {
-        url: "https://www.x402.org/protected",
-        method: "GET",
-      });
+      const result = await provider.makeHttpRequestWithX402(
+        makeMockWalletProvider("base-sepolia"),
+        {
+          url: "https://www.x402.org/protected",
+          method: "GET",
+        },
+      );
 
       expect(mockWithPaymentInterceptor).toHaveBeenCalledWith(mockAxiosInstance, "mock-signer");
 
@@ -317,10 +444,13 @@ describe("X402ActionProvider", () => {
         config: {} as AxiosRequestConfig,
       } as AxiosResponse);
 
-      const result = await provider.makeHttpRequestWithX402(mockWalletProvider, {
-        url: "https://api.example.com/free",
-        method: "GET",
-      });
+      const result = await provider.makeHttpRequestWithX402(
+        makeMockWalletProvider("base-sepolia"),
+        {
+          url: "https://api.example.com/free",
+          method: "GET",
+        },
+      );
 
       const parsedResult = JSON.parse(result);
       expect(parsedResult.success).toBe(true);
@@ -335,10 +465,13 @@ describe("X402ActionProvider", () => {
 
       mockRequest.mockRejectedValue(error);
 
-      const result = await provider.makeHttpRequestWithX402(mockWalletProvider, {
-        url: "https://api.example.com/endpoint",
-        method: "GET",
-      });
+      const result = await provider.makeHttpRequestWithX402(
+        makeMockWalletProvider("base-sepolia"),
+        {
+          url: "https://api.example.com/endpoint",
+          method: "GET",
+        },
+      );
 
       const parsedResult = JSON.parse(result);
       expect(parsedResult.error).toBe(true);

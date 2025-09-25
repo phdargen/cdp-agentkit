@@ -2,13 +2,27 @@ import { z } from "zod";
 import { ActionProvider } from "../actionProvider";
 import { Network } from "../../network";
 import { CreateAction } from "../actionDecorator";
-import { HttpRequestSchema, RetryWithX402Schema, DirectX402RequestSchema } from "./schemas";
+import {
+  HttpRequestSchema,
+  RetryWithX402Schema,
+  DirectX402RequestSchema,
+  ListX402ServicesSchema,
+} from "./schemas";
 import { EvmWalletProvider } from "../../wallet-providers";
 import axios, { AxiosError } from "axios";
 import { withPaymentInterceptor, decodeXPaymentResponse } from "x402-axios";
 import { PaymentRequirements } from "x402/types";
+import { useFacilitator } from "x402/verify";
+import { facilitator } from "@coinbase/x402";
+import {
+  getX402Network,
+  handleHttpError,
+  formatPaymentOption,
+  convertWholeUnitsToAtomic,
+  isUsdcAsset,
+} from "./utils";
 
-const SUPPORTED_NETWORKS = ["base-mainnet", "base-sepolia"];
+const SUPPORTED_NETWORKS = ["base-mainnet", "base-sepolia", "solana-mainnet", "solana-devnet"];
 
 /**
  * X402ActionProvider provides actions for making HTTP requests, with optional x402 payment handling.
@@ -20,6 +34,157 @@ export class X402ActionProvider extends ActionProvider<EvmWalletProvider> {
    */
   constructor() {
     super("x402", []);
+  }
+
+  /**
+   * Discovers available x402 services with optional filtering.
+   *
+   * @param walletProvider - The wallet provider to use for network filtering
+   * @param args - Optional filters: maxUsdcPrice
+   * @returns JSON string with the list of services (filtered by network and description)
+   */
+  @CreateAction({
+    name: "discover_x402_services",
+    description:
+      "Discover available x402 services. Optionally filter by a maximum price in whole units of USDC (only USDC payment options will be considered when filter is applied).",
+    schema: ListX402ServicesSchema,
+  })
+  async discoverX402Services(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof ListX402ServicesSchema>,
+  ): Promise<string> {
+    try {
+      const { list } = useFacilitator(facilitator);
+      const services = await list();
+      if (!services || !services.items) {
+        return JSON.stringify({
+          error: true,
+          message: "No services found",
+        });
+      }
+
+      // Get the current wallet network
+      const walletNetwork = getX402Network(walletProvider.getNetwork());
+
+      // Filter services by network, description, and optional USDC price
+      const hasValidMaxUsdcPrice =
+        typeof args.maxUsdcPrice === "number" &&
+        Number.isFinite(args.maxUsdcPrice) &&
+        args.maxUsdcPrice > 0;
+
+      const filteredServices = services.items.filter(item => {
+        // Filter by network - only include services that accept the current wallet network
+        const accepts = Array.isArray(item.accepts) ? item.accepts : [];
+        const hasMatchingNetwork = accepts.some(req => req.network === walletNetwork);
+
+        // Filter out services with empty or default descriptions
+        const hasDescription = accepts.some(
+          req =>
+            req.description &&
+            req.description.trim() !== "" &&
+            req.description.trim() !== "Access to protected content",
+        );
+
+        return hasMatchingNetwork && hasDescription;
+      });
+
+      // Apply USDC price filtering if maxUsdcPrice is provided (only consider USDC assets)
+      let priceFilteredServices = filteredServices;
+      if (hasValidMaxUsdcPrice) {
+        priceFilteredServices = [];
+        for (const item of filteredServices) {
+          const accepts = Array.isArray(item.accepts) ? item.accepts : [];
+          let shouldInclude = false;
+
+          for (const req of accepts) {
+            if (req.network === walletNetwork && req.asset && req.maxAmountRequired) {
+              // Only consider USDC assets when maxUsdcPrice filter is applied
+              if (isUsdcAsset(req.asset, walletProvider)) {
+                try {
+                  const maxUsdcPriceAtomic = await convertWholeUnitsToAtomic(
+                    args.maxUsdcPrice as number,
+                    req.asset,
+                    walletProvider,
+                  );
+                  if (maxUsdcPriceAtomic) {
+                    const requirement = BigInt(req.maxAmountRequired);
+                    const maxUsdcPriceAtomicBigInt = BigInt(maxUsdcPriceAtomic);
+                    if (requirement <= maxUsdcPriceAtomicBigInt) {
+                      shouldInclude = true;
+                      break;
+                    }
+                  }
+                } catch {
+                  // If conversion fails, skip this requirement
+                  continue;
+                }
+              }
+            }
+          }
+
+          if (shouldInclude) {
+            priceFilteredServices.push(item);
+          }
+        }
+      }
+
+      // Format the filtered services
+      const filtered = await Promise.all(
+        priceFilteredServices.map(async item => {
+          const accepts = Array.isArray(item.accepts) ? item.accepts : [];
+          const matchingAccept = accepts.find(req => req.network === walletNetwork);
+
+          // Format amount if available
+          let formattedMaxAmount = matchingAccept?.maxAmountRequired;
+          if (matchingAccept?.maxAmountRequired && matchingAccept?.asset) {
+            formattedMaxAmount = await formatPaymentOption(
+              {
+                asset: matchingAccept.asset,
+                maxAmountRequired: matchingAccept.maxAmountRequired,
+                network: matchingAccept.network,
+              },
+              walletProvider,
+            );
+          }
+
+          return {
+            resource: item.resource,
+            description: matchingAccept?.description || "",
+            cost: formattedMaxAmount,
+            ...(matchingAccept?.outputSchema?.input && {
+              input: matchingAccept.outputSchema.input,
+            }),
+            ...(matchingAccept?.outputSchema?.output && {
+              output: matchingAccept.outputSchema.output,
+            }),
+            ...(item.metadata && item.metadata.length > 0 && { metadata: item.metadata }),
+          };
+        }),
+      );
+
+      return JSON.stringify(
+        {
+          success: true,
+          walletNetwork,
+          total: services.items.length,
+          returned: filtered.length,
+          items: filtered,
+        },
+        null,
+        2,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return JSON.stringify(
+        {
+          error: true,
+          message: "Failed to list x402 services",
+          details: message,
+        },
+        null,
+        2,
+      );
+    }
   }
 
   /**
@@ -70,18 +235,37 @@ If you receive a 402 Payment Required response, use retry_http_request_with_x402
         );
       }
 
+      // Check if wallet network matches any available payment options
+      const walletNetwork = getX402Network(walletProvider.getNetwork());
+      const availableNetworks = response.data.accepts.map(option => option.network);
+      const hasMatchingNetwork = availableNetworks.includes(walletNetwork);
+
+      let paymentOptionsText = `The wallet network ${walletNetwork} does not match any available payment options (${availableNetworks.join(", ")}).`;
+      // Format payment options for matching networks
+      if (hasMatchingNetwork) {
+        const matchingOptions = response.data.accepts.filter(
+          option => option.network === walletNetwork,
+        );
+        const formattedOptions = await Promise.all(
+          matchingOptions.map(option => formatPaymentOption(option, walletProvider)),
+        );
+        paymentOptionsText = `The payment options are: ${formattedOptions.join(", ")}`;
+      }
+
       return JSON.stringify({
         status: "error_402_payment_required",
         acceptablePaymentOptions: response.data.accepts,
         nextSteps: [
           "Inform the user that the requested server replied with a 402 Payment Required response.",
-          `The payment options are: ${response.data.accepts.map(option => `${option.asset} ${option.maxAmountRequired} ${option.network}`).join(", ")}`,
-          "Ask the user if they want to retry the request with payment.",
-          `Use retry_http_request_with_x402 to retry the request with payment.`,
+          paymentOptionsText,
+          hasMatchingNetwork ? "Ask the user if they want to retry the request with payment." : "",
+          hasMatchingNetwork
+            ? `Use retry_http_request_with_x402 to retry the request with payment.`
+            : "",
         ],
       });
     } catch (error) {
-      return this.handleHttpError(error as AxiosError, args.url);
+      return handleHttpError(error as AxiosError, args.url);
     }
   }
 
@@ -111,6 +295,22 @@ DO NOT use this action directly without first trying make_http_request!`,
     args: z.infer<typeof RetryWithX402Schema>,
   ): Promise<string> {
     try {
+      // Check network compatibility before attempting payment
+      const walletNetwork = getX402Network(walletProvider.getNetwork());
+      const selectedNetwork = args.selectedPaymentOption.network;
+
+      if (walletNetwork !== selectedNetwork) {
+        return JSON.stringify(
+          {
+            error: true,
+            message: "Network mismatch",
+            details: `Wallet is on ${walletNetwork} but payment requires ${selectedNetwork}`,
+          },
+          null,
+          2,
+        );
+      }
+
       // Make the request with payment handling
       const account = walletProvider.toSigner();
 
@@ -142,7 +342,12 @@ DO NOT use this action directly without first trying make_http_request!`,
         return accepts[0];
       };
 
-      const api = withPaymentInterceptor(axios.create({}), account, paymentSelector);
+      const api = withPaymentInterceptor(
+        axios.create({}),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        account as any,
+        paymentSelector as unknown as Parameters<typeof withPaymentInterceptor>[2],
+      );
 
       const response = await api.request({
         url: args.url,
@@ -178,7 +383,7 @@ DO NOT use this action directly without first trying make_http_request!`,
         },
       });
     } catch (error) {
-      return this.handleHttpError(error as AxiosError, args.url);
+      return handleHttpError(error as AxiosError, args.url);
     }
   }
 
@@ -203,6 +408,7 @@ This action combines both steps into one, which means:
 - No chance to review payment details before paying
 - No confirmation step
 - Automatic payment processing
+- Assumes payment option is compatible with wallet network
 
 EXAMPLES:
 - Production: make_http_request_with_x402("https://api.example.com/data")
@@ -217,7 +423,8 @@ Unless specifically instructed otherwise, prefer the two-step approach with make
   ): Promise<string> {
     try {
       const account = walletProvider.toSigner();
-      const api = withPaymentInterceptor(axios.create({}), account);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const api = withPaymentInterceptor(axios.create({}), account as any);
 
       const response = await api.request({
         url: args.url,
@@ -251,7 +458,7 @@ Unless specifically instructed otherwise, prefer the two-step approach with make
         2,
       );
     } catch (error) {
-      return this.handleHttpError(error as AxiosError, args.url);
+      return handleHttpError(error as AxiosError, args.url);
     }
   }
 
@@ -263,52 +470,6 @@ Unless specifically instructed otherwise, prefer the two-step approach with make
    */
   supportsNetwork = (network: Network) =>
     network.protocolFamily === "evm" && SUPPORTED_NETWORKS.includes(network.networkId!);
-
-  /**
-   * Helper method to handle HTTP errors consistently.
-   *
-   * @param error - The axios error to handle
-   * @param url - The URL that was being accessed when the error occurred
-   * @returns A JSON string containing formatted error details
-   */
-  private handleHttpError(error: AxiosError, url: string): string {
-    if (error.response) {
-      return JSON.stringify(
-        {
-          error: true,
-          message: `HTTP ${error.response.status} error when accessing ${url}`,
-          details: (error.response.data as { error?: string })?.error || error.response.statusText,
-          suggestion: "Check if the URL is correct and the API is available.",
-        },
-        null,
-        2,
-      );
-    }
-
-    if (error.request) {
-      return JSON.stringify(
-        {
-          error: true,
-          message: `Network error when accessing ${url}`,
-          details: error.message,
-          suggestion: "Check your internet connection and verify the API endpoint is accessible.",
-        },
-        null,
-        2,
-      );
-    }
-
-    return JSON.stringify(
-      {
-        error: true,
-        message: `Error making request to ${url}`,
-        details: error.message,
-        suggestion: "Please check the request parameters and try again.",
-      },
-      null,
-      2,
-    );
-  }
 }
 
 export const x402ActionProvider = () => new X402ActionProvider();
