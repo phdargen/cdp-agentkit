@@ -41,8 +41,7 @@ export abstract class SvmWalletProvider extends WalletProvider {
     try {
       const signer = await this.toSigner();
       return isKeyPairSigner(signer);
-    } catch (error) {
-      console.warn("Error checking KeyPairSigner compatibility:", error);
+    } catch {
       return false;
     }
   }

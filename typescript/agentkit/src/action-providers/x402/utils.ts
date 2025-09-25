@@ -15,7 +15,7 @@ export type X402Network = "base" | "base-sepolia" | "solana" | "solana-devnet";
  */
 const SOLANA_USDC_ADDRESSES = {
   "solana-devnet": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
-  "solana-mainnet": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // Standard USDC on Solana mainnet
+  "solana-mainnet": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
 } as const;
 
 /**

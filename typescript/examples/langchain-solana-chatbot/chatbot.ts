@@ -95,7 +95,12 @@ async function initializeAgent() {
       cdpApiKeyId: process.env.CDP_API_KEY_ID,
       cdpApiKeySecret: process.env.CDP_API_KEY_SECRET,
       walletProvider,
-      actionProviders: [splActionProvider(), walletActionProvider(), cdpApiActionProvider(), x402ActionProvider()],
+      actionProviders: [
+        splActionProvider(),
+        walletActionProvider(),
+        cdpApiActionProvider(),
+        x402ActionProvider(),
+      ],
     });
 
     const tools = await getLangChainTools(agentkit);
