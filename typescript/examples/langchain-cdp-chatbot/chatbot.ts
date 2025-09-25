@@ -115,12 +115,6 @@ async function initializeAgent() {
       ? await CdpSolanaWalletProvider.configureWithWallet(cdpWalletConfig)
       : await CdpEvmWalletProvider.configureWithWallet(cdpWalletConfig);
 
-    // Test SVM signer compatibility if using Solana wallet
-    if (isSolanaWalletProvider(walletProvider)) {
-      const isCompatible = walletProvider.isKeyPairSigner();
-      console.log(`✅ SVM wallet KeyPairSigner compatibility: ${isCompatible}`);
-    }
-
     const actionProviders = [
       walletActionProvider(),
       cdpApiActionProvider(),

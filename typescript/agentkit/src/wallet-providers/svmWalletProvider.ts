@@ -10,17 +10,11 @@ import {
   VersionedTransaction,
   SignatureResult,
 } from "@solana/web3.js";
-import { 
-  isKeyPairSigner, 
+import {
+  isKeyPairSigner,
   KeyPairSigner,
-} from "@solana/kit";
-import type { 
-  Address,
-  TransactionMessageBytes,
-  SignaturesMap,
-  BaseTransactionSignerConfig,
-  SignatureBytes,
-  MessagePartialSignerConfig
+  createKeyPairSignerFromBytes,
+  createKeyPairSignerFromPrivateKeyBytes,
 } from "@solana/kit";
 
 /**
@@ -29,6 +23,30 @@ import type {
  * @abstract
  */
 export abstract class SvmWalletProvider extends WalletProvider {
+  /**
+   * Convert the wallet provider to a KeyPairSigner.
+   *
+   * @returns The KeyPairSigner instance
+   */
+  async toSigner(): Promise<KeyPairSigner> {
+    return this.getKeyPairSigner();
+  }
+
+  /**
+   * Check if this wallet's signer is a valid KeyPairSigner.
+   *
+   * @returns True if the signer is a valid KeyPairSigner, false otherwise
+   */
+  async isKeyPairSigner(): Promise<boolean> {
+    try {
+      const signer = await this.toSigner();
+      return isKeyPairSigner(signer);
+    } catch (error) {
+      console.warn("Error checking KeyPairSigner compatibility:", error);
+      return false;
+    }
+  }
+
   /**
    * Get the connection instance.
    *
@@ -96,76 +114,30 @@ export abstract class SvmWalletProvider extends WalletProvider {
    */
   abstract signMessage(message: Uint8Array): Promise<Uint8Array>;
 
-
-  /**
-   * Convert the wallet provider to a Signer compatible with x402.
-   *
-   * @returns The signer instance
-   */
-  async toSigner(): Promise<KeyPairSigner> {
-    const self = this;
-
-    return {
-      address: self.getAddress() as Address,
-
-      keyPair: await self.getKeyPair(),  
-
-      signTransactions: async (
-        txs: readonly Readonly<{
-          messageBytes: TransactionMessageBytes;
-          signatures: SignaturesMap;
-        }>[],
-        _config?: BaseTransactionSignerConfig
-      ) => {
-        const out: { messageBytes: TransactionMessageBytes; signatures: SignaturesMap; }[] = [];
-        for (const { messageBytes, signatures } of txs) {
-          const sig = await self.signMessage(new Uint8Array(messageBytes));
-          const addr = self.getAddress() as Address;
-          out.push({ messageBytes, signatures: { ...signatures, [addr]: sig as SignatureBytes } });
-        }
-        return out;
-      },
-
-      signMessages: async (
-        msgs: readonly Readonly<{
-          content: Uint8Array<ArrayBufferLike>;
-          signatures: Readonly<Record<Address, SignatureBytes>>;
-        }>[],
-        _config?: Readonly<MessagePartialSignerConfig>
-      ) => {
-        const out: {
-          content: Uint8Array<ArrayBufferLike>;
-          signatures: Readonly<Record<Address, SignatureBytes>>;
-        }[] = [];
-        for (const { content, signatures } of msgs) {
-          const sig = await self.signMessage(new Uint8Array(content));
-          const addr = self.getAddress() as Address;
-          out.push({ content, signatures: { ...signatures, [addr]: sig as SignatureBytes } });
-        }
-        return out;
-      },
-    };
-  }
-  
   /**
    * Get the keypair for this wallet.
    *
    * @returns The CryptoKeyPair for KeyPairSigner compatibility
    */
-  abstract getKeyPair(): Promise<any>;
+  abstract getKeyPairSigner(): Promise<KeyPairSigner>;
+}
 
-  /**
-   * Check if this wallet's signer is a valid KeyPairSigner for x402 compatibility.
-   *
-   * @returns True if the signer is a valid KeyPairSigner, false otherwise
-   */
-  async isKeyPairSigner(): Promise<boolean> {
-    try {
-      const signer = await this.toSigner();
-      return isKeyPairSigner(signer);
-    } catch (error) {
-      console.warn("Error checking KeyPairSigner compatibility:", error);
-      return false;
-    }
+/**
+ * Create a KeyPairSigner from raw bytes.
+ *
+ * @param bytes - The raw key bytes (32 bytes for private key only, 64 bytes for private + public key)
+ * @returns A KeyPairSigner instance
+ * @throws Error if the byte length is not 32 or 64
+ */
+export async function createSignerFromBytes(bytes: Uint8Array): Promise<KeyPairSigner> {
+  // generate a keypair signer from the bytes based on the byte-length
+  // 64 bytes represents concatenated private + public key
+  if (bytes.length === 64) {
+    return await createKeyPairSignerFromBytes(bytes);
   }
+  // 32 bytes represents only the private key
+  if (bytes.length === 32) {
+    return await createKeyPairSignerFromPrivateKeyBytes(bytes);
+  }
+  throw new Error(`Unexpected key length: ${bytes.length}. Expected 32 or 64 bytes.`);
 }

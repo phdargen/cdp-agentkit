@@ -1,4 +1,4 @@
-import { SvmWalletProvider } from "./svmWalletProvider";
+import { SvmWalletProvider, createSignerFromBytes } from "./svmWalletProvider";
 import { Network } from "../network";
 import {
   Connection,
@@ -26,7 +26,7 @@ import {
   SOLANA_TESTNET_GENESIS_BLOCK_HASH,
   SOLANA_TESTNET_NETWORK_ID,
 } from "../network/svm";
-import { createKeyPairFromBytes } from "@solana/keys";
+import { KeyPairSigner } from "@solana/kit";
 
 /**
  * SolanaKeypairWalletProvider is a wallet provider that uses a local Solana keypair.
@@ -37,7 +37,6 @@ export class SolanaKeypairWalletProvider extends SvmWalletProvider {
   #keypair: Keypair;
   #connection: Connection;
   #genesisHash: string;
-  #cryptoKeyPair?: CryptoKeyPair;
 
   /**
    * Creates a new SolanaKeypairWalletProvider
@@ -69,14 +68,6 @@ export class SolanaKeypairWalletProvider extends SvmWalletProvider {
     } else {
       throw new Error(`Unknown network with genesis hash: ${genesisHash}`);
     }
-    // Initialize crypto key pair asynchronously
-    this.#initCryptoKeyPair().catch(error => {
-      console.error("Failed to initialize CryptoKeyPair:", error);
-    });
-  }
-
-  async #initCryptoKeyPair() {
-    this.#cryptoKeyPair = await createKeyPairFromBytes(this.#keypair.secretKey /*, extractable? = false */);
   }
 
   /**
@@ -341,7 +332,6 @@ export class SolanaKeypairWalletProvider extends SvmWalletProvider {
   async signMessage(_: Uint8Array): Promise<Uint8Array> {
     throw new Error("Message signing is not supported yet for SolanaKeypairWalletProvider");
   }
-  
 
   /**
    * Request SOL tokens from the Solana faucet. This method only works on devnet and testnet networks.
@@ -351,21 +341,14 @@ export class SolanaKeypairWalletProvider extends SvmWalletProvider {
    */
   async requestAirdrop(lamports: number): Promise<string> {
     return await this.#connection.requestAirdrop(this.#keypair.publicKey, lamports);
-
   }
-
 
   /**
-   * Get the keypair for this wallet.
+   * Get the keypair signer for this wallet.
    *
-   * @returns The CryptoKeyPair for KeyPairSigner compatibility
+   * @returns The KeyPairSigner
    */
-  async getKeyPair(): Promise<CryptoKeyPair> {
-    if (!this.#cryptoKeyPair) {
-      // Wait for initialization to complete
-      await this.#initCryptoKeyPair();
-    }
-    return this.#cryptoKeyPair!;
+  async getKeyPairSigner(): Promise<KeyPairSigner> {
+    return createSignerFromBytes(this.#keypair.secretKey);
   }
 }
-

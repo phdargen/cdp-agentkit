@@ -90,10 +90,6 @@ async function initializeAgent() {
       walletProvider = await SolanaKeypairWalletProvider.fromNetwork(network, solanaPrivateKey);
     }
 
-    // Test SVM signer compatibility if using Solana wallet
-    const isCompatible = await walletProvider.isKeyPairSigner();
-    console.log(`✅ SVM wallet KeyPairSigner compatibility: ${isCompatible}`);
-
     // Initialize AgentKit
     const agentkit = await AgentKit.from({
       cdpApiKeyId: process.env.CDP_API_KEY_ID,

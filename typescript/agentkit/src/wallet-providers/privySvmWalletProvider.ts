@@ -1,4 +1,5 @@
 import { PrivyClient, SolanaCaip2ChainId } from "@privy-io/server-auth";
+import type { KeyPairSigner } from "@solana/kit";
 import { SvmWalletProvider } from "./svmWalletProvider";
 import {
   RpcResponseAndContext,
@@ -261,12 +262,12 @@ export class PrivySvmWalletProvider extends SvmWalletProvider {
     throw new Error("Message signing is not supported yet for PrivySvmWalletProvider");
   }
 
-    /**
-   * Get the keypair for this wallet.
+  /**
+   * Get the keypair signer for this wallet.
    *
-   * @returns The CryptoKeyPair for KeyPairSigner compatibility
+   * @returns The KeyPairSigner
    */
-    async getKeyPair(): Promise<CryptoKeyPair> {
-      throw new Error("getKeyPair is not supported for PrivySvmWalletProvider");
-    }
+  async getKeyPairSigner(): Promise<KeyPairSigner> {
+    throw new Error("getKeyPairSigner is not supported for PrivySvmWalletProvider");
+  }
 }
