@@ -8,7 +8,7 @@ import {
   DirectX402RequestSchema,
   ListX402ServicesSchema,
 } from "./schemas";
-import { EvmWalletProvider, CdpSolanaWalletProvider, WalletProvider } from "../../wallet-providers";
+import { EvmWalletProvider, CdpSolanaWalletProvider, WalletProvider, SvmWalletProvider } from "../../wallet-providers";
 import axios, { AxiosError } from "axios";
 import { withPaymentInterceptor, decodeXPaymentResponse } from "x402-axios";
 import { PaymentRequirements } from "x402/types";
@@ -423,7 +423,7 @@ Unless specifically instructed otherwise, prefer the two-step approach with make
   ): Promise<string> {
     try {
 
-      if ( !(walletProvider instanceof CdpSolanaWalletProvider || walletProvider instanceof EvmWalletProvider)) {
+      if ( !(walletProvider instanceof SvmWalletProvider || walletProvider instanceof EvmWalletProvider)) {
         return JSON.stringify({
           error: true,
           message: "Unsupported wallet provider",

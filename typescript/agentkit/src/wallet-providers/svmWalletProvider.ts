@@ -102,13 +102,13 @@ export abstract class SvmWalletProvider extends WalletProvider {
    *
    * @returns The signer instance
    */
-  toSigner(): KeyPairSigner {
+  async toSigner(): Promise<KeyPairSigner> {
     const self = this;
 
     return {
       address: self.getAddress() as Address,
 
-      keyPair: self.getKeyPair(),  
+      keyPair: await self.getKeyPair(),  
 
       signTransactions: async (
         txs: readonly Readonly<{
@@ -152,16 +152,16 @@ export abstract class SvmWalletProvider extends WalletProvider {
    *
    * @returns The CryptoKeyPair for KeyPairSigner compatibility
    */
-  abstract getKeyPair(): any;
+  abstract getKeyPair(): Promise<any>;
 
   /**
    * Check if this wallet's signer is a valid KeyPairSigner for x402 compatibility.
    *
    * @returns True if the signer is a valid KeyPairSigner, false otherwise
    */
-  isKeyPairSigner(): boolean {
+  async isKeyPairSigner(): Promise<boolean> {
     try {
-      const signer = this.toSigner();
+      const signer = await this.toSigner();
       return isKeyPairSigner(signer);
     } catch (error) {
       console.warn("Error checking KeyPairSigner compatibility:", error);

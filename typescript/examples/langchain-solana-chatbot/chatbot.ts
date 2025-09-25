@@ -5,6 +5,7 @@ import {
   splActionProvider,
   walletActionProvider,
   cdpApiActionProvider,
+  x402ActionProvider,
 } from "@coinbase/agentkit";
 import { getLangChainTools } from "@coinbase/agentkit-langchain";
 import { HumanMessage } from "@langchain/core/messages";
@@ -89,12 +90,16 @@ async function initializeAgent() {
       walletProvider = await SolanaKeypairWalletProvider.fromNetwork(network, solanaPrivateKey);
     }
 
+    // Test SVM signer compatibility if using Solana wallet
+    const isCompatible = await walletProvider.isKeyPairSigner();
+    console.log(`✅ SVM wallet KeyPairSigner compatibility: ${isCompatible}`);
+
     // Initialize AgentKit
     const agentkit = await AgentKit.from({
       cdpApiKeyId: process.env.CDP_API_KEY_ID,
       cdpApiKeySecret: process.env.CDP_API_KEY_SECRET,
       walletProvider,
-      actionProviders: [splActionProvider(), walletActionProvider(), cdpApiActionProvider()],
+      actionProviders: [splActionProvider(), walletActionProvider(), cdpApiActionProvider(), x402ActionProvider()],
     });
 
     const tools = await getLangChainTools(agentkit);

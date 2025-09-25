@@ -356,7 +356,7 @@ export class CdpSolanaWalletProvider extends SvmWalletProvider implements Wallet
    *
    * @returns The CryptoKeyPair for KeyPairSigner compatibility
    */
-    getKeyPair(): CryptoKeyPair {
-      throw new Error("getKeyPair is not supported for SolanaKeypairWalletProvider");
+    async getKeyPair(): Promise<CryptoKeyPair> {
+      throw new Error("getKeyPair is not supported for CdpSolanaWalletProvider");
     }
 }
