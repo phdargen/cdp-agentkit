@@ -1,12 +1,34 @@
-import { Decimal } from "decimal.js";
 import { z } from "zod";
 
 import { CreateAction } from "../actionDecorator";
 import { ActionProvider } from "../actionProvider";
-import { WalletProvider } from "../../wallet-providers";
+import { WalletProvider, CdpSmartWalletProvider } from "../../wallet-providers";
 import { Network } from "../../network";
+import { formatUnits, parseUnits } from "viem";
 
 import { NativeTransferSchema, GetWalletDetailsSchema } from "./schemas";
+
+const PROTOCOL_FAMILY_TO_TERMINOLOGY: Record<
+  string,
+  { unit: string; displayUnit: string; decimals: number; type: string; verb: string }
+> = {
+  evm: {
+    unit: "WEI",
+    displayUnit: "ETH",
+    decimals: 18,
+    type: "Transaction hash",
+    verb: "transaction",
+  },
+  svm: { unit: "LAMPORTS", displayUnit: "SOL", decimals: 9, type: "Signature", verb: "transfer" },
+};
+
+const DEFAULT_TERMINOLOGY = {
+  unit: "",
+  displayUnit: "",
+  decimals: 0,
+  type: "Hash",
+  verb: "transfer",
+};
 
 /**
  * WalletActionProvider provides actions for getting basic wallet information.
@@ -32,8 +54,7 @@ export class WalletActionProvider extends ActionProvider {
     This tool will return the details of the connected wallet including:
     - Wallet address
     - Network information (protocol family, network ID, chain ID)
-    - ETH token balance
-    - Native token balance
+    - Native token balance (ETH for EVM networks, SOL for Solana networks)
     - Wallet provider name
     `,
     schema: GetWalletDetailsSchema,
@@ -47,26 +68,30 @@ export class WalletActionProvider extends ActionProvider {
       const network = walletProvider.getNetwork();
       const balance = await walletProvider.getBalance();
       const name = walletProvider.getName();
+      const terminology =
+        PROTOCOL_FAMILY_TO_TERMINOLOGY[network.protocolFamily] || DEFAULT_TERMINOLOGY;
 
-      // Convert balance from Wei to ETH using Decimal for precision
-      const ethBalance = new Decimal(balance.toString()).div(new Decimal(10).pow(18));
-
-      return `Wallet Details:
-- Provider: ${name}
-- Address: ${address}
-- Network: 
-  * Protocol Family: ${network.protocolFamily}
-  * Network ID: ${network.networkId || "N/A"}
-  * Chain ID: ${network.chainId || "N/A"}
-- ETH Balance: ${ethBalance.toFixed(6)} ETH
-- Native Balance: ${balance.toString()} WEI`;
+      return [
+        "Wallet Details:",
+        `- Provider: ${name}`,
+        `- Address: ${address}`,
+        ...(walletProvider instanceof CdpSmartWalletProvider
+          ? [`- Owner Address: ${walletProvider.ownerAccount.address}`]
+          : []),
+        "- Network:",
+        `  * Protocol Family: ${network.protocolFamily}`,
+        `  * Network ID: ${network.networkId || "N/A"}`,
+        `  * Chain ID: ${network.chainId || "N/A"}`,
+        `- Native Balance: ${balance.toString()} ${terminology.unit}`,
+        `- Native Balance: ${formatUnits(balance, terminology.decimals)} ${terminology.displayUnit}`,
+      ].join("\n");
     } catch (error) {
       return `Error getting wallet details: ${error}`;
     }
   }
 
   /**
-   * Transfers a specified amount of an asset to a destination onchain.
+   * Transfers a specified amount of native currency to a destination onchain.
    *
    * @param walletProvider - The wallet provider to transfer from.
    * @param args - The input arguments for the action.
@@ -75,15 +100,11 @@ export class WalletActionProvider extends ActionProvider {
   @CreateAction({
     name: "native_transfer",
     description: `
-This tool will transfer native tokens from the wallet to another onchain address.
+This tool will transfer (send) native tokens from the wallet to another onchain address.
 
 It takes the following inputs:
-- amount: The amount to transfer in whole units e.g. 1 ETH or 0.00001 ETH
+- amount: The amount to transfer in whole units (e.g. 4.2 ETH, 0.1 SOL)
 - destination: The address to receive the funds
-
-Important notes:
-- Ensure sufficient balance of the input asset before transferring
-- Ensure there is sufficient native token balance for gas fees
 `,
     schema: NativeTransferSchema,
   })
@@ -92,11 +113,23 @@ Important notes:
     args: z.infer<typeof NativeTransferSchema>,
   ): Promise<string> {
     try {
-      const result = await walletProvider.nativeTransfer(args.to as `0x${string}`, args.value);
+      const { protocolFamily } = walletProvider.getNetwork();
+      const terminology = PROTOCOL_FAMILY_TO_TERMINOLOGY[protocolFamily] || DEFAULT_TERMINOLOGY;
 
-      return `Transferred ${args.value} ETH to ${args.to}.\nTransaction hash: ${result}`;
+      if (protocolFamily === "evm" && !args.to.startsWith("0x")) {
+        args.to = `0x${args.to}`;
+      }
+
+      const amountInAtomicUnits = parseUnits(args.value, terminology.decimals);
+      const result = await walletProvider.nativeTransfer(args.to, amountInAtomicUnits.toString());
+      return [
+        `Transferred ${args.value} ${terminology.displayUnit} to ${args.to}`,
+        `${terminology.type}: ${result}`,
+      ].join("\n");
     } catch (error) {
-      return `Error transferring the asset: ${error}`;
+      const { protocolFamily } = walletProvider.getNetwork();
+      const terminology = PROTOCOL_FAMILY_TO_TERMINOLOGY[protocolFamily] || DEFAULT_TERMINOLOGY;
+      return `Error during ${terminology.verb}: ${error}`;
     }
   }
 

@@ -13,7 +13,7 @@ LangChain extension of AgentKit. Enables agentic workflows to interact with onch
 ### Installation
 
 ```bash
-npm install @coinbase/agentkit-langchain @coinbase/agentkit@langchain @langchain/langgraph @langchain/openai
+npm install @coinbase/agentkit-langchain @coinbase/agentkit @langchain @langchain/langgraph @langchain/openai
 ```
 
 ### Environment Setup
@@ -35,8 +35,8 @@ import { ChatOpenAI } from "@langchain/openai";
 import { AgentKit } from "@coinbase/agentkit";
 
 const agentKit = await AgentKit.from({
-  cdpApiKeyName: "CDP API KEY NAME",
-  cdpApiKeyPrivate: "CDP API KEY PRIVATE KEY",
+  cdpApiKeyId: "CDP API KEY NAME",
+  cdpApiKeySecret: "CDP API KEY SECRET",
 });
 
 const tools = await getLangChainTools(agentKit);

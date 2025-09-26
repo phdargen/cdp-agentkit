@@ -39,7 +39,7 @@ Do not use the contract address as the destination address. If you are unsure of
       const data = encodeFunctionData({
         abi: ERC721_ABI,
         functionName: "mint",
-        args: [args.destination as Hex, 1n],
+        args: [args.destination as Hex],
       });
 
       const hash = await walletProvider.sendTransaction({
@@ -132,7 +132,7 @@ It takes the following inputs:
         address: args.contractAddress as Hex,
         abi: ERC721_ABI,
         functionName: "balanceOf",
-        args: [address],
+        args: [address as Hex],
       });
 
       return `Balance of NFTs for contract ${args.contractAddress} at address ${address} is ${balance}`;

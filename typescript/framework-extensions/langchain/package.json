@@ -1,6 +1,6 @@
 {
   "name": "@coinbase/agentkit-langchain",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Langchain Toolkit extension of CDP Agentkit",
   "repository": "https://github.com/coinbase/agentkit",
   "author": "Coinbase Inc.",
@@ -17,9 +17,8 @@
     "format": "prettier -c .prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",
     "format:check": "prettier -c .prettierrc --check \"**/*.{ts,js,cjs,json,md}\"",
     "check": "tsc --noEmit",
-    "test": "npx jest --no-cache --testMatch='**/*.test.ts'",
-    "test:dry-run": "npm install && npm ci && npm publish --dry-run",
-    "test:e2e": "npx jest --no-cache --testMatch=**/e2e.ts --coverageThreshold '{}'",
+    "test": "jest --no-cache --testMatch='**/*.test.ts'",
+    "test:e2e": "jest --no-cache --testMatch=**/e2e.ts --coverageThreshold '{}'",
     "test:types": "tsd --files src/tests/types.test-d.ts",
     "clean": "rm -rf dist/*",
     "prepack": "tsc",
@@ -40,12 +39,13 @@
     "langchain"
   ],
   "dependencies": {
-    "@coinbase/agentkit": "^0.1.0",
-    "@coinbase/coinbase-sdk": "^0.15.0",
     "@langchain/core": "^0.3.19",
     "zod": "^3.22.4"
   },
+  "devDependencies": {
+    "@coinbase/agentkit": "workspace:*"
+  },
   "peerDependencies": {
-    "@coinbase/coinbase-sdk": "^0.15.0"
+    "@coinbase/agentkit": ">=0.1.0"
   }
 }
