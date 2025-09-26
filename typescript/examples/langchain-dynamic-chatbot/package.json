@@ -1,12 +1,16 @@
 {
-  "name": "langchain-dynamic-chatbot",
+  "name": "@coinbase/dynamic-langchain-chatbot-example",
+  "description": "Dynamic AgentKit Node.js SDK Chatbot Example",
   "version": "1.0.0",
-  "description": "A chatbot example using AgentKit with Dynamic wallet provider",
-  "main": "chatbot.ts",
+  "private": true,
+  "license": "Apache-2.0",
   "scripts": {
-    "start": "ts-node chatbot.ts",
-    "build": "tsc",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "NODE_OPTIONS='--no-warnings' ts-node ./chatbot.ts",
+    "dev": "nodemon ./chatbot.ts",
+    "lint": "eslint -c .eslintrc.json *.ts",
+    "lint:fix": "eslint -c .eslintrc.json *.ts --fix",
+    "format": "prettier --write \"**/*.{ts,js,cjs,json,md}\"",
+    "format:check": "prettier -c .prettierrc --check \"**/*.{ts,js,cjs,json,md}\""
   },
   "dependencies": {
     "@coinbase/agentkit": "workspace:*",
@@ -14,7 +18,8 @@
     "@langchain/langgraph": "^0.2.21",
     "@langchain/openai": "^0.3.14",
     "@langchain/core": "^0.3.19",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "nodemon": "^3.1.0",

@@ -1,5 +1,6 @@
 import {
   AgentKit,
+  DynamicEvmWalletProvider,
   DynamicSvmWalletProvider,
   wethActionProvider,
   walletActionProvider,
@@ -7,7 +8,7 @@ import {
   pythActionProvider,
   cdpApiActionProvider,
   splActionProvider,
-  DynamicEvmWalletProvider,
+  x402ActionProvider,
 } from "@coinbase/agentkit";
 import { getLangChainTools } from "@coinbase/agentkit-langchain";
 import { HumanMessage } from "@langchain/core/messages";
@@ -15,12 +16,9 @@ import { MemorySaver } from "@langchain/langgraph";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { ChatOpenAI } from "@langchain/openai";
 import * as dotenv from "dotenv";
-import * as readline from "node:readline";
-import * as fs from "node:fs";
+import * as readline from "readline";
 
 dotenv.config();
-
-const WALLET_DATA_FILE = "wallet_data.txt";
 
 /**
  * Validates that required environment variables are set
@@ -32,25 +30,58 @@ function validateEnvironment(): void {
   const missingVars: string[] = [];
 
   // Check required variables
-  const requiredVars = ["OPENAI_API_KEY", "DYNAMIC_AUTH_TOKEN", "DYNAMIC_ENVIRONMENT_ID"];
-  for (const varName of requiredVars) {
+  const requiredVars = [
+    "OPENAI_API_KEY",
+    "DYNAMIC_AUTH_TOKEN",
+    "DYNAMIC_ENVIRONMENT_ID",
+  ];
+  requiredVars.forEach(varName => {
     if (!process.env[varName]) {
       missingVars.push(varName);
     }
-  }
+  });
 
   // Exit if any required variables are missing
   if (missingVars.length > 0) {
     console.error("Error: Required environment variables are not set");
-    for (const varName of missingVars) {
+    missingVars.forEach(varName => {
       console.error(`${varName}=your_${varName.toLowerCase()}_here`);
-    }
+    });
     process.exit(1);
+  }
+
+  // Warn about optional NETWORK_ID
+  if (!process.env.NETWORK_ID) {
+    console.warn("Warning: NETWORK_ID not set, defaulting to base-sepolia testnet");
   }
 }
 
 // Add this right after imports and before any other code
 validateEnvironment();
+
+/**
+ * Type guard to check if the wallet provider is an EVM provider
+ *
+ * @param walletProvider - The wallet provider to check
+ * @returns True if the wallet provider is an EVM provider, false otherwise
+ */
+function isEvmWalletProvider(
+  walletProvider: DynamicEvmWalletProvider | DynamicSvmWalletProvider,
+): walletProvider is DynamicEvmWalletProvider {
+  return walletProvider instanceof DynamicEvmWalletProvider;
+}
+
+/**
+ * Type guard to check if the wallet provider is a Solana provider
+ *
+ * @param walletProvider - The wallet provider to check
+ * @returns True if the wallet provider is a Solana provider, false otherwise
+ */
+function isSolanaWalletProvider(
+  walletProvider: DynamicEvmWalletProvider | DynamicSvmWalletProvider,
+): walletProvider is DynamicSvmWalletProvider {
+  return walletProvider instanceof DynamicSvmWalletProvider;
+}
 
 /**
  * Initialize the agent with Dynamic Agentkit
@@ -61,35 +92,47 @@ async function initializeAgent() {
   try {
     // Initialize LLM
     const llm = new ChatOpenAI({
-      modelName: "gpt-4o-mini",
+      model: "gpt-4o-mini",
     });
 
-  const networkId = process.env.NETWORK_ID || "mainnet-beta";
-  const thresholdSignatureScheme = process.env.DYNAMIC_THRESHOLD_SIGNATURE_SCHEME || "TWO_OF_TWO";
+    // Configure Dynamic Wallet Provider
+    const networkId = process.env.NETWORK_ID || "base-sepolia";
+    const isSolana = networkId.includes("solana");
+    const thresholdSignatureScheme = process.env.DYNAMIC_THRESHOLD_SIGNATURE_SCHEME || "TWO_OF_TWO";
 
-  // Configure Dynamic wallet provider
-    const walletConfig = {
+    const dynamicWalletConfig = {
       authToken: process.env.DYNAMIC_AUTH_TOKEN as string,
       environmentId: process.env.DYNAMIC_ENVIRONMENT_ID as string,
-      //networkId,
-      chainId: "84532",
-      chainType: "ethereum" as const,
+      networkId,
       thresholdSignatureScheme,
     };
 
-    const walletProvider = await DynamicEvmWalletProvider.configureWithWallet(walletConfig);
+    const walletProvider = isSolana
+      ? await DynamicSvmWalletProvider.configureWithWallet(dynamicWalletConfig)
+      : await DynamicEvmWalletProvider.configureWithWallet(dynamicWalletConfig);
+
+
+    console.log("walletProvider", walletProvider.exportWallet());
+    
+    const actionProviders = [
+      walletActionProvider(),
+      cdpApiActionProvider(),
+      pythActionProvider(),
+      ...(isEvmWalletProvider(walletProvider)
+        ? [
+            wethActionProvider(),
+            erc20ActionProvider(),
+            x402ActionProvider(),
+          ]
+        : isSolanaWalletProvider(walletProvider)
+          ? [splActionProvider()]
+          : []),
+    ];
 
     // Initialize AgentKit
     const agentkit = await AgentKit.from({
       walletProvider,
-      actionProviders: [
-        wethActionProvider(),
-        pythActionProvider(),
-        walletActionProvider(),
-        erc20ActionProvider(),
-        cdpApiActionProvider(),
-        splActionProvider(),
-      ],
+      actionProviders,
     });
 
     const tools = await getLangChainTools(agentkit);
@@ -104,21 +147,17 @@ async function initializeAgent() {
       tools,
       checkpointSaver: memory,
       messageModifier: `
-        You are a helpful agent with a Dynamic wallet that can interact onchain using the Coinbase Developer
-        Platform AgentKit. You are empowered to interact onchain using your tools. If you ever need funds, you can
-        request them from the faucet if you are on network ID 'solana-devnet'. If not, you can provide your wallet
-        details and request funds from the user. Before executing your first action, get the wallet details to see
-        what network you're on. If there is a 5XX (internal) HTTP error code, ask the user to try again later. If
-        someone asks you to do something you can't do with your currently available tools, you must say so, and
-        encourage them to implement it themselves using the CDP SDK + Agentkit, recommend they go to
-        docs.cdp.coinbase.com for more information. Be concise and helpful with your responses. Refrain from
+        You are a helpful agent that can interact onchain using the Coinbase Developer Platform AgentKit with a Dynamic wallet. You are 
+        empowered to interact onchain using your tools. If you ever need funds, you can request them from the 
+        faucet if you are on network ID 'base-sepolia'. If not, you can provide your wallet details and request 
+        funds from the user. Before executing your first action, get the wallet details to see what network 
+        you're on. If there is a 5XX (internal) HTTP error code, ask the user to try again later. If someone 
+        asks you to do something you can't do with your currently available tools, you must say so, and 
+        encourage them to implement it themselves using the CDP SDK + Agentkit, recommend they go to 
+        docs.cdp.coinbase.com for more information. Be concise and helpful with your responses. Refrain from 
         restating your tools' descriptions unless it is explicitly requested.
         `,
     });
-
-    // Save wallet data
-    const exportedWallet = walletProvider.exportWallet();
-    fs.writeFileSync(WALLET_DATA_FILE, JSON.stringify(exportedWallet));
 
     return { agent, config: agentConfig };
   } catch (error) {
@@ -134,11 +173,8 @@ async function initializeAgent() {
  * @param config - Agent configuration
  * @param interval - Time interval between actions in seconds
  */
-async function runAutonomousMode(
-  agent: ReturnType<typeof createReactAgent>,
-  config: { configurable: { thread_id: string } },
-  interval = 10
-) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function runAutonomousMode(agent: any, config: any, interval = 10) {
   console.log("Starting autonomous mode...");
 
   // eslint-disable-next-line no-constant-condition
@@ -152,29 +188,33 @@ async function runAutonomousMode(
 
       for await (const chunk of stream) {
         if ("agent" in chunk) {
-          console.log(chunk.agent);
+          console.log(chunk.agent.messages[0].content);
+        } else if ("tools" in chunk) {
+          console.log(chunk.tools.messages[0].content);
         }
+        console.log("-------------------");
       }
 
-      console.log(`Waiting ${interval} seconds before next action...`);
       await new Promise(resolve => setTimeout(resolve, interval * 1000));
     } catch (error) {
-      console.error("Error in autonomous mode:", error);
-      await new Promise(resolve => setTimeout(resolve, interval * 1000));
+      if (error instanceof Error) {
+        console.error("Error:", error.message);
+      }
+      process.exit(1);
     }
   }
 }
 
 /**
- * Run the agent in chat mode
+ * Run the agent interactively based on user input
  *
  * @param agent - The agent executor
  * @param config - Agent configuration
  */
-async function runChatMode(
-  agent: ReturnType<typeof createReactAgent>,
-  config: { configurable: { thread_id: string } }
-) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function runChatMode(agent: any, config: any) {
+  console.log("Starting chat mode... Type 'exit' to end.");
+
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -183,16 +223,12 @@ async function runChatMode(
   const question = (prompt: string): Promise<string> =>
     new Promise(resolve => rl.question(prompt, resolve));
 
-  console.log("Starting chat mode...");
-  console.log("Type 'exit' to quit");
-
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    try {
-      const userInput = await question("\nYou: ");
+  try {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const userInput = await question("\nPrompt: ");
 
       if (userInput.toLowerCase() === "exit") {
-        rl.close();
         break;
       }
 
@@ -200,19 +236,27 @@ async function runChatMode(
 
       for await (const chunk of stream) {
         if ("agent" in chunk) {
-          console.log(chunk.agent);
+          console.log(chunk.agent.messages[0].content);
+        } else if ("tools" in chunk) {
+          console.log(chunk.tools.messages[0].content);
         }
+        console.log("-------------------");
       }
-    } catch (error) {
-      console.error("Error in chat mode:", error);
     }
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error("Error:", error.message);
+    }
+    process.exit(1);
+  } finally {
+    rl.close();
   }
 }
 
 /**
- * Choose between chat and autonomous modes
+ * Choose whether to run in autonomous or chat mode based on user input
  *
- * @returns The chosen mode
+ * @returns Selected mode
  */
 async function chooseMode(): Promise<"chat" | "auto"> {
   const rl = readline.createInterface({
@@ -223,33 +267,52 @@ async function chooseMode(): Promise<"chat" | "auto"> {
   const question = (prompt: string): Promise<string> =>
     new Promise(resolve => rl.question(prompt, resolve));
 
+  // eslint-disable-next-line no-constant-condition
   while (true) {
-    const mode = await question("Choose mode (chat/auto): ");
-    if (mode.toLowerCase() === "chat" || mode.toLowerCase() === "auto") {
+    console.log("\nAvailable modes:");
+    console.log("1. chat    - Interactive chat mode");
+    console.log("2. auto    - Autonomous action mode");
+
+    const choice = (await question("\nChoose a mode (enter number or name): "))
+      .toLowerCase()
+      .trim();
+
+    if (choice === "1" || choice === "chat") {
       rl.close();
-      return mode.toLowerCase() as "chat" | "auto";
+      return "chat";
+    } else if (choice === "2" || choice === "auto") {
+      rl.close();
+      return "auto";
     }
-    console.log("Invalid mode. Please choose 'chat' or 'auto'");
+    console.log("Invalid choice. Please try again.");
   }
 }
 
 /**
- * Main function
+ * Start the chatbot agent
  */
 async function main() {
   try {
     const { agent, config } = await initializeAgent();
     const mode = await chooseMode();
 
-    if (mode === "auto") {
-      await runAutonomousMode(agent, config);
-    } else {
+    if (mode === "chat") {
       await runChatMode(agent, config);
+    } else {
+      await runAutonomousMode(agent, config);
     }
   } catch (error) {
-    console.error("Failed to start agent:", error);
+    if (error instanceof Error) {
+      console.error("Error:", error.message);
+    }
     process.exit(1);
   }
 }
 
-main();
+if (require.main === module) {
+  console.log("Starting Agent...");
+  main().catch(error => {
+    console.error("Fatal error:", error);
+    process.exit(1);
+  });
+}

@@ -1,60 +1,66 @@
-# Dynamic AgentKit LangChain Chatbot Example
+# Dynamic AgentKit LangChain Extension Examples - Chatbot Typescript
 
-This example demonstrates how to use AgentKit with Dynamic wallet provider and LangChain to create a chatbot that can interact with the Solana blockchain.
+This example demonstrates an agent setup as a terminal style chatbot with access to the full set of CDP AgentKit actions using Dynamic wallet provider.
+
+## Ask the chatbot to engage in the Web3 ecosystem!
+
+- "Transfer a portion of your ETH to a random address"
+- "What is the price of BTC?"
+- "Deploy an NFT that will go super viral!"
+- "Deploy an ERC-20 token with total supply 1 billion"
 
 ## Prerequisites
 
-- Node.js 18+
+### Checking Node Version
+
+Before using the example, ensure that you have the correct version of Node.js installed. The example requires Node.js 20 or higher. You can check your Node version by running:
+
+```bash
+node --version
+```
+
+If you don't have the correct version, you can install it using [nvm](https://github.com/nvm-sh/nvm):
+
+```bash
+nvm install node
+```
+
+This will automatically install and use the latest version of Node.
+
+### API Keys
+
+You'll need the following API keys:
 - [Dynamic Account](https://www.dynamic.xyz/) and API credentials
-- [OpenAI API Key](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key)
+- [OpenAI API Key](https://platform.openai.com/docs/quickstart#create-and-export-an-api-key)
 
-## Setup
+Once you have them, rename the `.env-local` file to `.env` and make sure you set the API keys to their corresponding environment variables:
 
-1. Clone the repository and install dependencies:
+- "OPENAI_API_KEY"
+- "DYNAMIC_AUTH_TOKEN"
+- "DYNAMIC_ENVIRONMENT_ID"
+
+## Running the example
+
+From the root directory, run:
+
 ```bash
-npm install
+pnpm install
+pnpm build
 ```
 
-2. Copy the example environment file and fill in your credentials:
+This will install the dependencies and build the packages locally. The chatbot example uses the local `@coinbase/agentkit-langchain` and `@coinbase/agentkit` packages. If you make changes to the packages, you can run `pnpm build` from root again to rebuild the packages, and your changes will be reflected in the chatbot example.
+
+Now from the `typescript/examples/langchain-dynamic-chatbot` directory, run:
+
 ```bash
-cp .env-local .env
+pnpm start
 ```
 
-3. Update the `.env` file with your credentials:
-```
-OPENAI_API_KEY=your_openai_api_key
-
-# Dynamic Configuration - get these from your Dynamic dashboard
-DYNAMIC_AUTH_TOKEN=your_dynamic_auth_token
-DYNAMIC_ENVIRONMENT_ID=your_dynamic_environment_id
-DYNAMIC_BASE_API_URL=https://app.dynamicauth.com
-DYNAMIC_BASE_MPC_RELAY_API_URL=relay.dynamicauth.com
-
-# Optional Network ID. If you'd like to use a Dynamic Solana wallet, set to "solana-devnet". Otherwise, defaults to "mainnet-beta"
-NETWORK_ID=solana-devnet
-
-# Optional CDP API Key Name. If you'd like to use the CDP API, for example to faucet funds, set this to the name of the CDP API key
-CDP_API_KEY_NAME=your_cdp_api_key_name
-
-# Optional CDP API Key Private Key. If you'd like to use the CDP API, for example to faucet funds, set this to the private key of the CDP API key
-CDP_API_KEY_PRIVATE_KEY=your_cdp_api_key_private_key
-```
-
-## Running the Example
-
-Start the chatbot:
-```bash
-npm start
-```
-
-The chatbot will start in either chat mode or autonomous mode:
-
-- **Chat Mode**: Interact with the agent through a command-line interface
-- **Autonomous Mode**: The agent will automatically perform actions on the blockchain at regular intervals
+Select "1. chat mode" and start telling your Agent to do things onchain!
 
 ## Features
 
-- Uses Dynamic's wallet API for Solana blockchain interactions
+- Uses Dynamic's wallet API for EVM and Solana blockchain interactions
 - Integrates with LangChain for natural language processing
 - Supports both interactive chat and autonomous modes
 - Can perform various blockchain actions like:
@@ -68,3 +74,7 @@ The chatbot will start in either chat mode or autonomous mode:
 - [AgentKit Documentation](https://docs.cdp.coinbase.com)
 - [Dynamic Documentation](https://docs.dynamic.xyz)
 - [LangChain Documentation](https://js.langchain.com/docs)
+
+## License
+
+Apache-2.0

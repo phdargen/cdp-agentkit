@@ -1,6 +1,6 @@
 import { ViemWalletProvider } from "./viemWalletProvider";
 import { createWalletClient, http, type WalletClient } from "viem";
-import { getChain } from "../network/network";
+import { getChain, NETWORK_ID_TO_CHAIN_ID } from "../network/network";
 import {
   type DynamicWalletConfig,
   type DynamicWalletExport,
@@ -64,18 +64,24 @@ export class DynamicEvmWalletProvider extends ViemWalletProvider {
   public static async configureWithWallet(
     config: DynamicEvmWalletConfig,
   ): Promise<DynamicEvmWalletProvider> {
+
+    const networkId = config.networkId || "base-sepolia";
+    const chainId = NETWORK_ID_TO_CHAIN_ID[networkId];
+    if (!chainId) {
+      throw new Error(`Unsupported network ID: ${networkId}`);
+    }
+
     console.log("[DynamicEvmWalletProvider] Starting wallet configuration with config:", {
-      chainId: config.chainId,
-      chainType: config.chainType,
+      networkId,
+      chainId,
       environmentId: config.environmentId,
     });
 
-    const { wallet, dynamic } = await createDynamicWallet({
-      ...config,
-      chainType: "ethereum",
-    });
+    const { wallet, dynamic } = await createDynamicWallet(
+      config,
+      "ethereum"
+    );
 
-    const chainId = config.chainId || "84532";
     const chain = getChain(chainId);
     if (!chain) {
       throw new Error(`Chain with ID ${chainId} not found`);

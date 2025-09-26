@@ -13,12 +13,8 @@ export interface DynamicWalletConfig {
   environmentId: string;
   /** The ID of the wallet to use, if not provided a new wallet will be created */
   walletId?: string;
-  /** The chain ID to use for the wallet (for EVM) */
-  chainId?: string;
-  /** The network ID to use for the wallet (for SVM) */
-  networkId?: string;
-  /** The type of wallet to create */
-  chainType: "ethereum" | "solana";
+  /** The network ID to use for the wallet */
+  networkId: string;
   /** The threshold signature scheme to use for wallet creation */
   thresholdSignatureScheme?: string;
   /** Optional password for encrypted backup shares */
@@ -56,9 +52,13 @@ const convertThresholdSignatureScheme = (scheme?: string): ThresholdSignatureSch
  * Create a Dynamic client based on the chain type
  *
  * @param config - The configuration options for the Dynamic client
+ * @param chainType - The type of chain to create the client for
  * @returns The created Dynamic client
  */
-export const createDynamicClient = async (config: DynamicWalletConfig) => {
+export const createDynamicClient = async (
+  config: DynamicWalletConfig,
+  chainType: "ethereum" | "solana",
+) => {
   const clientConfig = {
     authToken: config.authToken,
     environmentId: config.environmentId,
@@ -66,13 +66,15 @@ export const createDynamicClient = async (config: DynamicWalletConfig) => {
 
   try {
     const client =
-      config.chainType === "ethereum"
+      chainType === "ethereum"
         ? new DynamicEvmWalletClient(clientConfig)
         : new DynamicSvmWalletClient(clientConfig);
 
-    console.log("[createDynamicClient] Client created successfully");
     await client.authenticateApiToken(config.authToken);
-    console.log("[createDynamicClient] Client authenticated successfully");
+    const evmWallets = await client.getWallets();
+    console.log('wallets:', evmWallets);
+
+
     return client;
   } catch (error) {
     console.error("[createDynamicClient] Error creating client:", error);
@@ -84,23 +86,25 @@ export const createDynamicClient = async (config: DynamicWalletConfig) => {
  * Create a Dynamic wallet
  *
  * @param config - The configuration options for the Dynamic wallet
+ * @param chainType - The type of chain to create the wallet for
  * @returns The created Dynamic wallet and client
  */
 export const createDynamicWallet = async (
   config: DynamicWalletConfig,
+  chainType: "ethereum" | "solana",
 ): Promise<CreateDynamicWalletReturnType> => {
   console.log("[createDynamicWallet] Starting wallet creation with config:", {
-    chainType: config.chainType,
+    chainType: chainType,
     networkId: config.networkId,
   });
 
-  const client = await createDynamicClient(config);
+  const client = await createDynamicClient(config, chainType);
   console.log("[createDynamicWallet] Dynamic client created");
 
   let wallet: CreateDynamicWalletReturnType["wallet"];
   if (config.walletId) {
     console.log("[createDynamicWallet] Using existing wallet ID:", config.walletId);
-    if (config.chainType === "solana") {
+    if (chainType === "solana") {
       const svmClient = client as DynamicSvmWalletClient;
       const result = await svmClient.deriveAccountAddress(
         new TextEncoder().encode(config.walletId),
@@ -120,14 +124,14 @@ export const createDynamicWallet = async (
         config.thresholdSignatureScheme || ThresholdSignatureScheme.TWO_OF_TWO,
       password: config.password ? "***" : undefined,
       networkId: config.networkId,
-      chainType: config.chainType,
+      chainType: chainType,
     });
 
     const thresholdSignatureScheme = convertThresholdSignatureScheme(
       config.thresholdSignatureScheme,
     );
     try {
-      const result = await (client as DynamicEvmWalletClient).createWalletAccount({
+      const result = await client.createWalletAccount({
         thresholdSignatureScheme,
         password: config.password,
       });

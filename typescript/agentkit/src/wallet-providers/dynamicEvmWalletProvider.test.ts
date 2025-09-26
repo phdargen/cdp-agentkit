@@ -31,6 +31,7 @@ describe("DynamicEvmWalletProvider", () => {
     baseApiUrl: "https://app.dynamicauth.com",
     baseMPCRelayApiUrl: "relay.dynamicauth.com",
     chainId: "84532",
+    networkId: "base-sepolia",
     chainType: "ethereum" as const,
     thresholdSignatureScheme: ThresholdSignatureScheme.TWO_OF_TWO,
   };
@@ -115,7 +116,6 @@ describe("DynamicEvmWalletProvider", () => {
       dynamic: mockDynamicClient,
     });
   });
-
 
   describe("configureWithWallet", () => {
     it("should create a new wallet with Dynamic client", async () => {

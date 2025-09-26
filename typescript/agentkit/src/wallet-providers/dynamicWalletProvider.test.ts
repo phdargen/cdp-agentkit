@@ -46,13 +46,12 @@ describe("DynamicWalletProvider", () => {
     authToken: "test-auth-token",
     environmentId: "test-environment-id",
     chainId: "1",
-    chainType: "ethereum",
+    networkId: "mainnet",
   };
 
   const MOCK_SVM_CONFIG: DynamicSvmWalletConfig = {
     authToken: "test-auth-token",
     environmentId: "test-environment-id",
-    chainType: "solana",
     networkId: "mainnet-beta",
   };
 
@@ -73,7 +72,6 @@ describe("DynamicWalletProvider", () => {
   it("should create an EVM wallet provider when explicitly requested", async () => {
     const config: DynamicEvmWalletConfig = {
       ...MOCK_EVM_CONFIG,
-      chainType: "ethereum",
     };
 
     const provider = await DynamicWalletProvider.configureWithWallet(config);
@@ -135,7 +133,6 @@ describe("DynamicWalletProvider", () => {
 
     const testConfig: Partial<DynamicEvmWalletConfig> = {
       environmentId: "test-environment-id",
-      chainType: "ethereum",
     };
 
     await expect(

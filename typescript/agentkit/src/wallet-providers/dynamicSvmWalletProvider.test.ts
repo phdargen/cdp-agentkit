@@ -204,10 +204,8 @@ describe("DynamicSvmWalletProvider", () => {
       expect(mockConnection.getGenesisHash).toHaveBeenCalled();
     });
 
-    it("should use default network ID when not provided", async () => {
-      const { networkId: _networkId, ...configWithoutNetworkId } = MOCK_CONFIG;
-
-      await DynamicSvmWalletProvider.configureWithWallet(configWithoutNetworkId);
+    it("should use provided network ID", async () => {
+      await DynamicSvmWalletProvider.configureWithWallet(MOCK_CONFIG);
 
       expect(clusterApiUrl).toHaveBeenCalledWith("mainnet-beta");
     });

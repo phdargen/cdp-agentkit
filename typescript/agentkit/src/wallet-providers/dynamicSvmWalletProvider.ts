@@ -21,6 +21,7 @@ import type {
   SignatureStatusConfig,
   RpcResponseAndContext,
   SignatureResult,
+  Cluster,
 } from "@solana/web3.js";
 import type { Network } from "../network";
 
@@ -28,9 +29,7 @@ import type { Network } from "../network";
  * Configuration options for the Dynamic Svm wallet provider.
  */
 export interface DynamicSvmWalletConfig extends DynamicWalletConfig {
-  /** The network ID to use for the wallet */
-  networkId?: string;
-  /** The connection to use for the wallet */
+  /** Optional custom connection to use for the wallet */
   connection?: Connection;
 }
 
@@ -95,25 +94,30 @@ export class DynamicSvmWalletProvider extends SvmWalletProvider {
   public static async configureWithWallet(
     config: DynamicSvmWalletConfig,
   ): Promise<DynamicSvmWalletProvider> {
+    // Derive cluster config from networkId using existing mappings
+    const clusterId = SOLANA_CLUSTER_ID_BY_NETWORK_ID[
+      config.networkId as keyof typeof SOLANA_CLUSTER_ID_BY_NETWORK_ID
+    ] as Cluster;
+    if (!clusterId) {
+      throw new Error(
+        `Unsupported Solana network ID: ${config.networkId}. Use DynamicEvmWalletProvider for EVM networks.`,
+      );
+    }
+
     console.log("[DynamicSvmWalletProvider] Starting wallet configuration with config:", {
       networkId: config.networkId,
-      chainType: config.chainType,
+      clusterId,
       environmentId: config.environmentId,
     });
 
     try {
-      const { wallet, dynamic } = await createDynamicWallet({
-        ...config,
-        chainType: "solana",
-      });
+      const { wallet, dynamic } = await createDynamicWallet(config, "solana");
 
       console.log("[DynamicSvmWalletProvider] Wallet created:", {
         accountAddress: wallet.accountAddress,
       });
 
-      const connection =
-        config.connection ??
-        new Connection(clusterApiUrl(SOLANA_CLUSTER_ID_BY_NETWORK_ID[config.networkId ?? ""]));
+      const connection = config.connection ?? new Connection(clusterApiUrl(clusterId));
 
       console.log(
         "[DynamicSvmWalletProvider] Connection established with endpoint:",
