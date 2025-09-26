@@ -16,7 +16,7 @@
 **/__pycache__/
 
 # Wallet data
-**/wallet_data.txt
+**/wallet_data*
 
 # Tools
 **/.pytest_cache
@@ -131,4 +131,11 @@ api.json
 # TS Docs
 **/typescript/docs/
 docs/
-typescript/examples/langchain-cdp-chatbot/agent-ui
+!python/coinbase-agentkit/docs/
+!python/framework-extensions/langchain/docs/
+
+.to-publish-pypi
+
+# pnpm
+typescript/.pnpm-store
+typescript/.pnp.*
