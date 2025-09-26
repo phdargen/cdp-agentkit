@@ -37,7 +37,6 @@ export class CdpApiActionProvider extends ActionProvider<WalletProvider> {
 Faucet is only allowed on 'base-sepolia' or 'solana-devnet'.
 If fauceting on 'base-sepolia', user can only provide asset ID 'eth', 'usdc', 'eurc' or 'cbbtc', if no asset ID is provided, the faucet will default to 'eth'.
 If fauceting on 'solana-devnet', user can only provide asset ID 'sol' or 'usdc', if no asset ID is provided, the faucet will default to 'sol'.
-This works with both CDP wallet providers and non-CDP wallet providers (as long as CDP_API_KEY_ID and CDP_API_KEY_SECRET environment variables are set for non-CDP wallets).
 You are not allowed to faucet with any other network or asset ID. If you are on another network, suggest that the user sends you some ETH
 from another wallet and provide the user with your wallet details.`,
     schema: RequestFaucetFundsV2Schema,
