@@ -32,6 +32,7 @@ export class DynamicEvmWalletProvider extends ViemWalletProvider {
    *
    * @param walletClient - The Viem wallet client instance
    * @param config - The configuration options for the Dynamic wallet
+   * @param dynamicClient - The Dynamic wallet client instance
    */
   private constructor(
     walletClient: WalletClient,
@@ -54,8 +55,6 @@ export class DynamicEvmWalletProvider extends ViemWalletProvider {
    * const provider = await DynamicWalletProvider.configureWithWallet({
    *   authToken: "your-auth-token",
    *   environmentId: "your-environment-id",
-   *   baseApiUrl: "https://app.dynamicauth.com",
-   *   baseMPCRelayApiUrl: "relay.dynamicauth.com",
    *   chainType: "ethereum",
    *   chainId: "84532",
    *   thresholdSignatureScheme: ThresholdSignatureScheme.TWO_OF_TWO
@@ -65,6 +64,12 @@ export class DynamicEvmWalletProvider extends ViemWalletProvider {
   public static async configureWithWallet(
     config: DynamicEvmWalletConfig,
   ): Promise<DynamicEvmWalletProvider> {
+    console.log("[DynamicEvmWalletProvider] Starting wallet configuration with config:", {
+      chainId: config.chainId,
+      chainType: config.chainType,
+      environmentId: config.environmentId,
+    });
+
     const { wallet, dynamic } = await createDynamicWallet({
       ...config,
       chainType: "ethereum",
@@ -76,10 +81,6 @@ export class DynamicEvmWalletProvider extends ViemWalletProvider {
       throw new Error(`Chain with ID ${chainId} not found`);
     }
 
-    const publicClient = (dynamic as DynamicEvmWalletClient).createViemPublicClient({
-      chain,
-    });
-
     const walletClient = createWalletClient({
       account: {
         address: wallet.accountAddress as `0x${string}`,
@@ -89,10 +90,14 @@ export class DynamicEvmWalletProvider extends ViemWalletProvider {
       transport: http(),
     });
 
-    return new DynamicEvmWalletProvider(walletClient, {
-      ...config,
-      accountAddress: wallet.accountAddress,
-    }, dynamic as DynamicEvmWalletClient);
+    return new DynamicEvmWalletProvider(
+      walletClient,
+      {
+        ...config,
+        accountAddress: wallet.accountAddress,
+      },
+      dynamic as DynamicEvmWalletClient,
+    );
   }
 
   /**
@@ -130,7 +135,10 @@ export class DynamicEvmWalletProvider extends ViemWalletProvider {
    * @param password - Optional password for encrypted backup shares
    * @returns The account address and public key
    */
-  public async importPrivateKey(privateKey: string, password?: string): Promise<{
+  public async importPrivateKey(
+    privateKey: string,
+    password?: string,
+  ): Promise<{
     accountAddress: string;
     publicKeyHex: string;
   }> {
@@ -176,4 +184,4 @@ export class DynamicEvmWalletProvider extends ViemWalletProvider {
   public getAddress(): string {
     return this.#accountAddress;
   }
-} 
+}

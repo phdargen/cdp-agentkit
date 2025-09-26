@@ -1,15 +1,24 @@
 import { DynamicEvmWalletProvider } from "./dynamicEvmWalletProvider";
 import { DynamicEvmWalletClient } from "@dynamic-labs-wallet/node-evm";
 import { ThresholdSignatureScheme } from "@dynamic-labs-wallet/node";
-import type { Address, Hex } from "viem";
-import { createWalletClient, http } from "viem";
+import { createWalletClient, createPublicClient, http } from "viem";
 import { getChain } from "../network/network";
-import { createDynamicWallet } from "./dynamicShared";
+import { createDynamicWallet, createDynamicClient } from "./dynamicShared";
 
 jest.mock("@dynamic-labs-wallet/node-evm");
-jest.mock("viem");
+jest.mock("viem", () => ({
+  createWalletClient: jest.fn(),
+  createPublicClient: jest.fn(),
+  http: jest.fn(),
+}));
 jest.mock("../network/network");
-jest.mock("./dynamicShared");
+jest.mock("../analytics", () => ({
+  sendAnalyticsEvent: jest.fn().mockImplementation(() => Promise.resolve()),
+}));
+jest.mock("./dynamicShared", () => ({
+  createDynamicWallet: jest.fn(),
+  createDynamicClient: jest.fn(),
+}));
 
 const MOCK_ADDRESS = "0x742d35Cc6634C0532925a3b844Bc454e4438f44e";
 const MOCK_TRANSACTION_HASH = "0xef01";
@@ -42,6 +51,11 @@ describe("DynamicEvmWalletProvider", () => {
       accountAddress: MOCK_ADDRESS,
       publicKeyHex: "0x123",
     }),
+  };
+
+  const mockPublicClient = {
+    getBalance: jest.fn(),
+    getTransactionCount: jest.fn(),
   };
 
   const mockWalletClient = {
@@ -87,8 +101,13 @@ describe("DynamicEvmWalletProvider", () => {
       },
     });
 
-    // Mock createWalletClient
+    // Mock viem functions
     (createWalletClient as jest.Mock).mockReturnValue(mockWalletClient);
+    (createPublicClient as jest.Mock).mockReturnValue(mockPublicClient);
+    (http as jest.Mock).mockReturnValue(jest.fn());
+
+    // Mock createDynamicClient
+    (createDynamicClient as jest.Mock).mockResolvedValue(mockDynamicClient);
 
     // Mock createDynamicWallet
     (createDynamicWallet as jest.Mock).mockResolvedValue({
@@ -97,17 +116,14 @@ describe("DynamicEvmWalletProvider", () => {
     });
   });
 
+
   describe("configureWithWallet", () => {
     it("should create a new wallet with Dynamic client", async () => {
-      const provider = await DynamicEvmWalletProvider.configureWithWallet(MOCK_CONFIG);
+      const _provider = await DynamicEvmWalletProvider.configureWithWallet(MOCK_CONFIG);
 
       expect(createDynamicWallet).toHaveBeenCalledWith({
         ...MOCK_CONFIG,
         chainType: "ethereum",
-      });
-
-      expect(mockDynamicClient.createViemPublicClient).toHaveBeenCalledWith({
-        chain: expect.any(Object),
       });
 
       expect(getChain).toHaveBeenCalledWith(MOCK_CONFIG.chainId);
@@ -131,7 +147,7 @@ describe("DynamicEvmWalletProvider", () => {
     });
 
     it("should use default chain ID when not provided", async () => {
-      const { chainId, ...configWithoutChainId } = MOCK_CONFIG;
+      const { chainId: _chainId, ...configWithoutChainId } = MOCK_CONFIG;
 
       await DynamicEvmWalletProvider.configureWithWallet(configWithoutChainId);
 
@@ -201,4 +217,4 @@ describe("DynamicEvmWalletProvider", () => {
       });
     });
   });
-}); 
+});

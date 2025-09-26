@@ -45,8 +45,6 @@ describe("DynamicWalletProvider", () => {
   const MOCK_EVM_CONFIG: DynamicEvmWalletConfig = {
     authToken: "test-auth-token",
     environmentId: "test-environment-id",
-    baseApiUrl: "https://app.dynamicauth.com",
-    baseMPCRelayApiUrl: "relay.dynamicauth.com",
     chainId: "1",
     chainType: "ethereum",
   };
@@ -54,8 +52,6 @@ describe("DynamicWalletProvider", () => {
   const MOCK_SVM_CONFIG: DynamicSvmWalletConfig = {
     authToken: "test-auth-token",
     environmentId: "test-environment-id",
-    baseApiUrl: "https://app.dynamicauth.com",
-    baseMPCRelayApiUrl: "relay.dynamicauth.com",
     chainType: "solana",
     networkId: "mainnet-beta",
   };
@@ -119,9 +115,9 @@ describe("DynamicWalletProvider", () => {
       throw new Error("Auth token not found");
     });
 
-    await expect(
-      DynamicWalletProvider.configureWithWallet(MOCK_EVM_CONFIG),
-    ).rejects.toThrow("Auth token not found");
+    await expect(DynamicWalletProvider.configureWithWallet(MOCK_EVM_CONFIG)).rejects.toThrow(
+      "Auth token not found",
+    );
 
     mockEvmConfigureWithWallet.mockImplementation(originalImplementation);
   });
@@ -139,15 +135,13 @@ describe("DynamicWalletProvider", () => {
 
     const testConfig: Partial<DynamicEvmWalletConfig> = {
       environmentId: "test-environment-id",
-      baseApiUrl: "https://app.dynamicauth.com",
-      baseMPCRelayApiUrl: "relay.dynamicauth.com",
       chainType: "ethereum",
     };
 
-    await expect(DynamicWalletProvider.configureWithWallet(testConfig as DynamicEvmWalletConfig)).rejects.toThrow(
-      "Missing required authToken",
-    );
+    await expect(
+      DynamicWalletProvider.configureWithWallet(testConfig as DynamicEvmWalletConfig),
+    ).rejects.toThrow("Missing required authToken");
 
     mockEvmConfigureWithWallet.mockImplementation(originalImplementation);
   });
-}); 
+});

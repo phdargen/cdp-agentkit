@@ -1,7 +1,13 @@
 import { DynamicSvmWalletProvider } from "./dynamicSvmWalletProvider";
 import { DynamicSvmWalletClient } from "@dynamic-labs-wallet/node-svm";
-import { Connection, clusterApiUrl, PublicKey, VersionedTransaction, MessageV0 } from "@solana/web3.js";
-import { createDynamicWallet } from "./dynamicShared";
+import {
+  Connection,
+  clusterApiUrl,
+  PublicKey,
+  VersionedTransaction,
+  MessageV0,
+} from "@solana/web3.js";
+import { createDynamicWallet, createDynamicClient } from "./dynamicShared";
 import { ThresholdSignatureScheme } from "@dynamic-labs-wallet/node";
 
 jest.mock("@dynamic-labs-wallet/node-svm");
@@ -9,8 +15,15 @@ jest.mock("../network/svm", () => ({
   SOLANA_CLUSTER_ID_BY_NETWORK_ID: {
     "": "mainnet-beta",
     "mainnet-beta": "mainnet-beta",
-    "testnet": "testnet",
-    "devnet": "devnet",
+    testnet: "testnet",
+    devnet: "devnet",
+  },
+  SOLANA_NETWORKS: {
+    "test-genesis-hash": {
+      protocolFamily: "svm",
+      chainId: "test-genesis-hash",
+      networkId: "mainnet-beta",
+    },
   },
 }));
 jest.mock("@solana/web3.js", () => {
@@ -65,14 +78,20 @@ jest.mock("@solana/web3.js", () => {
     }),
   };
 });
-jest.mock("./dynamicShared");
+jest.mock("../analytics", () => ({
+  sendAnalyticsEvent: jest.fn().mockImplementation(() => Promise.resolve()),
+}));
+jest.mock("./dynamicShared", () => ({
+  createDynamicWallet: jest.fn(),
+  createDynamicClient: jest.fn(),
+}));
 
 const MOCK_ADDRESS = "test-address";
 const MOCK_TRANSACTION_HASH = "test-tx-hash";
 const MOCK_SIGNATURE_HASH = "test-signature";
 const MOCK_NETWORK = {
   protocolFamily: "svm",
-  chainId: undefined,
+  chainId: "test-genesis-hash",
   networkId: "mainnet-beta",
 };
 
@@ -126,6 +145,9 @@ describe("DynamicSvmWalletProvider", () => {
     // Mock DynamicSvmWalletClient
     (DynamicSvmWalletClient as jest.Mock).mockImplementation(() => mockDynamicClient);
 
+    // Mock createDynamicClient
+    (createDynamicClient as jest.Mock).mockResolvedValue(mockDynamicClient);
+
     // Mock createDynamicWallet
     (createDynamicWallet as jest.Mock).mockResolvedValue({
       wallet: mockWallet,
@@ -135,16 +157,14 @@ describe("DynamicSvmWalletProvider", () => {
 
   describe("configureWithWallet", () => {
     it("should create a new wallet with Dynamic client", async () => {
-      const provider = await DynamicSvmWalletProvider.configureWithWallet(MOCK_CONFIG);
+      const _provider = await DynamicSvmWalletProvider.configureWithWallet(MOCK_CONFIG);
 
       expect(createDynamicWallet).toHaveBeenCalledWith({
         ...MOCK_CONFIG,
         chainType: "solana",
       });
 
-      expect(Connection).toHaveBeenCalledWith(
-        "https://api.mainnet-beta.solana.com"
-      );
+      expect(Connection).toHaveBeenCalledWith("https://api.mainnet-beta.solana.com");
       const connection = (Connection as jest.Mock).mock.results[0].value;
       expect(connection.getGenesisHash).toHaveBeenCalled();
     });
@@ -178,14 +198,14 @@ describe("DynamicSvmWalletProvider", () => {
         ...MOCK_CONFIG,
         connection: mockConnection as unknown as Connection,
       };
-      const provider = await DynamicSvmWalletProvider.configureWithWallet(config);
+      const _provider = await DynamicSvmWalletProvider.configureWithWallet(config);
 
       expect(Connection).not.toHaveBeenCalled();
       expect(mockConnection.getGenesisHash).toHaveBeenCalled();
     });
 
     it("should use default network ID when not provided", async () => {
-      const { networkId, ...configWithoutNetworkId } = MOCK_CONFIG;
+      const { networkId: _networkId, ...configWithoutNetworkId } = MOCK_CONFIG;
 
       await DynamicSvmWalletProvider.configureWithWallet(configWithoutNetworkId);
 
@@ -198,8 +218,6 @@ describe("DynamicSvmWalletProvider", () => {
 
     beforeEach(async () => {
       provider = await DynamicSvmWalletProvider.configureWithWallet(MOCK_CONFIG);
-      // Mock getNetwork to return our test network
-      jest.spyOn(provider, "getNetwork").mockReturnValue(MOCK_NETWORK);
     });
 
     it("should get the wallet address", () => {
@@ -297,4 +315,4 @@ describe("DynamicSvmWalletProvider", () => {
       });
     });
   });
-}); 
+});

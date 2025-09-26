@@ -10,18 +10,14 @@
   },
   "dependencies": {
     "@coinbase/agentkit": "workspace:*",
-    "@coinbase/agentkit-langchain": "^0.3.0",
-    "@dynamic-labs-wallet/core": "^0.0.71",
-    "@dynamic-labs-wallet/node": "^0.0.71",
-    "@dynamic-labs-wallet/node-svm": "^0.0.71",
-    "@langchain/core": "^0.3.40",
-    "@langchain/langgraph": "^0.2.72",
-    "@langchain/openai": "*",
+    "@coinbase/agentkit-langchain": "workspace:*",
+    "@langchain/langgraph": "^0.2.21",
+    "@langchain/openai": "^0.3.14",
+    "@langchain/core": "^0.3.19",
     "dotenv": "^16.4.5"
   },
   "devDependencies": {
-    "@types/node": "^20.11.24",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
+    "nodemon": "^3.1.0",
+    "ts-node": "^10.9.2"
   }
 }

@@ -1,6 +1,6 @@
 import { DynamicEvmWalletClient } from "@dynamic-labs-wallet/node-evm";
 import { DynamicSvmWalletClient } from "@dynamic-labs-wallet/node-svm";
-import type { ThresholdSignatureScheme } from "@dynamic-labs-wallet/node";
+import { ThresholdSignatureScheme } from "@dynamic-labs-wallet/node";
 /**
  * Configuration options for the Dynamic wallet provider.
  *
@@ -11,10 +11,6 @@ export interface DynamicWalletConfig {
   authToken: string;
   /** The Dynamic environment ID */
   environmentId: string;
-  /** The base API URL for Dynamic */
-  baseApiUrl: string;
-  /** The base MPC relay API URL for Dynamic */
-  baseMPCRelayApiUrl: string;
   /** The ID of the wallet to use, if not provided a new wallet will be created */
   walletId?: string;
   /** The chain ID to use for the wallet (for EVM) */
@@ -24,7 +20,7 @@ export interface DynamicWalletConfig {
   /** The type of wallet to create */
   chainType: "ethereum" | "solana";
   /** The threshold signature scheme to use for wallet creation */
-  thresholdSignatureScheme?: ThresholdSignatureScheme;
+  thresholdSignatureScheme?: string;
   /** Optional password for encrypted backup shares */
   password?: string;
 }
@@ -46,6 +42,17 @@ type CreateDynamicWalletReturnType = {
 };
 
 /**
+ * Converts a string threshold signature scheme to the enum value
+ *
+ * @param scheme - The string representation of the threshold signature scheme
+ * @returns The corresponding ThresholdSignatureScheme enum value
+ */
+const convertThresholdSignatureScheme = (scheme?: string): ThresholdSignatureScheme => {
+  if (scheme === "TWO_OF_THREE") return ThresholdSignatureScheme.TWO_OF_THREE;
+  if (scheme === "THREE_OF_FIVE") return ThresholdSignatureScheme.THREE_OF_FIVE;
+  return ThresholdSignatureScheme.TWO_OF_TWO;
+};
+/**
  * Create a Dynamic client based on the chain type
  *
  * @param config - The configuration options for the Dynamic client
@@ -55,14 +62,13 @@ export const createDynamicClient = async (config: DynamicWalletConfig) => {
   const clientConfig = {
     authToken: config.authToken,
     environmentId: config.environmentId,
-    baseApiUrl: config.baseApiUrl,
-    baseMPCRelayApiUrl: config.baseMPCRelayApiUrl,
   };
 
   try {
-    const client = config.chainType === "ethereum"
-      ? new DynamicEvmWalletClient(clientConfig)
-      : new DynamicSvmWalletClient(clientConfig);
+    const client =
+      config.chainType === "ethereum"
+        ? new DynamicEvmWalletClient(clientConfig)
+        : new DynamicSvmWalletClient(clientConfig);
 
     console.log("[createDynamicClient] Client created successfully");
     await client.authenticateApiToken(config.authToken);
@@ -80,29 +86,29 @@ export const createDynamicClient = async (config: DynamicWalletConfig) => {
  * @param config - The configuration options for the Dynamic wallet
  * @returns The created Dynamic wallet and client
  */
-export const createDynamicWallet = async (config: DynamicWalletConfig): Promise<CreateDynamicWalletReturnType> => {
+export const createDynamicWallet = async (
+  config: DynamicWalletConfig,
+): Promise<CreateDynamicWalletReturnType> => {
   console.log("[createDynamicWallet] Starting wallet creation with config:", {
     chainType: config.chainType,
-    networkId: config.networkId
+    networkId: config.networkId,
   });
-
-  if (!config.thresholdSignatureScheme) {
-    throw new Error("thresholdSignatureScheme is required for wallet creation");
-  }
 
   const client = await createDynamicClient(config);
   console.log("[createDynamicWallet] Dynamic client created");
 
-  let wallet: CreateDynamicWalletReturnType['wallet'];
+  let wallet: CreateDynamicWalletReturnType["wallet"];
   if (config.walletId) {
     console.log("[createDynamicWallet] Using existing wallet ID:", config.walletId);
     if (config.chainType === "solana") {
       const svmClient = client as DynamicSvmWalletClient;
-      const result = await svmClient.deriveAccountAddress(new TextEncoder().encode(config.walletId));
+      const result = await svmClient.deriveAccountAddress(
+        new TextEncoder().encode(config.walletId),
+      );
       wallet = {
         accountAddress: result.accountAddress,
         rawPublicKey: new Uint8Array(),
-        externalServerKeyShares: []
+        externalServerKeyShares: [],
       };
     } else {
       throw new Error("deriveAccountAddress is only supported for Solana wallets");
@@ -110,25 +116,34 @@ export const createDynamicWallet = async (config: DynamicWalletConfig): Promise<
   } else {
     console.log("[createDynamicWallet] Creating new wallet");
     console.log("[createDynamicWallet] createWalletAccount params:", {
-      thresholdSignatureScheme: config.thresholdSignatureScheme,
+      thresholdSignatureScheme:
+        config.thresholdSignatureScheme || ThresholdSignatureScheme.TWO_OF_TWO,
       password: config.password ? "***" : undefined,
       networkId: config.networkId,
-      chainType: config.chainType
+      chainType: config.chainType,
     });
-    const result = await client.createWalletAccount({
-      thresholdSignatureScheme: config.thresholdSignatureScheme,
-      password: config.password,
-    });
-    wallet = {
-      accountAddress: result.accountAddress,
-      rawPublicKey: result.rawPublicKey,
-      externalServerKeyShares: result.externalServerKeyShares
-    };
+
+    const thresholdSignatureScheme = convertThresholdSignatureScheme(
+      config.thresholdSignatureScheme,
+    );
+    try {
+      const result = await (client as DynamicEvmWalletClient).createWalletAccount({
+        thresholdSignatureScheme,
+        password: config.password,
+      });
+      wallet = {
+        accountAddress: result.accountAddress,
+        rawPublicKey: result.rawPublicKey,
+        externalServerKeyShares: result.externalServerKeyShares,
+      };
+    } catch (error) {
+      throw new Error("Failed to create wallet: " + error);
+    }
   }
 
   console.log("[createDynamicWallet] Wallet created/retrieved:", {
-    accountAddress: wallet.accountAddress
+    accountAddress: wallet.accountAddress,
   });
 
   return { wallet, dynamic: client };
-}; 
+};

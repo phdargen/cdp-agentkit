@@ -7,6 +7,7 @@ import {
   pythActionProvider,
   cdpApiActionProvider,
   splActionProvider,
+  DynamicEvmWalletProvider,
 } from "@coinbase/agentkit";
 import { getLangChainTools } from "@coinbase/agentkit-langchain";
 import { HumanMessage } from "@langchain/core/messages";
@@ -16,7 +17,6 @@ import { ChatOpenAI } from "@langchain/openai";
 import * as dotenv from "dotenv";
 import * as readline from "node:readline";
 import * as fs from "node:fs";
-import { ThresholdSignatureScheme } from "@dynamic-labs-wallet/node";
 
 dotenv.config();
 
@@ -64,23 +64,20 @@ async function initializeAgent() {
       modelName: "gpt-4o-mini",
     });
 
-    const networkId = process.env.NETWORK_ID || "mainnet-beta";
+  const networkId = process.env.NETWORK_ID || "mainnet-beta";
+  const thresholdSignatureScheme = process.env.DYNAMIC_THRESHOLD_SIGNATURE_SCHEME || "TWO_OF_TWO";
 
-    // Configure Dynamic wallet provider
-    const baseApiUrl = process.env.DYNAMIC_BASE_API_URL || "https://app.dynamicauth.com";
-    const baseMPCRelayApiUrl = process.env.DYNAMIC_BASE_MPC_RELAY_API_URL || "relay.dynamicauth.com";
-  
+  // Configure Dynamic wallet provider
     const walletConfig = {
       authToken: process.env.DYNAMIC_AUTH_TOKEN as string,
       environmentId: process.env.DYNAMIC_ENVIRONMENT_ID as string,
-      baseApiUrl,
-      baseMPCRelayApiUrl,
-      networkId,
-      chainType: "solana" as const,
-      thresholdSignatureScheme: ThresholdSignatureScheme.TWO_OF_TWO,
+      //networkId,
+      chainId: "84532",
+      chainType: "ethereum" as const,
+      thresholdSignatureScheme,
     };
 
-    const walletProvider = await DynamicSvmWalletProvider.configureWithWallet(walletConfig);
+    const walletProvider = await DynamicEvmWalletProvider.configureWithWallet(walletConfig);
 
     // Initialize AgentKit
     const agentkit = await AgentKit.from({
@@ -90,10 +87,7 @@ async function initializeAgent() {
         pythActionProvider(),
         walletActionProvider(),
         erc20ActionProvider(),
-        cdpApiActionProvider({
-          apiKeyName: process.env.CDP_API_KEY_NAME as string,
-          apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY as string,
-        }),
+        cdpApiActionProvider(),
         splActionProvider(),
       ],
     });

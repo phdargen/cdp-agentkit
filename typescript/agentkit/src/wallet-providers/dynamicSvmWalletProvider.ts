@@ -10,7 +10,11 @@ import {
   MessageV0,
 } from "@solana/web3.js";
 import { SOLANA_CLUSTER_ID_BY_NETWORK_ID, SOLANA_NETWORKS } from "../network/svm";
-import { type DynamicWalletConfig, type DynamicWalletExport, createDynamicWallet } from "./dynamicShared";
+import {
+  type DynamicWalletConfig,
+  type DynamicWalletExport,
+  createDynamicWallet,
+} from "./dynamicShared";
 import type { DynamicSvmWalletClient } from "@dynamic-labs-wallet/node-svm";
 import type {
   SignatureStatus,
@@ -59,7 +63,7 @@ export class DynamicSvmWalletProvider extends SvmWalletProvider {
     console.log("[DynamicSvmWalletProvider] Initializing provider with:", {
       accountAddress: config.accountAddress,
       genesisHash: config.genesisHash,
-      networkId: config.networkId
+      networkId: config.networkId,
     });
 
     this.#accountAddress = config.accountAddress;
@@ -82,8 +86,6 @@ export class DynamicSvmWalletProvider extends SvmWalletProvider {
    * const provider = await DynamicSvmWalletProvider.configureWithWallet({
    *   authToken: "your-auth-token",
    *   environmentId: "your-environment-id",
-   *   baseApiUrl: "https://app.dynamicauth.com",
-   *   baseMPCRelayApiUrl: "relay.dynamicauth.com",
    *   chainType: "solana",
    *   networkId: "mainnet-beta",
    *   thresholdSignatureScheme: ThresholdSignatureScheme.TWO_OF_TWO
@@ -96,8 +98,7 @@ export class DynamicSvmWalletProvider extends SvmWalletProvider {
     console.log("[DynamicSvmWalletProvider] Starting wallet configuration with config:", {
       networkId: config.networkId,
       chainType: config.chainType,
-      baseApiUrl: config.baseApiUrl,
-      environmentId: config.environmentId
+      environmentId: config.environmentId,
     });
 
     try {
@@ -107,14 +108,17 @@ export class DynamicSvmWalletProvider extends SvmWalletProvider {
       });
 
       console.log("[DynamicSvmWalletProvider] Wallet created:", {
-        accountAddress: wallet.accountAddress
+        accountAddress: wallet.accountAddress,
       });
 
       const connection =
         config.connection ??
         new Connection(clusterApiUrl(SOLANA_CLUSTER_ID_BY_NETWORK_ID[config.networkId ?? ""]));
 
-      console.log("[DynamicSvmWalletProvider] Connection established with endpoint:", connection.rpcEndpoint);
+      console.log(
+        "[DynamicSvmWalletProvider] Connection established with endpoint:",
+        connection.rpcEndpoint,
+      );
 
       const genesisHash = await connection.getGenesisHash();
       console.log("[DynamicSvmWalletProvider] Genesis hash retrieved:", genesisHash);
@@ -130,7 +134,7 @@ export class DynamicSvmWalletProvider extends SvmWalletProvider {
       console.log("[DynamicSvmWalletProvider] Provider initialized with:", {
         address: provider.getAddress(),
         network: provider.getNetwork(),
-        name: provider.getName()
+        name: provider.getName(),
       });
 
       return provider;
@@ -336,4 +340,4 @@ export class DynamicSvmWalletProvider extends SvmWalletProvider {
 
     return this.signAndSendTransaction(tx);
   }
-} 
+}
