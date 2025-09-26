@@ -43,9 +43,15 @@ export const GetBalanceSchema = z
  */
 export const ApproveSchema = z
   .object({
-    amount: z.custom<bigint>().describe("The amount to approve"),
-    contractAddress: z.string().describe("The contract address of the token"),
-    spender: z.string().describe("The address to approve spending for"),
+    amount: z.string().describe("The amount to approve in whole units (e.g. 100 for 100 USDC)"),
+    tokenAddress: z
+      .string()
+      .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address format")
+      .describe("The contract address of the token"),
+    spenderAddress: z
+      .string()
+      .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address format")
+      .describe("The address to approve for spending tokens"),
   })
   .strip()
   .describe("Instructions for approving token spending");
@@ -55,8 +61,14 @@ export const ApproveSchema = z
  */
 export const AllowanceSchema = z
   .object({
-    contractAddress: z.string().describe("The contract address of the token"),
-    spender: z.string().describe("The address to check allowance for"),
+    tokenAddress: z
+      .string()
+      .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address format")
+      .describe("The contract address of the token"),
+    spenderAddress: z
+      .string()
+      .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address format")
+      .describe("The address to check allowance for"),
   })
   .strip()
   .describe("Instructions for checking token allowance");
