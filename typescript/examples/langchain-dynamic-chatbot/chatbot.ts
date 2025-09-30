@@ -16,6 +16,7 @@ import { MemorySaver } from "@langchain/langgraph";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { ChatOpenAI } from "@langchain/openai";
 import * as dotenv from "dotenv";
+import * as fs from "fs";
 import * as readline from "readline";
 
 dotenv.config();
@@ -59,6 +60,11 @@ function validateEnvironment(): void {
 // Add this right after imports and before any other code
 validateEnvironment();
 
+type WalletData = {
+  accountAddress: string;
+  networkId: string;
+};
+
 /**
  * Type guard to check if the wallet provider is an EVM provider
  *
@@ -99,20 +105,33 @@ async function initializeAgent() {
     const networkId = process.env.NETWORK_ID || "base-sepolia";
     const isSolana = networkId.includes("solana");
     const thresholdSignatureScheme = process.env.DYNAMIC_THRESHOLD_SIGNATURE_SCHEME || "TWO_OF_TWO";
+    const walletDataFile = `wallet_data_${networkId.replace(/-/g, "_")}.txt`;
+
+    let walletData: WalletData | null = null;
+
+    // Read existing wallet data if available
+    if (fs.existsSync(walletDataFile)) {
+      try {
+        walletData = JSON.parse(fs.readFileSync(walletDataFile, "utf8")) as WalletData;
+        console.log(`Loaded existing wallet data for ${networkId}:`, walletData.accountAddress);
+      } catch (error) {
+        console.error(`Error reading wallet data for ${networkId}:`, error);
+        // Continue without wallet data
+      }
+    }
 
     const dynamicWalletConfig = {
       authToken: process.env.DYNAMIC_AUTH_TOKEN as string,
       environmentId: process.env.DYNAMIC_ENVIRONMENT_ID as string,
       networkId,
       thresholdSignatureScheme,
+      accountAddress: walletData?.accountAddress,
     };
 
     const walletProvider = isSolana
       ? await DynamicSvmWalletProvider.configureWithWallet(dynamicWalletConfig)
       : await DynamicEvmWalletProvider.configureWithWallet(dynamicWalletConfig);
 
-
-    console.log("walletProvider", walletProvider.exportWallet());
     
     const actionProviders = [
       walletActionProvider(),
@@ -158,6 +177,19 @@ async function initializeAgent() {
         restating your tools' descriptions unless it is explicitly requested.
         `,
     });
+
+    // Save wallet data
+    if (!walletData) {
+      const exportedWallet = await walletProvider.exportWallet();
+      fs.writeFileSync(
+        walletDataFile,
+        JSON.stringify({
+          accountAddress: exportedWallet.accountAddress,
+          networkId: exportedWallet.networkId,
+        } as WalletData),
+      );
+      console.log(`Saved wallet data to ${walletDataFile}`);
+    }
 
     return { agent, config: agentConfig };
   } catch (error) {

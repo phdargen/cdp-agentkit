@@ -1,13 +1,21 @@
 import { DynamicEvmWalletProvider } from "./dynamicEvmWalletProvider";
-import { DynamicEvmWalletClient } from "@dynamic-labs-wallet/node-evm";
-import { ThresholdSignatureScheme } from "@dynamic-labs-wallet/node";
-import { createWalletClient, createPublicClient, http } from "viem";
+import { createPublicClient, http } from "viem";
 import { getChain } from "../network/network";
 import { createDynamicWallet, createDynamicClient } from "./dynamicShared";
 
-jest.mock("@dynamic-labs-wallet/node-evm");
+// Mock dynamic imports
+jest.mock("@dynamic-labs-wallet/node-evm", () => ({
+  DynamicEvmWalletClient: jest.fn(),
+}));
+jest.mock("@dynamic-labs-wallet/node", () => ({
+  ThresholdSignatureScheme: {
+    TWO_OF_TWO: "TWO_OF_TWO",
+    TWO_OF_THREE: "TWO_OF_THREE",
+    THREE_OF_FIVE: "THREE_OF_FIVE",
+  },
+}));
+
 jest.mock("viem", () => ({
-  createWalletClient: jest.fn(),
   createPublicClient: jest.fn(),
   http: jest.fn(),
 }));
@@ -33,7 +41,7 @@ describe("DynamicEvmWalletProvider", () => {
     chainId: "84532",
     networkId: "base-sepolia",
     chainType: "ethereum" as const,
-    thresholdSignatureScheme: ThresholdSignatureScheme.TWO_OF_TWO,
+    thresholdSignatureScheme: "TWO_OF_TWO", 
   };
 
   const mockWallet = {
@@ -47,6 +55,7 @@ describe("DynamicEvmWalletProvider", () => {
       getTransactionCount: jest.fn(),
     }),
     signMessage: jest.fn().mockResolvedValue(MOCK_SIGNATURE_HASH),
+    signTransaction: jest.fn().mockResolvedValue(MOCK_SIGNATURE_HASH),
     exportPrivateKey: jest.fn().mockResolvedValue({ derivedPrivateKey: "0xprivate" }),
     importPrivateKey: jest.fn().mockResolvedValue({
       accountAddress: MOCK_ADDRESS,
@@ -55,15 +64,6 @@ describe("DynamicEvmWalletProvider", () => {
   };
 
   const mockPublicClient = {
-    getBalance: jest.fn(),
-    getTransactionCount: jest.fn(),
-  };
-
-  const mockWalletClient = {
-    account: {
-      address: MOCK_ADDRESS,
-      type: "json-rpc",
-    },
     chain: {
       id: 84532,
       name: "Base Goerli",
@@ -76,17 +76,33 @@ describe("DynamicEvmWalletProvider", () => {
         decimals: 18,
       },
     },
-    signMessage: jest.fn().mockResolvedValue(MOCK_SIGNATURE_HASH),
-    signTypedData: jest.fn().mockResolvedValue(MOCK_SIGNATURE_HASH),
-    signTransaction: jest.fn().mockResolvedValue(MOCK_SIGNATURE_HASH),
-    sendTransaction: jest.fn().mockResolvedValue(MOCK_TRANSACTION_HASH),
+    getBalance: jest.fn().mockResolvedValue(BigInt(1000000000000000000)),
+    getTransactionCount: jest.fn(),
+    prepareTransactionRequest: jest.fn().mockResolvedValue({
+      to: "0x123" as `0x${string}`,
+      value: BigInt(1000),
+      data: "0x" as `0x${string}`,
+      gas: BigInt(21000),
+      nonce: 1,
+      maxFeePerGas: BigInt(1000000),
+      maxPriorityFeePerGas: BigInt(1000000),
+    }),
+    sendRawTransaction: jest.fn().mockResolvedValue(MOCK_TRANSACTION_HASH),
+    waitForTransactionReceipt: jest.fn().mockResolvedValue({
+      transactionHash: MOCK_TRANSACTION_HASH,
+      status: "success",
+    }),
+    readContract: jest.fn(),
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
 
+    // Import the mocked modules
+    const { DynamicEvmWalletClient } = require("@dynamic-labs-wallet/node-evm");
+
     // Mock DynamicEvmWalletClient
-    (DynamicEvmWalletClient as jest.Mock).mockImplementation(() => mockDynamicClient);
+    DynamicEvmWalletClient.mockImplementation(() => mockDynamicClient);
 
     // Mock getChain
     (getChain as jest.Mock).mockReturnValue({
@@ -103,7 +119,6 @@ describe("DynamicEvmWalletProvider", () => {
     });
 
     // Mock viem functions
-    (createWalletClient as jest.Mock).mockReturnValue(mockWalletClient);
     (createPublicClient as jest.Mock).mockReturnValue(mockPublicClient);
     (http as jest.Mock).mockReturnValue(jest.fn());
 
@@ -121,13 +136,15 @@ describe("DynamicEvmWalletProvider", () => {
     it("should create a new wallet with Dynamic client", async () => {
       const _provider = await DynamicEvmWalletProvider.configureWithWallet(MOCK_CONFIG);
 
-      expect(createDynamicWallet).toHaveBeenCalledWith({
-        ...MOCK_CONFIG,
-        chainType: "ethereum",
-      });
+      expect(createDynamicWallet).toHaveBeenCalledWith(
+        {
+          ...MOCK_CONFIG,
+        },
+        "ethereum",
+      );
 
       expect(getChain).toHaveBeenCalledWith(MOCK_CONFIG.chainId);
-      expect(createWalletClient).toHaveBeenCalled();
+      expect(createPublicClient).toHaveBeenCalled();
     });
 
     it("should throw error when wallet creation fails", async () => {
@@ -178,8 +195,18 @@ describe("DynamicEvmWalletProvider", () => {
       expect(provider.getName()).toBe("dynamic_evm_wallet_provider");
     });
 
-    it("should sign a message using Dynamic client", async () => {
+    it("should sign a string message using Dynamic client", async () => {
       const result = await provider.signMessage("Hello, world!");
+      expect(result).toBe(MOCK_SIGNATURE_HASH);
+      expect(mockDynamicClient.signMessage).toHaveBeenCalledWith({
+        message: "Hello, world!",
+        accountAddress: MOCK_ADDRESS,
+      });
+    });
+
+    it("should sign a Uint8Array message using Dynamic client", async () => {
+      const messageBytes = new TextEncoder().encode("Hello, world!");
+      const result = await provider.signMessage(messageBytes);
       expect(result).toBe(MOCK_SIGNATURE_HASH);
       expect(mockDynamicClient.signMessage).toHaveBeenCalledWith({
         message: "Hello, world!",
@@ -211,10 +238,128 @@ describe("DynamicEvmWalletProvider", () => {
     it("should export wallet information", async () => {
       const result = await provider.exportWallet();
       expect(result).toEqual({
-        walletId: MOCK_ADDRESS,
-        chainId: MOCK_CONFIG.chainId,
+        accountAddress: MOCK_ADDRESS,
         networkId: "base-sepolia",
       });
+    });
+
+    it("should sign a transaction using Dynamic client", async () => {
+      const mockTransaction = {
+        to: "0x123" as `0x${string}`,
+        value: BigInt(1000),
+        data: "0x" as `0x${string}`,
+      };
+
+      const result = await provider.signTransaction(mockTransaction);
+      expect(result).toBe(MOCK_SIGNATURE_HASH);
+      
+      // Should prepare transaction with viem
+      expect(mockPublicClient.prepareTransactionRequest).toHaveBeenCalledWith({
+        to: mockTransaction.to,
+        value: mockTransaction.value,
+        data: mockTransaction.data,
+        account: MOCK_ADDRESS,
+        chain: mockPublicClient.chain,
+      });
+      
+      // Should sign with Dynamic
+      expect(mockDynamicClient.signTransaction).toHaveBeenCalledWith({
+        senderAddress: MOCK_ADDRESS,
+        transaction: expect.objectContaining({
+          to: mockTransaction.to,
+          value: mockTransaction.value,
+          data: mockTransaction.data,
+          gas: BigInt(21000),
+          nonce: 1,
+        }),
+      });
+    });
+
+    it("should send a transaction by signing and broadcasting", async () => {
+      const mockTransaction = {
+        to: "0x123" as `0x${string}`,
+        value: BigInt(1000),
+        data: "0x" as `0x${string}`,
+      };
+
+      const result = await provider.sendTransaction(mockTransaction);
+      expect(result).toBe(MOCK_TRANSACTION_HASH);
+      
+      // Should prepare and sign transaction
+      expect(mockPublicClient.prepareTransactionRequest).toHaveBeenCalled();
+      expect(mockDynamicClient.signTransaction).toHaveBeenCalled();
+      
+      // Should broadcast signed transaction
+      expect(mockPublicClient.sendRawTransaction).toHaveBeenCalledWith({
+        serializedTransaction: MOCK_SIGNATURE_HASH,
+      });
+    });
+
+    it("should get wallet balance", async () => {
+      const balance = await provider.getBalance();
+      expect(balance).toBe(BigInt(1000000000000000000));
+      expect(mockPublicClient.getBalance).toHaveBeenCalledWith({
+        address: MOCK_ADDRESS,
+      });
+    });
+
+    it("should get public client", () => {
+      const publicClient = provider.getPublicClient();
+      expect(publicClient).toBe(mockPublicClient);
+    });
+
+    it("should wait for transaction receipt", async () => {
+      const receipt = await provider.waitForTransactionReceipt(MOCK_TRANSACTION_HASH as `0x${string}`);
+      expect(receipt).toEqual({
+        transactionHash: MOCK_TRANSACTION_HASH,
+        status: "success",
+      });
+      expect(mockPublicClient.waitForTransactionReceipt).toHaveBeenCalledWith({
+        hash: MOCK_TRANSACTION_HASH,
+      });
+    });
+
+    it("should read contract", async () => {
+      const mockParams = {
+        address: "0x123" as `0x${string}`,
+        abi: [],
+        functionName: "balanceOf",
+        args: [MOCK_ADDRESS],
+      };
+      
+      await provider.readContract(mockParams);
+      expect(mockPublicClient.readContract).toHaveBeenCalledWith(mockParams);
+    });
+
+    it("should perform native transfer", async () => {
+      const to = "0x456";
+      const value = "1000000000000000000"; // 1 ETH in wei
+      
+      const txHash = await provider.nativeTransfer(to, value);
+      expect(txHash).toBe(MOCK_TRANSACTION_HASH);
+      expect(mockPublicClient.prepareTransactionRequest).toHaveBeenCalled();
+      expect(mockDynamicClient.signTransaction).toHaveBeenCalled();
+      expect(mockPublicClient.sendRawTransaction).toHaveBeenCalled();
+      expect(mockPublicClient.waitForTransactionReceipt).toHaveBeenCalled();
+    });
+
+    it("should throw error when signing raw hash", async () => {
+      await expect(
+        provider.sign("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as `0x${string}`)
+      ).rejects.toThrow("Raw hash signing not implemented for Dynamic wallet provider");
+    });
+
+    it("should throw error when signing typed data", async () => {
+      const typedData = {
+        domain: { name: "Test" },
+        types: {},
+        message: {},
+        primaryType: "Test",
+      };
+      
+      await expect(provider.signTypedData(typedData)).rejects.toThrow(
+        "Typed data signing not implemented for Dynamic wallet provider"
+      );
     });
   });
 });

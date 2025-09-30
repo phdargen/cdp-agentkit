@@ -1,5 +1,5 @@
 import { DynamicSvmWalletProvider } from "./dynamicSvmWalletProvider";
-import { DynamicSvmWalletClient } from "@dynamic-labs-wallet/node-svm";
+// import { DynamicSvmWalletClient } from "@dynamic-labs-wallet/node-svm";
 import {
   Connection,
   clusterApiUrl,
@@ -8,9 +8,19 @@ import {
   MessageV0,
 } from "@solana/web3.js";
 import { createDynamicWallet, createDynamicClient } from "./dynamicShared";
-import { ThresholdSignatureScheme } from "@dynamic-labs-wallet/node";
+// import { ThresholdSignatureScheme } from "@dynamic-labs-wallet/node";
 
-jest.mock("@dynamic-labs-wallet/node-svm");
+// Mock dynamic imports
+jest.mock("@dynamic-labs-wallet/node-svm", () => ({
+  DynamicSvmWalletClient: jest.fn(),
+}));
+jest.mock("@dynamic-labs-wallet/node", () => ({
+  ThresholdSignatureScheme: {
+    TWO_OF_TWO: "TWO_OF_TWO",
+    TWO_OF_THREE: "TWO_OF_THREE",
+    THREE_OF_FIVE: "THREE_OF_FIVE",
+  },
+}));
 jest.mock("../network/svm", () => ({
   SOLANA_CLUSTER_ID_BY_NETWORK_ID: {
     "": "mainnet-beta",
@@ -103,7 +113,7 @@ describe("DynamicSvmWalletProvider", () => {
     baseMPCRelayApiUrl: "relay.dynamicauth.com",
     networkId: "mainnet-beta",
     chainType: "solana" as const,
-    thresholdSignatureScheme: ThresholdSignatureScheme.TWO_OF_TWO,
+    thresholdSignatureScheme: "TWO_OF_TWO", // Will be converted by the function
   };
 
   const mockWallet = {
@@ -142,8 +152,11 @@ describe("DynamicSvmWalletProvider", () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
+    // Import the mocked modules
+    const { DynamicSvmWalletClient } = require("@dynamic-labs-wallet/node-svm");
+
     // Mock DynamicSvmWalletClient
-    (DynamicSvmWalletClient as jest.Mock).mockImplementation(() => mockDynamicClient);
+    DynamicSvmWalletClient.mockImplementation(() => mockDynamicClient);
 
     // Mock createDynamicClient
     (createDynamicClient as jest.Mock).mockResolvedValue(mockDynamicClient);

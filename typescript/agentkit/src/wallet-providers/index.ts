@@ -17,3 +17,4 @@ export * from "./zeroDevWalletProvider";
 export * from "./dynamicWalletProvider";
 export * from "./dynamicEvmWalletProvider";
 export * from "./dynamicSvmWalletProvider";
+export * from "./dynamicShared";

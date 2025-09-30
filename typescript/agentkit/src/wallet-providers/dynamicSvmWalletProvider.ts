@@ -13,9 +13,9 @@ import { SOLANA_CLUSTER_ID_BY_NETWORK_ID, SOLANA_NETWORKS } from "../network/svm
 import {
   type DynamicWalletConfig,
   type DynamicWalletExport,
+  type DynamicWalletClient,
   createDynamicWallet,
 } from "./dynamicShared";
-import type { DynamicSvmWalletClient } from "@dynamic-labs-wallet/node-svm";
 import type {
   SignatureStatus,
   SignatureStatusConfig,
@@ -24,6 +24,7 @@ import type {
   Cluster,
 } from "@solana/web3.js";
 import type { Network } from "../network";
+
 
 /**
  * Configuration options for the Dynamic Svm wallet provider.
@@ -40,7 +41,7 @@ export interface DynamicSvmWalletConfig extends DynamicWalletConfig {
  */
 export class DynamicSvmWalletProvider extends SvmWalletProvider {
   #accountAddress: string;
-  #dynamicClient: DynamicSvmWalletClient;
+  #dynamicClient: DynamicWalletClient;
   #connection: Connection;
   #genesisHash: string;
   #publicKey: PublicKey;
@@ -53,7 +54,7 @@ export class DynamicSvmWalletProvider extends SvmWalletProvider {
   private constructor(
     config: DynamicSvmWalletConfig & {
       accountAddress: string;
-      dynamicClient: DynamicSvmWalletClient;
+      dynamicClient: DynamicWalletClient;
       connection: Connection;
       genesisHash: string;
     },
@@ -130,7 +131,7 @@ export class DynamicSvmWalletProvider extends SvmWalletProvider {
       const provider = new DynamicSvmWalletProvider({
         ...config,
         accountAddress: wallet.accountAddress,
-        dynamicClient: dynamic as DynamicSvmWalletClient,
+        dynamicClient: dynamic,
         connection,
         genesisHash,
       });
@@ -168,9 +169,12 @@ export class DynamicSvmWalletProvider extends SvmWalletProvider {
    * @returns The signed transaction
    */
   public async signTransaction(transaction: VersionedTransaction): Promise<VersionedTransaction> {
-    const signedTransaction = await this.#dynamicClient.signTransaction({
+    // Dynamic import for ESM compatibility
+    const { DynamicSvmWalletClient } = (await import("@dynamic-labs-wallet/node-svm")) as any;
+    const signedTransaction = await (this.#dynamicClient as InstanceType<typeof DynamicSvmWalletClient>).signTransaction({
       senderAddress: this.#accountAddress,
-      transaction,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      transaction: transaction as any,
     });
     if (!(signedTransaction instanceof VersionedTransaction)) {
       throw new Error("Expected VersionedTransaction from signTransaction");
@@ -255,8 +259,7 @@ export class DynamicSvmWalletProvider extends SvmWalletProvider {
    */
   public async exportWallet(): Promise<DynamicWalletExport> {
     return {
-      walletId: this.#accountAddress,
-      chainId: undefined,
+      accountAddress: this.#accountAddress,
       networkId: this.getNetwork().networkId,
     };
   }
