@@ -41,7 +41,7 @@ describe("DynamicEvmWalletProvider", () => {
     chainId: "84532",
     networkId: "base-sepolia",
     chainType: "ethereum" as const,
-    thresholdSignatureScheme: "TWO_OF_TWO", 
+    thresholdSignatureScheme: "TWO_OF_TWO",
   };
 
   const mockWallet = {
@@ -95,11 +95,12 @@ describe("DynamicEvmWalletProvider", () => {
     readContract: jest.fn(),
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.clearAllMocks();
 
     // Import the mocked modules
-    const { DynamicEvmWalletClient } = require("@dynamic-labs-wallet/node-evm");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { DynamicEvmWalletClient } = (await import("@dynamic-labs-wallet/node-evm")) as any;
 
     // Mock DynamicEvmWalletClient
     DynamicEvmWalletClient.mockImplementation(() => mockDynamicClient);
@@ -252,7 +253,7 @@ describe("DynamicEvmWalletProvider", () => {
 
       const result = await provider.signTransaction(mockTransaction);
       expect(result).toBe(MOCK_SIGNATURE_HASH);
-      
+
       // Should prepare transaction with viem
       expect(mockPublicClient.prepareTransactionRequest).toHaveBeenCalledWith({
         to: mockTransaction.to,
@@ -261,7 +262,7 @@ describe("DynamicEvmWalletProvider", () => {
         account: MOCK_ADDRESS,
         chain: mockPublicClient.chain,
       });
-      
+
       // Should sign with Dynamic
       expect(mockDynamicClient.signTransaction).toHaveBeenCalledWith({
         senderAddress: MOCK_ADDRESS,
@@ -284,11 +285,11 @@ describe("DynamicEvmWalletProvider", () => {
 
       const result = await provider.sendTransaction(mockTransaction);
       expect(result).toBe(MOCK_TRANSACTION_HASH);
-      
+
       // Should prepare and sign transaction
       expect(mockPublicClient.prepareTransactionRequest).toHaveBeenCalled();
       expect(mockDynamicClient.signTransaction).toHaveBeenCalled();
-      
+
       // Should broadcast signed transaction
       expect(mockPublicClient.sendRawTransaction).toHaveBeenCalledWith({
         serializedTransaction: MOCK_SIGNATURE_HASH,
@@ -309,7 +310,9 @@ describe("DynamicEvmWalletProvider", () => {
     });
 
     it("should wait for transaction receipt", async () => {
-      const receipt = await provider.waitForTransactionReceipt(MOCK_TRANSACTION_HASH as `0x${string}`);
+      const receipt = await provider.waitForTransactionReceipt(
+        MOCK_TRANSACTION_HASH as `0x${string}`,
+      );
       expect(receipt).toEqual({
         transactionHash: MOCK_TRANSACTION_HASH,
         status: "success",
@@ -326,7 +329,7 @@ describe("DynamicEvmWalletProvider", () => {
         functionName: "balanceOf",
         args: [MOCK_ADDRESS],
       };
-      
+
       await provider.readContract(mockParams);
       expect(mockPublicClient.readContract).toHaveBeenCalledWith(mockParams);
     });
@@ -334,7 +337,7 @@ describe("DynamicEvmWalletProvider", () => {
     it("should perform native transfer", async () => {
       const to = "0x456";
       const value = "1000000000000000000"; // 1 ETH in wei
-      
+
       const txHash = await provider.nativeTransfer(to, value);
       expect(txHash).toBe(MOCK_TRANSACTION_HASH);
       expect(mockPublicClient.prepareTransactionRequest).toHaveBeenCalled();
@@ -345,7 +348,9 @@ describe("DynamicEvmWalletProvider", () => {
 
     it("should throw error when signing raw hash", async () => {
       await expect(
-        provider.sign("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as `0x${string}`)
+        provider.sign(
+          "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as `0x${string}`,
+        ),
       ).rejects.toThrow("Raw hash signing not implemented for Dynamic wallet provider");
     });
 
@@ -356,9 +361,9 @@ describe("DynamicEvmWalletProvider", () => {
         message: {},
         primaryType: "Test",
       };
-      
+
       await expect(provider.signTypedData(typedData)).rejects.toThrow(
-        "Typed data signing not implemented for Dynamic wallet provider"
+        "Typed data signing not implemented for Dynamic wallet provider",
       );
     });
   });

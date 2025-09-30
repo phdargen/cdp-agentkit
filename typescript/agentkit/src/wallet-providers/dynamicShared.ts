@@ -42,6 +42,7 @@ type CreateDynamicWalletReturnType = {
  * @returns The corresponding ThresholdSignatureScheme enum value
  */
 const convertThresholdSignatureScheme = async (scheme?: string) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { ThresholdSignatureScheme } = (await import("@dynamic-labs-wallet/node")) as any;
   if (scheme === "TWO_OF_THREE") return ThresholdSignatureScheme.TWO_OF_THREE;
   if (scheme === "THREE_OF_FIVE") return ThresholdSignatureScheme.THREE_OF_FIVE;
@@ -65,16 +66,18 @@ export const createDynamicClient = async (
 
   try {
     let client;
-    
+
     if (chainType === "ethereum") {
       // Dynamic import for ESM compatibility - only load EVM package when needed
       // Using type assertion due to dual-format package export issues with Node16 module resolution
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const evmModule = (await import("@dynamic-labs-wallet/node-evm")) as any;
       const { DynamicEvmWalletClient } = evmModule;
       client = new DynamicEvmWalletClient(clientConfig);
     } else {
       // Dynamic import for ESM compatibility - only load SVM package when needed
       // Using type assertion due to dual-format package export issues with Node16 module resolution
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const svmModule = (await import("@dynamic-labs-wallet/node-svm")) as any;
       const { DynamicSvmWalletClient } = svmModule;
       client = new DynamicSvmWalletClient(clientConfig);
@@ -82,7 +85,7 @@ export const createDynamicClient = async (
 
     await client.authenticateApiToken(config.authToken);
     const evmWallets = await client.getWallets();
-    console.log('wallets:', evmWallets);
+    console.log("wallets:", evmWallets);
 
     return client;
   } catch (error) {
@@ -102,17 +105,21 @@ export const createDynamicWallet = async (
   config: DynamicWalletConfig,
   chainType: "ethereum" | "solana",
 ): Promise<CreateDynamicWalletReturnType> => {
-
   const client = await createDynamicClient(config, chainType);
   console.log("[createDynamicWallet] Dynamic client created");
 
   let wallet: CreateDynamicWalletReturnType["wallet"];
-  const wallets = chainType === "solana" ? await client.getSvmWallets() : await client.getEvmWallets();
-  const existingWallet = wallets.find((wallet) => wallet.accountAddress === config.accountAddress);
-  if(existingWallet) {
-    console.log("[createDynamicWallet] Found existing wallet with address:", existingWallet.accountAddress);
+  const wallets =
+    chainType === "solana" ? await client.getSvmWallets() : await client.getEvmWallets();
+  const existingWallet = wallets.find(wallet => wallet.accountAddress === config.accountAddress);
+  if (existingWallet) {
+    console.log(
+      "[createDynamicWallet] Found existing wallet with address:",
+      existingWallet.accountAddress,
+    );
     wallet = existingWallet;
   } else {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { ThresholdSignatureScheme } = (await import("@dynamic-labs-wallet/node")) as any;
     console.log("[createDynamicWallet] Creating new wallet");
     console.log("[createDynamicWallet] createWalletAccount params:", {

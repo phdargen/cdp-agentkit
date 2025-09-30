@@ -25,7 +25,6 @@ import type {
 } from "@solana/web3.js";
 import type { Network } from "../network";
 
-
 /**
  * Configuration options for the Dynamic Svm wallet provider.
  */
@@ -170,8 +169,13 @@ export class DynamicSvmWalletProvider extends SvmWalletProvider {
    */
   public async signTransaction(transaction: VersionedTransaction): Promise<VersionedTransaction> {
     // Dynamic import for ESM compatibility
-    const { DynamicSvmWalletClient } = (await import("@dynamic-labs-wallet/node-svm")) as any;
-    const signedTransaction = await (this.#dynamicClient as InstanceType<typeof DynamicSvmWalletClient>).signTransaction({
+    const { DynamicSvmWalletClient: _DynamicSvmWalletClient } = (await import(
+      "@dynamic-labs-wallet/node-svm"
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    )) as any;
+    const signedTransaction = await (
+      this.#dynamicClient as InstanceType<typeof _DynamicSvmWalletClient>
+    ).signTransaction({
       senderAddress: this.#accountAddress,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       transaction: transaction as any,

@@ -1,7 +1,7 @@
 import { EvmWalletProvider } from "./evmWalletProvider";
-import { 
+import {
   createPublicClient,
-  http, 
+  http,
   type PublicClient,
   type TransactionRequest,
   type Hex,
@@ -85,7 +85,7 @@ export class DynamicEvmWalletProvider extends EvmWalletProvider {
   ): Promise<DynamicEvmWalletProvider> {
     const networkId = config.networkId || "base-sepolia";
     const chainId = NETWORK_ID_TO_CHAIN_ID[networkId];
-    
+
     if (!chainId) {
       throw new Error(`Unsupported network ID: ${networkId}`);
     }
@@ -120,12 +120,7 @@ export class DynamicEvmWalletProvider extends EvmWalletProvider {
       network: networkId,
     });
 
-    return new DynamicEvmWalletProvider(
-      wallet.accountAddress,
-      dynamic,
-      publicClient,
-      network,
-    );
+    return new DynamicEvmWalletProvider(wallet.accountAddress, dynamic, publicClient, network);
   }
 
   /**
@@ -148,10 +143,8 @@ export class DynamicEvmWalletProvider extends EvmWalletProvider {
    * @returns The signature as a hex string with 0x prefix
    */
   async signMessage(message: string | Uint8Array): Promise<`0x${string}`> {
-    const messageStr = typeof message === "string" 
-      ? message 
-      : new TextDecoder().decode(message);
-      
+    const messageStr = typeof message === "string" ? message : new TextDecoder().decode(message);
+
     const signature = await this.#dynamicClient.signMessage({
       message: messageStr,
       accountAddress: this.#accountAddress,
@@ -168,9 +161,7 @@ export class DynamicEvmWalletProvider extends EvmWalletProvider {
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async signTypedData(_typedData: any): Promise<`0x${string}`> {
-    throw new Error(
-      "Typed data signing not implemented for Dynamic wallet provider.",
-    );
+    throw new Error("Typed data signing not implemented for Dynamic wallet provider.");
   }
 
   /**
@@ -209,18 +200,26 @@ export class DynamicEvmWalletProvider extends EvmWalletProvider {
 
     try {
       // Dynamic import for ESM compatibility
-      const { DynamicEvmWalletClient } = (await import("@dynamic-labs-wallet/node-evm")) as any;
-      
+      const { DynamicEvmWalletClient: _DynamicEvmWalletClient } = (await import(
+        "@dynamic-labs-wallet/node-evm"
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      )) as any;
+
       // Retrieve external server key shares required for signing
       // This is required when wallet was created without backUpToClientShareService: true
       console.log("[DynamicEvmWalletProvider] Retrieving external server key shares...");
-      const keyShares = await (this.#dynamicClient as InstanceType<typeof DynamicEvmWalletClient>).getExternalServerKeyShares({
+      const keyShares = await (
+        this.#dynamicClient as InstanceType<typeof _DynamicEvmWalletClient>
+      ).getExternalServerKeyShares({
         accountAddress: this.#accountAddress,
       });
-      if(keyShares && keyShares.length ) console.log("[DynamicEvmWalletProvider] Retrieved", keyShares.length, "key shares");
-      
+      if (keyShares && keyShares.length)
+        console.log("[DynamicEvmWalletProvider] Retrieved", keyShares.length, "key shares");
+
       // Sign using Dynamic's signTransaction with external key shares
-      const signedTx = await (this.#dynamicClient as InstanceType<typeof DynamicEvmWalletClient>).signTransaction({
+      const signedTx = await (
+        this.#dynamicClient as InstanceType<typeof _DynamicEvmWalletClient>
+      ).signTransaction({
         senderAddress: this.#accountAddress as `0x${string}`,
         externalServerKeyShares: keyShares || [],
         transaction: preparedTx,
@@ -288,8 +287,8 @@ export class DynamicEvmWalletProvider extends EvmWalletProvider {
     accountAddress: string;
     publicKeyHex: string;
   }> {
-
-    const { ThresholdSignatureScheme } = (await import("@dynamic-labs-wallet/node")) as any; 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { ThresholdSignatureScheme } = (await import("@dynamic-labs-wallet/node")) as any;
     const result = await this.#dynamicClient.importPrivateKey({
       privateKey,
       chainName: "EVM",
@@ -344,8 +343,8 @@ export class DynamicEvmWalletProvider extends EvmWalletProvider {
    * @returns The balance of the wallet in wei
    */
   async getBalance(): Promise<bigint> {
-    return await this.#publicClient.getBalance({ 
-      address: this.#accountAddress as `0x${string}` 
+    return await this.#publicClient.getBalance({
+      address: this.#accountAddress as `0x${string}`,
     });
   }
 

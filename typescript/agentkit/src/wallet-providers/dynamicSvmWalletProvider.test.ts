@@ -149,11 +149,12 @@ describe("DynamicSvmWalletProvider", () => {
     getSvmWallets: jest.fn().mockResolvedValue([]),
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.clearAllMocks();
 
     // Import the mocked modules
-    const { DynamicSvmWalletClient } = require("@dynamic-labs-wallet/node-svm");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { DynamicSvmWalletClient } = (await import("@dynamic-labs-wallet/node-svm")) as any;
 
     // Mock DynamicSvmWalletClient
     DynamicSvmWalletClient.mockImplementation(() => mockDynamicClient);
