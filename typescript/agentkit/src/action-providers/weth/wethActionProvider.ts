@@ -5,7 +5,7 @@ import { CreateAction } from "../actionDecorator";
 import { WrapEthSchema, UnwrapEthSchema } from "./schemas";
 import { WETH_ABI } from "./constants";
 import { TOKEN_ADDRESSES_BY_SYMBOLS } from "../erc20/constants";
-import { encodeFunctionData, Hex, parseUnits } from "viem";
+import { encodeFunctionData, Hex, parseUnits, formatUnits, erc20Abi } from "viem";
 import { EvmWalletProvider } from "../../wallet-providers";
 
 /**
@@ -63,6 +63,14 @@ Inputs:
       // Convert human-readable ETH amount to wei (ETH has 18 decimals)
       const amountInWei = parseUnits(args.amountToWrap, 18);
 
+      // Check ETH balance before wrapping
+      const ethBalance = await walletProvider.getBalance();
+
+      if (ethBalance < amountInWei) {
+        const ethBalanceFormatted = formatUnits(ethBalance, 18);
+        return `Error: Insufficient ETH balance. Requested to wrap ${args.amountToWrap} ETH, but only ${ethBalanceFormatted} ETH is available.`;
+      }
+
       const hash = await walletProvider.sendTransaction({
         to: wethAddress as Hex,
         data: encodeFunctionData({
@@ -111,6 +119,19 @@ Inputs:
     try {
       // Convert human-readable WETH amount to wei (WETH has 18 decimals)
       const amountInWei = parseUnits(args.amountToUnwrap, 18);
+
+      // Check WETH balance before unwrapping
+      const wethBalance = await walletProvider.readContract({
+        address: wethAddress as Hex,
+        abi: erc20Abi,
+        functionName: "balanceOf",
+        args: [walletProvider.getAddress() as Hex],
+      });
+
+      if (wethBalance < amountInWei) {
+        const wethBalanceFormatted = formatUnits(wethBalance, 18);
+        return `Error: Insufficient WETH balance. Requested to unwrap ${args.amountToUnwrap} WETH, but only ${wethBalanceFormatted} WETH is available.`;
+      }
 
       const hash = await walletProvider.sendTransaction({
         to: wethAddress as Hex,

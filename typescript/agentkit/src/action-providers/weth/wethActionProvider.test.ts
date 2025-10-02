@@ -1,6 +1,6 @@
 import { WrapEthSchema, UnwrapEthSchema } from "./schemas";
 import { EvmWalletProvider } from "../../wallet-providers";
-import { encodeFunctionData, parseUnits } from "viem";
+import { encodeFunctionData, parseUnits, erc20Abi } from "viem";
 import { WETH_ABI } from "./constants";
 import { wethActionProvider, getWethAddress } from "./wethActionProvider";
 
@@ -58,6 +58,7 @@ describe("Wrap Eth Action", () => {
         protocolFamily: "evm",
         networkId: "base-mainnet",
       }),
+      getBalance: jest.fn().mockResolvedValue(parseUnits("20", 18)), // 20 ETH balance
       sendTransaction: jest.fn(),
       waitForTransactionReceipt: jest.fn(),
     } as unknown as jest.Mocked<EvmWalletProvider>;
@@ -105,6 +106,20 @@ describe("Wrap Eth Action", () => {
 
     expect(response).toContain(`Error wrapping ETH: ${error}`);
   });
+
+  it("should fail with insufficient ETH balance", async () => {
+    const args = {
+      amountToWrap: MOCK_AMOUNT,
+    };
+
+    // Mock insufficient balance (less than 15 ETH)
+    mockWallet.getBalance.mockResolvedValue(parseUnits("10", 18));
+
+    const response = await actionProvider.wrapEth(mockWallet, args);
+
+    expect(mockWallet.sendTransaction).not.toHaveBeenCalled();
+    expect(response).toContain("Error: Insufficient ETH balance");
+  });
 });
 
 describe("Unwrap Eth Action", () => {
@@ -118,6 +133,7 @@ describe("Unwrap Eth Action", () => {
         protocolFamily: "evm",
         networkId: "base-mainnet",
       }),
+      readContract: jest.fn().mockResolvedValue(parseUnits("20", 18)), // 20 WETH balance
       sendTransaction: jest.fn(),
       waitForTransactionReceipt: jest.fn(),
     } as unknown as jest.Mocked<EvmWalletProvider>;
@@ -133,6 +149,12 @@ describe("Unwrap Eth Action", () => {
 
     const response = await actionProvider.unwrapEth(mockWallet, args);
 
+    expect(mockWallet.readContract).toHaveBeenCalledWith({
+      address: getWethAddress({ protocolFamily: "evm", networkId: "base-mainnet" }),
+      abi: erc20Abi,
+      functionName: "balanceOf",
+      args: [MOCK_ADDRESS],
+    });
     expect(mockWallet.sendTransaction).toHaveBeenCalledWith({
       to: getWethAddress({ protocolFamily: "evm", networkId: "base-mainnet" }),
       data: encodeFunctionData({
@@ -154,6 +176,12 @@ describe("Unwrap Eth Action", () => {
 
     const response = await actionProvider.unwrapEth(mockWallet, args);
 
+    expect(mockWallet.readContract).toHaveBeenCalledWith({
+      address: getWethAddress({ protocolFamily: "evm", networkId: "base-mainnet" }),
+      abi: erc20Abi,
+      functionName: "balanceOf",
+      args: [MOCK_ADDRESS],
+    });
     expect(mockWallet.sendTransaction).toHaveBeenCalledWith({
       to: getWethAddress({ protocolFamily: "evm", networkId: "base-mainnet" }),
       data: encodeFunctionData({
@@ -164,6 +192,20 @@ describe("Unwrap Eth Action", () => {
     });
 
     expect(response).toContain(`Error unwrapping WETH: ${error}`);
+  });
+
+  it("should fail with insufficient WETH balance", async () => {
+    const args = {
+      amountToUnwrap: MOCK_AMOUNT,
+    };
+
+    // Mock insufficient WETH balance (less than 15 WETH)
+    mockWallet.readContract.mockResolvedValue(parseUnits("10", 18));
+
+    const response = await actionProvider.unwrapEth(mockWallet, args);
+
+    expect(mockWallet.sendTransaction).not.toHaveBeenCalled();
+    expect(response).toContain("Error: Insufficient WETH balance");
   });
 });
 
