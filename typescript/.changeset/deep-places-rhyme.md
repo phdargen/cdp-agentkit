@@ -1,0 +1,5 @@
+---
+"@coinbase/agentkit": patch
+---
+
+Fixed units and removed min amount in WETH action
