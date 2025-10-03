@@ -10,7 +10,13 @@ from ...wallet_providers import EvmWalletProvider
 from ..action_decorator import create_action
 from ..action_provider import ActionProvider
 from .constants import ERC20_ABI, TOKEN_ADDRESSES_BY_SYMBOLS
-from .schemas import GetBalanceSchema, GetTokenAddressSchema, TransferSchema
+from .schemas import (
+    AllowanceSchema,
+    ApproveSchema,
+    GetBalanceSchema,
+    GetTokenAddressSchema,
+    TransferSchema,
+)
 from .utils import get_token_details
 
 
@@ -112,7 +118,10 @@ class ERC20ActionProvider(ActionProvider[EvmWalletProvider]):
                 return f"Error: Insufficient {token_details.name} ({validated_args.contract_address}) token balance. Requested to send {validated_args.amount} of {token_details.name} ({validated_args.contract_address}), but only {token_details.formatted_balance} is available."
 
             # Guardrails to prevent loss of funds
-            if validated_args.contract_address.lower() == validated_args.destination_address.lower():
+            if (
+                validated_args.contract_address.lower()
+                == validated_args.destination_address.lower()
+            ):
                 return "Error: Transfer destination is the token contract address. Refusing transfer to prevent loss of funds."
 
             # Check if it's an ERC20 token contract
@@ -145,6 +154,129 @@ class ERC20ActionProvider(ActionProvider[EvmWalletProvider]):
             )
         except Exception as e:
             return f"Error transferring the asset: {e!s}"
+
+    @create_action(
+        name="approve",
+        description="""
+        This tool will approve a spender to transfer ERC20 tokens from the wallet.
+
+        It takes the following inputs:
+        - amount: The amount to approve in whole units (e.g. 100 for 100 USDC)
+        - contract_address: The contract address of the token to approve
+        - spender_address: The spender address to approve
+
+        Important notes:
+        - This will overwrite any existing allowance
+        - To revoke an allowance, set the amount to 0
+        - Ensure you trust the spender address before approving
+        - Never assume token addresses, they have to be provided as inputs. If only token symbol is provided, use the get_erc20_token_address tool to get the token address first
+        """,
+        schema=ApproveSchema,
+    )
+    def approve(self, wallet_provider: EvmWalletProvider, args: dict[str, Any]) -> str:
+        """Approve a spender to transfer ERC20 tokens.
+
+        Args:
+            wallet_provider (EvmWalletProvider): The wallet provider instance.
+            args (dict[str, Any]): Input arguments for the action.
+
+        Returns:
+            str: A message containing the action response or error details.
+
+        """
+        try:
+            validated_args = ApproveSchema(**args)
+
+            w3 = Web3()
+            checksum_contract = w3.to_checksum_address(validated_args.contract_address)
+            checksum_spender = w3.to_checksum_address(validated_args.spender_address)
+
+            # Get token details for better error messages and validation
+            token_details = get_token_details(wallet_provider, validated_args.contract_address)
+            if not token_details:
+                return f"Error: Could not fetch token details for {validated_args.contract_address}. Please verify the token address is correct."
+
+            # Convert amount from whole units to atomic units
+            amount_in_atomic_units = int(
+                Decimal(validated_args.amount) * (10**token_details.decimals)
+            )
+
+            # Encode approve function
+            contract = w3.eth.contract(address=checksum_contract, abi=ERC20_ABI)
+            data = contract.encode_abi("approve", [checksum_spender, amount_in_atomic_units])
+
+            tx_hash = wallet_provider.send_transaction(
+                {
+                    "to": checksum_contract,
+                    "data": data,
+                }
+            )
+
+            wallet_provider.wait_for_transaction_receipt(tx_hash)
+
+            return (
+                f"Approved {validated_args.amount} {token_details.name} ({validated_args.contract_address}) "
+                f"for spender {validated_args.spender_address}.\n"
+                f"Transaction hash: {tx_hash}"
+            )
+        except Exception as e:
+            return f"Error approving tokens: {e!s}"
+
+    @create_action(
+        name="get_allowance",
+        description="""
+        This tool will get the allowance amount for a spender of an ERC20 token.
+
+        It takes the following inputs:
+        - contract_address: The contract address of the token to check allowance for
+        - spender_address: The address to check allowance for
+
+        Important notes:
+        - Never assume token addresses, they have to be provided as inputs. If only token symbol is provided, use the get_erc20_token_address tool to get the token address first
+        """,
+        schema=AllowanceSchema,
+    )
+    def get_allowance(self, wallet_provider: EvmWalletProvider, args: dict[str, Any]) -> str:
+        """Get the allowance amount for a spender of an ERC20 token.
+
+        Args:
+            wallet_provider (EvmWalletProvider): The wallet provider instance.
+            args (dict[str, Any]): Input arguments for the action.
+
+        Returns:
+            str: A message containing the allowance amount or error details.
+
+        """
+        try:
+            validated_args = AllowanceSchema(**args)
+
+            w3 = Web3()
+            checksum_contract = w3.to_checksum_address(validated_args.contract_address)
+            checksum_spender = w3.to_checksum_address(validated_args.spender_address)
+
+            # Get token details for proper formatting
+            token_details = get_token_details(wallet_provider, validated_args.contract_address)
+            if not token_details:
+                return f"Error: Could not fetch token details for {validated_args.contract_address}. Please verify the token address is correct."
+
+            # Get owner address (wallet's address)
+            owner_address = wallet_provider.get_address()
+            checksum_owner = w3.to_checksum_address(owner_address)
+
+            # Read allowance from contract
+            allowance = wallet_provider.read_contract(
+                contract_address=checksum_contract,
+                abi=ERC20_ABI,
+                function_name="allowance",
+                args=[checksum_owner, checksum_spender],
+            )
+
+            # Format the allowance using token decimals
+            formatted_allowance = str(allowance / (10**token_details.decimals))
+
+            return f"Allowance for {validated_args.spender_address} to spend {token_details.name} ({validated_args.contract_address}) is {formatted_allowance} tokens"
+        except Exception as e:
+            return f"Error checking allowance: {e!s}"
 
     @create_action(
         name="get_erc20_token_address",

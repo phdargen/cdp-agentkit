@@ -79,3 +79,55 @@ class GetTokenAddressSchema(BaseModel):
                 {"value": v},
             )
         return upper
+
+
+class ApproveSchema(BaseModel):
+    """Schema for approving token spending."""
+
+    amount: str = Field(
+        description="The amount to approve in whole units (e.g. 100.2 for 100.2 USDC)"
+    )
+    contract_address: str = Field(description="The contract address of the token")
+    spender_address: str = Field(description="The address to approve for spending tokens")
+
+    @field_validator("amount")
+    @classmethod
+    def validate_amount(cls, v: str) -> str:
+        """Validate amount is a positive decimal number."""
+        pattern = r"^[0-9]*\.?[0-9]+$"
+        if not re.match(pattern, v):
+            raise PydanticCustomError(
+                "decimal_format",
+                "Amount must be a positive decimal number",
+                {"value": v},
+            )
+
+        try:
+            decimal_value = Decimal(v)
+            if decimal_value < 0:
+                raise PydanticCustomError(
+                    "non_negative_amount",
+                    "Amount must be greater than or equal to 0",
+                    {"value": v},
+                )
+        except (ValueError, TypeError, ArithmeticError) as e:
+            raise PydanticCustomError(
+                "decimal_parse",
+                "Failed to parse decimal value",
+                {"error": str(e)},
+            ) from e
+
+        return v
+
+
+class AllowanceSchema(BaseModel):
+    """Schema for checking token allowance."""
+
+    contract_address: str = Field(
+        ...,
+        description="The contract address of the token",
+    )
+    spender_address: str = Field(
+        ...,
+        description="The address to check allowance for",
+    )
