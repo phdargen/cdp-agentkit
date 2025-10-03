@@ -77,7 +77,7 @@ export class ERC20ActionProvider extends ActionProvider<EvmWalletProvider> {
 It takes the following inputs:
 - amount: The amount to transfer in whole units (e.g. 10.5 USDC)
 - tokenAddress: The contract address of the token to transfer
-- destinationAddress: Where to send the funds (can be an onchain address, ENS 'example.eth', or Basename 'example.base.eth')
+- destinationAddress: The address to send the funds to
 Important notes:
 - Never assume token or destination addresses, they have to be provided as inputs. If only token symbol is provided, use the get_token_address tool to get the token address first
 `,
