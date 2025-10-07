@@ -9,6 +9,19 @@ This example demonstrates an agent setup on XMTP Network with access to the full
 - "Swap 1 USDC to ETH" (base-mainnet only)
 - "List x402 services"
 
+## Special Commands
+
+### `/fund` Command - Send ETH to the agent
+
+Send ETH from your wallet to the agent's wallet using the `/fund` command.
+Review transaction details, click submit and then approve transaction in your connected browser wallet.
+
+**Usage:**
+- `/fund <amountInEth>` - Send ETH to the agent
+
+**Example:**
+- `/fund 0.01` - Send 0.01 ETH to the agent
+
 
 ## Prerequisites
 
@@ -42,8 +55,8 @@ Once you have them, rename the `.env-local` file to `.env` and make sure you set
 - `CDP_API_KEY_ID` - Your CDP API key ID
 - `CDP_API_KEY_SECRET` - Your CDP API key secret
 - `CDP_WALLET_SECRET` - Your CDP wallet secret (for deterministic wallet generation)
-- `XMTP_WALLET_KEY` - Private key for XMTP agent (use `npm run gen:keys` to generate)
-- `XMTP_DB_ENCRYPTION_KEY` - Database encryption key for XMTP (use `npm run gen:keys` to generate)
+- `XMTP_WALLET_KEY` - Private key for XMTP agent (use `pnpm run gen:keys` to generate)
+- `XMTP_DB_ENCRYPTION_KEY` - Database encryption key for XMTP (use `pnpm run gen:keys` to generate)
 
 **Optional:**
 - `NETWORK_ID` - Network to use (defaults to "base-sepolia")

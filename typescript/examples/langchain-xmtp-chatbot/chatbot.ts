@@ -10,13 +10,25 @@ import {
   pythActionProvider,
   wethActionProvider,
   x402ActionProvider,
+  NETWORK_ID_TO_VIEM_CHAIN,
 } from "@coinbase/agentkit";
 import { getLangChainTools } from "@coinbase/agentkit-langchain";
 import { HumanMessage } from "@langchain/core/messages";
 import { MemorySaver } from "@langchain/langgraph";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { ChatOpenAI } from "@langchain/openai";
-import { Agent as XMTPAgent, type MessageContext } from "@xmtp/agent-sdk";
+import { Agent as XMTPAgent, type MessageContext, type AgentMiddleware } from "@xmtp/agent-sdk";
+import {
+  TransactionReferenceCodec,
+  ContentTypeTransactionReference,
+  type TransactionReference,
+} from "@xmtp/content-type-transaction-reference";
+import {
+  ContentTypeWalletSendCalls,
+  WalletSendCallsCodec,
+  type WalletSendCallsParams,
+} from "@xmtp/content-type-wallet-send-calls";
+import { parseEther, createPublicClient, http, formatEther, Chain } from "viem";
 
 // Initialize environment variables
 dotenv.config();
@@ -27,6 +39,15 @@ const STORAGE_DIR = ".data/wallets";
 // Global stores for memory and agent instances
 const memoryStore: Record<string, MemorySaver> = {};
 const agentStore: Record<string, Agent> = {};
+
+// Initialize public client
+const networkId = process.env.NETWORK_ID || "base-sepolia";
+const chain = NETWORK_ID_TO_VIEM_CHAIN[networkId as keyof typeof NETWORK_ID_TO_VIEM_CHAIN];
+const chainId = `0x${chain.id.toString(16)}` as `0x${string}`;
+const publicClient = createPublicClient({
+  chain: chain as Chain,
+  transport: process.env.RPC_URL ? http(process.env.RPC_URL) : http(),
+});
 
 interface AgentConfig {
   configurable: {
@@ -147,7 +168,7 @@ async function initializeAgent(userId: string): Promise<{ agent: Agent; config: 
 
     const canUseFaucet = walletProvider.getNetwork().networkId == "base-sepolia";
     const faucetMessage = `If you ever need funds, you can request them from the faucet.`;
-    const cantUseFaucetMessage = `If you need funds, you can provide your wallet details and request funds from the user.`;
+    const cantUseFaucetMessage = `If you need funds, you can request funds from the user. Advise the user to use the "/fund <amountInETH>" command to send ETH to your wallet.`;
     const agent = createReactAgent({
       llm,
       tools,
@@ -227,6 +248,32 @@ async function handleMessage(ctx: MessageContext) {
 }
 
 /**
+ * Transaction reference middleware to handle confirmed transactions
+ *
+ * @param ctx - The message context from XMTP agent SDK
+ * @param next - The next middleware function in the chain
+ */
+const transactionReferenceMiddleware: AgentMiddleware = async (ctx, next) => {
+  // Check if this is a transaction reference message
+  if (ctx.message.contentType?.sameAs(ContentTypeTransactionReference)) {
+    const transactionRef = ctx.message.content as TransactionReference;
+
+    await ctx.sendText(
+      `✅ Transaction confirmed!\n` +
+        `🔗 Network: ${transactionRef.networkId}\n` +
+        `📄 Hash: ${transactionRef.reference}\n` +
+        `${transactionRef.metadata ? `📝 Transaction metadata received` : ""}`,
+    );
+
+    // Don't continue to other handlers since we handled this message
+    return;
+  }
+
+  // Continue to next middleware/handler
+  await next();
+};
+
+/**
  * Validates that required environment variables are set.
  */
 function validateEnvironment(): void {
@@ -273,14 +320,84 @@ async function main(): Promise<void> {
   validateEnvironment();
   ensureLocalStorage();
 
-  // Create XMTP agent using environment variables
+  // Create XMTP agent using environment variables with transaction codecs
   const xmtpAgent = await XMTPAgent.createFromEnv({
     env: (process.env.XMTP_ENV as "local" | "dev" | "production") || "dev",
+    codecs: [new WalletSendCallsCodec(), new TransactionReferenceCodec()],
   });
 
-  // Handle text messages
-  xmtpAgent.on("text", ctx => {
-    void handleMessage(ctx);
+  // Apply the transaction reference middleware
+  xmtpAgent.use(transactionReferenceMiddleware);
+
+  // Handle /fund command - triggers an ETH transaction from user wallet to agent wallet
+  xmtpAgent.on("text", async ctx => {
+    const message = ctx.message.content as string;
+    if (!message.startsWith("/fund")) {
+      handleMessage(ctx);
+      return;
+    }
+
+    const agentAddress = xmtpAgent.address;
+    if (!agentAddress) {
+      await ctx.sendText("Agent address not found");
+      return;
+    }
+    const senderAddress = await ctx.getSenderAddress();
+
+    const parts = message.split(" ");
+    if (parts.length < 2) {
+      await ctx.sendText("Please provide an ETH amount. Usage: /fund <amountInETH>");
+      return;
+    }
+
+    const amount = parseFloat(parts[1]);
+    if (isNaN(amount) || amount <= 0) {
+      await ctx.sendText("Please provide a valid ETH amount. Usage: /fund <amountInETH>");
+      return;
+    }
+
+    // Convert amount to wei
+    const amountInWei = parseEther(amount.toString());
+
+    // Check user's balance
+    const balance = await publicClient.getBalance({
+      address: senderAddress as `0x${string}`,
+    });
+
+    if (balance < amountInWei) {
+      await ctx.sendText(
+        `❌ Insufficient balance. You have ${formatEther(balance)} ETH but trying to send ${amount} ETH.`,
+      );
+      return;
+    }
+
+    const walletSendCalls: WalletSendCallsParams = {
+      version: "1.0",
+      from: senderAddress as `0x${string}`,
+      chainId: chainId,
+      calls: [
+        {
+          to: agentAddress as `0x${string}`,
+          value: `0x${amountInWei.toString(16)}`,
+          metadata: {
+            description: `Send ${amount} ETH to the agent's wallet ${agentAddress}`,
+            transactionType: "transfer",
+            currency: "ETH",
+            amount: amountInWei.toString(),
+            decimals: "18",
+            toAddress: agentAddress,
+          },
+        },
+      ],
+    };
+
+    // Send transaction request to user
+    await ctx.conversation.send(walletSendCalls, ContentTypeWalletSendCalls);
+
+    // Send a follow-up message about transaction references
+    await ctx.sendText(
+      `💡 Please sign the transaction in your wallet to send ${amount} ETH to the agent's wallet ${agentAddress}.`,
+    );
   });
 
   // Log when agent starts
