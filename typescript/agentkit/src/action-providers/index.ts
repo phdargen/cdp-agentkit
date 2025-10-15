@@ -12,6 +12,7 @@ export * from "./cdp";
 export * from "./clanker";
 export * from "./compound";
 export * from "./defillama";
+export * from "./ens";
 export * from "./enso";
 export * from "./erc20";
 export * from "./erc721";

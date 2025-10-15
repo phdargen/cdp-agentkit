@@ -8,6 +8,7 @@ import {
   walletActionProvider,
   wethActionProvider,
   x402ActionProvider,
+  ensActionProvider,
 } from "@coinbase/agentkit";
 import { getLangChainTools } from "@coinbase/agentkit-langchain";
 import { HumanMessage } from "@langchain/core/messages";
