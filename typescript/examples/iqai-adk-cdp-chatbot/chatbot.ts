@@ -8,6 +8,7 @@ import {
   cdpApiActionProvider,
   cdpEvmWalletActionProvider,
   x402ActionProvider,
+  pythActionProvider,
 } from "@coinbase/agentkit";
 import { getAdkTools } from "@coinbase/agentkit-iqai-adk";
 import { AgentBuilder, EnhancedRunner } from "@iqai/adk";
@@ -81,6 +82,7 @@ async function initializeAgent() {
       erc20ActionProvider(),
       erc721ActionProvider(),
       x402ActionProvider(),
+      pythActionProvider(),
     ];
 
     // Initialize AgentKit
@@ -89,7 +91,7 @@ async function initializeAgent() {
       actionProviders,
     });
 
-    const tools = getAdkTools(agentkit);
+    const tools = await getAdkTools(agentkit);
 
     const { agent, runner } = await AgentBuilder.create("chat_bot_agent")
 		.withModel(process.env.LLM_MODEL || "gemini-2.5-flash")

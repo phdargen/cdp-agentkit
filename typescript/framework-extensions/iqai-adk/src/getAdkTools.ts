@@ -2,9 +2,9 @@
  * Main exports for the CDP ADK-TS package
  */
 
-import { createTool } from "@iqai/adk";
-import type { BaseTool } from "@iqai/adk";
-import { AgentKit, type Action } from "@coinbase/agentkit";
+import { type BaseTool, convertMcpToolToBaseTool } from "@iqai/adk";
+import { AgentKit} from "@coinbase/agentkit";
+import { getMcpTools } from "@coinbase/agentkit-model-context-protocol";
 
 export type AdkTool = BaseTool;
 
@@ -14,24 +14,12 @@ export type AdkTool = BaseTool;
  * @param agentKit - The AgentKit instance
  * @returns An array of ADK BaseTool instances
  */
-export function getAdkTools(agentKit: AgentKit): BaseTool[] {
-  const actions: Action[] = agentKit.getActions();
-  const tools: BaseTool[] = [];
-  
-  for (const action of actions) {
-    // Don't pass schema - there's a Zod v3/v4 incompatibility
-    // The tool will work without explicit schema validation
-    const tool = createTool({
-      name: action.name,
-      description: action.description,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      fn: async (args: any) => {
-        return await action.invoke(args);
-      },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
-    tools.push(tool);
-  }
-  
-  return tools;
+export async function getAdkTools(agentKit: AgentKit): Promise<BaseTool[]> {
+  const { tools, toolHandler } = await getMcpTools(agentKit);
+
+  const baseTools = await Promise.all(
+    tools.map(async mcpTool => convertMcpToolToBaseTool({ mcpTool, toolHandler: toolHandler })),
+  );
+
+  return baseTools;
 }

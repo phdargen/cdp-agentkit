@@ -677,6 +677,9 @@ importers:
 
   framework-extensions/iqai-adk:
     dependencies:
+      '@coinbase/agentkit-model-context-protocol':
+        specifier: ^0.2.0
+        version: 0.2.0(@coinbase/agentkit@agentkit)
       '@iqai/adk':
         specifier: ^0.3.7
         version: 0.3.7(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@types/node@22.13.14)(@types/pg@8.15.5)(bufferutil@4.0.9)(typescript@5.8.2)(utf-8-validate@5.0.10)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))
@@ -1047,6 +1050,11 @@ packages:
 
   '@clack/prompts@0.11.0':
     resolution: {integrity: sha512-pMN5FcrEw9hUkZA4f+zLlzivQSeQf5dRGJjSUbvVYDLvpKCdQx5OaknvKzgbtXOizhP+SJJJjqEbOe55uKKfAw==}
+
+  '@coinbase/agentkit-model-context-protocol@0.2.0':
+    resolution: {integrity: sha512-x+E7ip79HxLboqJh+YZ2lWXz8uwN1E4XLnxtwBt6RvQZdA+gVM4MyMUrGmc292yg4z0USCUwrfFnE27aAObZmA==}
+    peerDependencies:
+      '@coinbase/agentkit': '>=0.1.0'
 
   '@coinbase/cdp-sdk@1.38.1':
     resolution: {integrity: sha512-UOGDjv8KM+bdKF3nl/CxLytcN2SNXgKlQVA6hfAvQNPSRBW3VE4sx7OdVszDqO7fkVcxNZu91Qwfi+ARE8H76g==}
@@ -7858,6 +7866,15 @@ snapshots:
       '@clack/core': 0.5.0
       picocolors: 1.1.1
       sisteransi: 1.0.5
+
+  '@coinbase/agentkit-model-context-protocol@0.2.0(@coinbase/agentkit@agentkit)':
+    dependencies:
+      '@coinbase/agentkit': link:agentkit
+      '@modelcontextprotocol/sdk': 1.19.1
+      zod: 3.25.76
+      zod-to-json-schema: 3.24.6(zod@3.25.76)
+    transitivePeerDependencies:
+      - supports-color
 
   '@coinbase/cdp-sdk@1.38.1(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.2)(utf-8-validate@5.0.10)':
     dependencies:
