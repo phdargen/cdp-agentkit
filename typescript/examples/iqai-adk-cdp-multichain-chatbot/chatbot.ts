@@ -8,6 +8,7 @@ import {
   cdpApiActionProvider,
   cdpEvmWalletActionProvider,
   x402ActionProvider,
+  pythActionProvider,
 } from "@coinbase/agentkit";
 import { getAdkTools } from "@coinbase/agentkit-iqai-adk";
 import { AgentBuilder, LlmAgent, createTool, type BaseTool, type EnhancedRunner } from "@iqai/adk";
@@ -27,12 +28,23 @@ interface NetworkConfig {
   isDefault: boolean;
 }
 
-const SUPPORTED_NETWORKS: NetworkConfig[] = [
-  { id: "base-sepolia", name: "Base Sepolia", isDefault: true },
-  { id: "ethereum-sepolia", name: "Ethereum Sepolia", isDefault: false },
-];
+// Parse NETWORK_IDS from environment or use defaults
+const getNetworkIds = (): string[] => {
+  const envNetworks = process.env.NETWORK_IDS;
+  if (envNetworks) {
+    return envNetworks.split(',').map(n => n.trim()).filter(n => n.length > 0);
+  }
+  return ["base-sepolia", "ethereum-sepolia"];
+};
 
-const DEFAULT_NETWORK = SUPPORTED_NETWORKS.find(n => n.isDefault)!.id;
+const networkIds = getNetworkIds();
+const SUPPORTED_NETWORKS: NetworkConfig[] = networkIds.map((id, index) => ({
+  id,
+  name: id,
+  isDefault: index === 0, // First network in array is default
+}));
+
+const DEFAULT_NETWORK = SUPPORTED_NETWORKS[0].id;
 
 // ============================================================================
 // VALIDATION
@@ -40,7 +52,7 @@ const DEFAULT_NETWORK = SUPPORTED_NETWORKS.find(n => n.isDefault)!.id;
 
 function validateEnvironment(): void {
   const missingVars: string[] = [];
-  const requiredVars = ["CDP_API_KEY_ID", "CDP_API_KEY_SECRET", "CDP_WALLET_SECRET", "LLM_MODEL"];
+  const requiredVars = ["CDP_API_KEY_ID", "CDP_API_KEY_SECRET", "CDP_WALLET_SECRET"];
   
   requiredVars.forEach(varName => {
     if (!process.env[varName]) {
@@ -82,13 +94,15 @@ function createChainSwitchingTools() {
   const tools: BaseTool[] = [];
 
   // Single switch tool with network parameter using Zod schema
+  // Create dynamic enum from supported networks
+  const networkIds = SUPPORTED_NETWORKS.map(n => n.id);
   const networkSchema = z.object({
-    network: z.enum(["base-sepolia", "ethereum-sepolia"]).describe("The network ID to switch to"),
+    network: z.enum(networkIds as [string, ...string[]]).describe(`The network ID to switch to. Supported: ${networkIds.join(", ")}`),
   });
 
   const switchNetworkTool = createTool({
     name: "switch_network",
-    description: `Switch to a different blockchain network. Supported networks: base-sepolia, ethereum-sepolia`,
+    description: `Switch to a different blockchain network. Supported networks: ${networkIds.join(", ")}`,
     schema: networkSchema as any, // Type assertion to work around Zod version incompatibility
     fn: async (args: any) => {
       try {
@@ -98,7 +112,7 @@ function createChainSwitchingTools() {
         const network = args?.network;
         
         if (!network || typeof network !== 'string') {
-          const msg = `Missing or invalid 'network' parameter. Expected "base-sepolia" or "ethereum-sepolia". Received: ${JSON.stringify(args)}`;
+          const msg = `Missing or invalid 'network' parameter. Expected one of: ${networkIds.join(", ")}. Received: ${JSON.stringify(args)}`;
           console.log("[DEBUG]", msg);
           return msg;
         }
@@ -180,8 +194,8 @@ async function createNetworkAgent(networkId: string): Promise<LlmAgent> {
     cdpEvmWalletActionProvider(),
     wethActionProvider(),
     erc20ActionProvider(),
-    erc721ActionProvider(),
     x402ActionProvider(),
+    pythActionProvider(),
   ];
 
   const agentkit = await AgentKit.from({
@@ -189,7 +203,7 @@ async function createNetworkAgent(networkId: string): Promise<LlmAgent> {
     actionProviders,
   });
 
-  const tools = getAdkTools(agentkit);
+  const tools = await getAdkTools(agentkit);
 
   // Customize faucet instruction based on network
   const faucetInstruction = networkId.includes("sepolia")
@@ -198,7 +212,7 @@ async function createNetworkAgent(networkId: string): Promise<LlmAgent> {
 
   return new LlmAgent({
     name: `${networkId.replace(/-/g, "_")}_agent`,
-    model: process.env.LLM_MODEL || "gemini-2.5-flash",
+    model: process.env.LLM_MODEL || "gpt-4o",
     description: `Blockchain operations agent for ${network.name} (${networkId})`,
     instruction: `
       You are a helpful agent that can interact onchain using the Coinbase Developer Platform AgentKit on the ${network.name} network.
@@ -240,7 +254,7 @@ async function createMultiChainCoordinator(): Promise<EnhancedRunner> {
   ).join("\n");
 
   const { runner } = await AgentBuilder.create("multi_chain_coordinator")
-    .withModel(process.env.LLM_MODEL || "gemini-2.5-flash")
+    .withModel(process.env.LLM_MODEL || "gpt-4o")
     .withDescription("Multi-chain blockchain coordinator with persistent network state")
     .withInstruction(`
       You are a multi-chain blockchain coordinator that manages network state and delegates operations to specialized agents.
@@ -258,13 +272,11 @@ ${networkDescriptions}
       When the user wants to switch networks, you MUST call the switch_network tool with proper parameters.
       
       EXAMPLES:
-        User says: "switch to ethereum sepolia" or "use ethereum-sepolia"
-        → Call: switch_network with args {"network": "ethereum-sepolia"}
-        
-        User says: "switch to base sepolia" or "use base-sepolia"
-        → Call: switch_network with args {"network": "base-sepolia"}
+${SUPPORTED_NETWORKS.slice(0, 2).map(n => 
+  `        User says: "switch to ${n.name.toLowerCase()}" or "use ${n.id}"\n        → Call: switch_network with args {"network": "${n.id}"}`
+).join("\n        \n")}
       
-      CRITICAL: The switch_network tool requires a "network" parameter. You MUST pass it like: {"network": "ethereum-sepolia"}
+      CRITICAL: The switch_network tool requires a "network" parameter. You MUST pass it like: {"network": "${SUPPORTED_NETWORKS[0].id}"}
       DO NOT call switch_network without the network parameter or with an empty object {}.
       
       After switching:
@@ -294,7 +306,6 @@ ${SUPPORTED_NETWORKS.map(n => `           - ${n.id} → ${n.id.replace(/-/g, "_"
     .withSubAgents(networkAgents)
     .build();
 
-  console.log("✅ Multi-chain coordinator ready!\n");
   return runner;
 }
 
@@ -305,7 +316,8 @@ ${SUPPORTED_NETWORKS.map(n => `           - ${n.id} → ${n.id.replace(/-/g, "_"
 async function runChatMode(coordinator: EnhancedRunner): Promise<void> {
   console.log("🤖 Multi-Chain Chatbot Ready!");
   console.log("\n💡 Available commands:");
-  console.log(`   - Switch networks: "switch to ethereum-sepolia" or "switch to base-sepolia"`);
+  const networkExamples = SUPPORTED_NETWORKS.slice(0, 2).map(n => `"switch to ${n.id}"`).join(" or ");
+  console.log(`   - Switch networks: ${networkExamples}`);
   console.log(`   - Check current: "which network am I on?" or "get current chain"`);
   console.log(`   - List networks: "what networks are supported?"`);
   console.log(`   - Operations: "check my balance", "send 0.01 ETH to 0x...", "wallet info"`);

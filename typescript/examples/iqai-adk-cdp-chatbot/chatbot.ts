@@ -27,7 +27,7 @@ function validateEnvironment(): void {
   const missingVars: string[] = [];
 
   // Check required variables
-  const requiredVars = ["CDP_API_KEY_ID", "CDP_API_KEY_SECRET", "CDP_WALLET_SECRET", "LLM_MODEL"];
+  const requiredVars = ["CDP_API_KEY_ID", "CDP_API_KEY_SECRET", "CDP_WALLET_SECRET"];
   requiredVars.forEach(varName => {
     if (!process.env[varName]) {
       missingVars.push(varName);
@@ -94,7 +94,7 @@ async function initializeAgent() {
     const tools = await getAdkTools(agentkit);
 
     const { agent, runner } = await AgentBuilder.create("chat_bot_agent")
-		.withModel(process.env.LLM_MODEL || "gemini-2.5-flash")
+		.withModel(process.env.LLM_MODEL || "gpt-4o")
 		.withDescription("AI agent that can interact with blockchain networks using CDP AgentKit")
 		.withInstruction(`
         You are a helpful agent that can interact onchain using the Coinbase Developer Platform AgentKit. You are 
