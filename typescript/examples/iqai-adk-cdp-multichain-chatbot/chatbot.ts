@@ -1,10 +1,8 @@
 import {
   AgentKit,
   CdpEvmWalletProvider,
-  wethActionProvider,
   walletActionProvider,
   erc20ActionProvider,
-  erc721ActionProvider,
   cdpApiActionProvider,
   cdpEvmWalletActionProvider,
   x402ActionProvider,
@@ -22,38 +20,35 @@ dotenv.config();
 // NETWORK CONFIGURATION
 // ============================================================================
 
-interface NetworkConfig {
-  id: string;
-  name: string;
-  isDefault: boolean;
-}
-
 // Parse NETWORK_IDS from environment or use defaults
 const getNetworkIds = (): string[] => {
   const envNetworks = process.env.NETWORK_IDS;
   if (envNetworks) {
-    return envNetworks.split(',').map(n => n.trim()).filter(n => n.length > 0);
+    return envNetworks
+      .split(",")
+      .map(n => n.trim())
+      .filter(n => n.length > 0);
   }
   return ["base-sepolia", "ethereum-sepolia"];
 };
 
-const networkIds = getNetworkIds();
-const SUPPORTED_NETWORKS: NetworkConfig[] = networkIds.map((id, index) => ({
-  id,
-  name: id,
-  isDefault: index === 0, // First network in array is default
-}));
-
-const DEFAULT_NETWORK = SUPPORTED_NETWORKS[0].id;
+const SUPPORTED_NETWORKS = getNetworkIds();
+const DEFAULT_NETWORK = SUPPORTED_NETWORKS[0];
 
 // ============================================================================
 // VALIDATION
 // ============================================================================
 
+/**
+ * Validates that required environment variables are set
+ *
+ * @throws {Error} - If required environment variables are missing
+ * @returns {void}
+ */
 function validateEnvironment(): void {
   const missingVars: string[] = [];
   const requiredVars = ["CDP_API_KEY_ID", "CDP_API_KEY_SECRET", "CDP_WALLET_SECRET"];
-  
+
   requiredVars.forEach(varName => {
     if (!process.env[varName]) {
       missingVars.push(varName);
@@ -78,63 +73,76 @@ validateEnvironment();
 // Use a closure to maintain state across tool calls
 let currentChain = DEFAULT_NETWORK;
 
+/**
+ * Gets the currently active blockchain network ID
+ *
+ * @returns {string} The current chain ID
+ */
 function getCurrentChainId(): string {
   return currentChain;
 }
 
+/**
+ * Sets the currently active blockchain network ID
+ *
+ * @param chainId - The network ID to set as current
+ * @returns {void}
+ */
 function setCurrentChainId(chainId: string): void {
   currentChain = chainId;
 }
 
 // ============================================================================
-// CHAIN SWITCHING TOOLS (Generic)
+// CHAIN SWITCHING TOOLS
 // ============================================================================
 
+/**
+ * Creates tools for switching between blockchain networks
+ *
+ * @returns {BaseTool[]} Array of chain switching tools
+ */
 function createChainSwitchingTools() {
   const tools: BaseTool[] = [];
 
   // Single switch tool with network parameter using Zod schema
   // Create dynamic enum from supported networks
-  const networkIds = SUPPORTED_NETWORKS.map(n => n.id);
+  const networkIds = SUPPORTED_NETWORKS;
   const networkSchema = z.object({
-    network: z.enum(networkIds as [string, ...string[]]).describe(`The network ID to switch to. Supported: ${networkIds.join(", ")}`),
+    network: z
+      .enum(networkIds as [string, ...string[]])
+      .describe(`The network ID to switch to. Supported: ${networkIds.join(", ")}`),
   });
 
   const switchNetworkTool = createTool({
     name: "switch_network",
     description: `Switch to a different blockchain network. Supported networks: ${networkIds.join(", ")}`,
-    schema: networkSchema as any, // Type assertion to work around Zod version incompatibility
-    fn: async (args: any) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    schema: networkSchema as any,
+    fn: async (args: { network: string }) => {
       try {
-        console.log("[DEBUG] switch_network called with args:", JSON.stringify(args));
-        
         // Validate and extract network parameter
         const network = args?.network;
-        
-        if (!network || typeof network !== 'string') {
+
+        if (!network || typeof network !== "string") {
           const msg = `Missing or invalid 'network' parameter. Expected one of: ${networkIds.join(", ")}. Received: ${JSON.stringify(args)}`;
-          console.log("[DEBUG]", msg);
           return msg;
         }
-        
-        const targetNetwork = SUPPORTED_NETWORKS.find(n => n.id === network);
+
+        const targetNetwork = SUPPORTED_NETWORKS.find(n => n === network);
         if (!targetNetwork) {
-          const msg = `Unknown network '${network}'. Supported networks are: ${SUPPORTED_NETWORKS.map(n => n.id).join(", ")}`;
-          console.log("[DEBUG]", msg);
+          const msg = `Unknown network '${network}'. Supported networks are: ${SUPPORTED_NETWORKS.join(", ")}`;
           return msg;
         }
-        
+
         setCurrentChainId(network);
-        const successMsg = `Successfully switched to ${targetNetwork.name} (${network})`;
-        console.log("[DEBUG]", successMsg);
+        const successMsg = `Successfully switched to ${targetNetwork}`;
         return successMsg;
       } catch (error) {
         const errorMsg = `Exception in switch_network: ${error instanceof Error ? error.message : String(error)}`;
-        console.error("[DEBUG]", errorMsg);
         return errorMsg;
       }
     },
-  } as any);
+  });
 
   tools.push(switchNetworkTool);
 
@@ -144,8 +152,8 @@ function createChainSwitchingTools() {
     description: "Get the currently active blockchain network",
     fn: async () => {
       const chainId = getCurrentChainId();
-      const network = SUPPORTED_NETWORKS.find(n => n.id === chainId);
-      return `Currently on ${network?.name || chainId} (${chainId})`;
+      const network = SUPPORTED_NETWORKS.find(n => n === chainId);
+      return `${network || chainId} (${chainId})`;
     },
   });
 
@@ -156,9 +164,7 @@ function createChainSwitchingTools() {
     name: "list_supported_networks",
     description: "List all supported blockchain networks",
     fn: async () => {
-      const networkList = SUPPORTED_NETWORKS.map(
-        n => `  - ${n.name} (${n.id})${n.isDefault ? " [default]" : ""}`
-      ).join("\n");
+      const networkList = SUPPORTED_NETWORKS.map(n => `  - ${n} (${n})`).join("\n");
       return `Supported networks:\n${networkList}`;
     },
   });
@@ -169,19 +175,27 @@ function createChainSwitchingTools() {
 }
 
 // ============================================================================
-// NETWORK AGENTS (Generic)
+// NETWORK AGENTS
 // ============================================================================
 
+/**
+ * Creates a network-specific agent for blockchain operations
+ *
+ * @param networkId - The network ID to create an agent for
+ * @returns {Promise<LlmAgent>} A configured agent for the specified network
+ */
 async function createNetworkAgent(networkId: string): Promise<LlmAgent> {
-  const network = SUPPORTED_NETWORKS.find(n => n.id === networkId);
+  const network = SUPPORTED_NETWORKS.find(n => n === networkId);
   if (!network) {
     throw new Error(`Unsupported network: ${networkId}`);
   }
 
   const cdpWalletConfig = {
-    apiKeyId: process.env.CDP_API_KEY_ID!,
-    apiKeySecret: process.env.CDP_API_KEY_SECRET!,
-    walletSecret: process.env.CDP_WALLET_SECRET!,
+    apiKeyId: process.env.CDP_API_KEY_ID,
+    apiKeySecret: process.env.CDP_API_KEY_SECRET,
+    walletSecret: process.env.CDP_WALLET_SECRET,
+    idempotencyKey: process.env.IDEMPOTENCY_KEY,
+    address: process.env.ADDRESS as `0x${string}` | undefined,
     networkId,
     rpcUrl: process.env[`RPC_URL_${networkId.toUpperCase().replace(/-/g, "_")}`],
   };
@@ -192,7 +206,6 @@ async function createNetworkAgent(networkId: string): Promise<LlmAgent> {
     walletActionProvider(),
     cdpApiActionProvider(),
     cdpEvmWalletActionProvider(),
-    wethActionProvider(),
     erc20ActionProvider(),
     x402ActionProvider(),
     pythActionProvider(),
@@ -207,25 +220,23 @@ async function createNetworkAgent(networkId: string): Promise<LlmAgent> {
 
   // Customize faucet instruction based on network
   const faucetInstruction = networkId.includes("sepolia")
-    ? `If you ever need funds, you can request them from the faucet since you are on ${network.name} testnet.`
+    ? `If you ever need funds, you can request them from the faucet.`
     : `If you need funds, provide your wallet details and request them from the user.`;
 
   return new LlmAgent({
     name: `${networkId.replace(/-/g, "_")}_agent`,
     model: process.env.LLM_MODEL || "gpt-4o",
-    description: `Blockchain operations agent for ${network.name} (${networkId})`,
+    description: `Agent operating on ${network}`,
     instruction: `
-      You are a helpful agent that can interact onchain using the Coinbase Developer Platform AgentKit on the ${network.name} network.
-      You are empowered to interact onchain using your tools. ${faucetInstruction} If not, you can provide your wallet 
-      details and request funds from the user. Before executing your first action, get the wallet details to see what 
-      network you're on. If there is a 5XX (internal) HTTP error code, ask the user to try again later. If someone 
-      asks you to do something you can't do with your currently available tools, you must say so, and encourage them 
-      to implement it themselves using the CDP SDK + Agentkit, recommend they go to docs.cdp.coinbase.com for more 
-      information. Be concise and helpful with your responses. Refrain from restating your tools' descriptions unless 
-      it is explicitly requested.
-      
-      IMPORTANT: You can only operate on ${network.name} (${networkId}). If the user requests operations on a different 
-      network, inform them they need to switch networks first.
+      You are a helpful agent that can interact onchain using the Coinbase Developer Platform AgentKit on the ${network} network.
+      You are empowered to interact onchain using your tools. ${faucetInstruction}.
+      Be concise and helpful with your responses. Refrain from restating your tools' descriptions unless it is explicitly requested.
+      Strictly follow the user's instructions, do not suggest unrelated follow-up actions.
+
+      IMPORTANT:
+      - You can only operate on ${network}.
+      - If the user requests operations on a different network, inform them they need to switch networks first.
+      - If the user asks which networks are supported, use the list_supported_networks tool via the multi_chain_coordinator agent.
     `,
     tools,
   });
@@ -235,14 +246,18 @@ async function createNetworkAgent(networkId: string): Promise<LlmAgent> {
 // MULTI-CHAIN COORDINATOR
 // ============================================================================
 
+/**
+ * Creates a multi-chain coordinator that manages network switching and delegates operations
+ *
+ * @returns {Promise<EnhancedRunner>} A configured multi-chain coordinator
+ */
 async function createMultiChainCoordinator(): Promise<EnhancedRunner> {
   console.log("Initializing network agents...");
-  
+
   // Create all network agents as LlmAgents
   const networkAgents: LlmAgent[] = [];
   for (const network of SUPPORTED_NETWORKS) {
-    console.log(`  Loading ${network.name}...`);
-    const agent = await createNetworkAgent(network.id);
+    const agent = await createNetworkAgent(network);
     networkAgents.push(agent);
   }
 
@@ -250,58 +265,35 @@ async function createMultiChainCoordinator(): Promise<EnhancedRunner> {
 
   // Build network descriptions for instructions
   const networkDescriptions = SUPPORTED_NETWORKS.map(
-    n => `  - ${n.name} (${n.id}): ${n.id.replace(/-/g, "_")}_agent`
+    n => `  - ${n} (${n}): ${n.replace(/-/g, "_")}_agent`,
   ).join("\n");
 
   const { runner } = await AgentBuilder.create("multi_chain_coordinator")
     .withModel(process.env.LLM_MODEL || "gpt-4o")
-    .withDescription("Multi-chain blockchain coordinator with persistent network state")
-    .withInstruction(`
-      You are a multi-chain blockchain coordinator that manages network state and delegates operations to specialized agents.
+    .withDescription("Multi-chain coordinator")
+    .withInstruction(
+      `
+      You coordinate multi-chain blockchain operations and delegate to network-specific agents.
       
-      NETWORK STATE MANAGEMENT:
-      - The system maintains the current active network
-      - Default network is ${DEFAULT_NETWORK}
-      - Use get_current_chain tool to check which network is currently active
-      - Always be aware of which network is currently active before delegating operations
+      NETWORK STATE:
+      - Default: ${DEFAULT_NETWORK}
+      - Check current: use get_current_chain tool
+      - Switch: call switch_network with {"network": "network-id"}
+      - List all: use list_supported_networks tool
       
-      SUPPORTED NETWORKS:
+      NETWORKS & AGENTS:
 ${networkDescriptions}
       
-      CHAIN SWITCHING:
-      When the user wants to switch networks, you MUST call the switch_network tool with proper parameters.
+      WORKFLOW:
+      1. Network switching: Call switch_network, confirm to user, don't delegate operations
+      2. Blockchain operations: Check current network, delegate to corresponding agent
       
-      EXAMPLES:
-${SUPPORTED_NETWORKS.slice(0, 2).map(n => 
-  `        User says: "switch to ${n.name.toLowerCase()}" or "use ${n.id}"\n        → Call: switch_network with args {"network": "${n.id}"}`
-).join("\n        \n")}
-      
-      CRITICAL: The switch_network tool requires a "network" parameter. You MUST pass it like: {"network": "${SUPPORTED_NETWORKS[0].id}"}
-      DO NOT call switch_network without the network parameter or with an empty object {}.
-      
-      After switching:
-        - Confirm the network switch to the user with a clear message
-        - DO NOT delegate blockchain operations during a switch command - just switch and confirm
-      
-      Available network management tools:
-        - switch_network(network: string): Switch to a different network - MUST pass {"network": "network-id"}
-        - get_current_chain(): Check which network is currently active - no parameters needed
-        - list_supported_networks(): Show all available networks - no parameters needed
-      
-      BLOCKCHAIN OPERATIONS:
-      When the user wants to perform blockchain operations (transfers, balance checks, wallet info, etc.):
-        1. First, use get_current_chain to verify which network is currently active
-        2. Delegate to the corresponding network-specific agent:
-${SUPPORTED_NETWORKS.map(n => `           - ${n.id} → ${n.id.replace(/-/g, "_")}_agent`).join("\n")}
-        3. The network agent will execute the operation using its blockchain tools
-      
-      IMPORTANT RULES:
-      - Always confirm network switches explicitly with clear feedback
-      - Each network agent can ONLY operate on its designated network
-      - If unsure which network to use, use get_current_chain to check
-      - Network agents handle all blockchain operations, you handle routing and network state
-      - When delegating, make sure to use the agent that matches the current active network
-    `)
+      RULES:
+      - Each agent operates only on its designated network
+      - Always pass {"network": "id"} parameter to switch_network (never empty object)
+      - You handle routing; agents handle blockchain operations
+    `,
+    )
     .withTools(...chainTools)
     .withSubAgents(networkAgents)
     .build();
@@ -313,10 +305,18 @@ ${SUPPORTED_NETWORKS.map(n => `           - ${n.id} → ${n.id.replace(/-/g, "_"
 // CHAT INTERFACE
 // ============================================================================
 
+/**
+ * Runs the chatbot in interactive chat mode
+ *
+ * @param coordinator - The multi-chain coordinator to interact with
+ * @returns {Promise<void>}
+ */
 async function runChatMode(coordinator: EnhancedRunner): Promise<void> {
   console.log("🤖 Multi-Chain Chatbot Ready!");
   console.log("\n💡 Available commands:");
-  const networkExamples = SUPPORTED_NETWORKS.slice(0, 2).map(n => `"switch to ${n.id}"`).join(" or ");
+  const networkExamples = SUPPORTED_NETWORKS.slice(0, 2)
+    .map(n => `"switch to ${n}"`)
+    .join(" or ");
   console.log(`   - Switch networks: ${networkExamples}`);
   console.log(`   - Check current: "which network am I on?" or "get current chain"`);
   console.log(`   - List networks: "what networks are supported?"`);
@@ -332,8 +332,11 @@ async function runChatMode(coordinator: EnhancedRunner): Promise<void> {
     new Promise(resolve => rl.question(prompt, resolve));
 
   try {
-    console.log(`📍 Starting on ${SUPPORTED_NETWORKS.find(n => n.id === DEFAULT_NETWORK)?.name}\n`);
+    console.log(
+      `📍 Starting on ${SUPPORTED_NETWORKS.find(n => n === DEFAULT_NETWORK) || DEFAULT_NETWORK}\n`,
+    );
 
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       const userInput = await question("💬 Prompt: ");
 
@@ -361,9 +364,16 @@ async function runChatMode(coordinator: EnhancedRunner): Promise<void> {
 }
 
 // ============================================================================
-// AUTONOMOUS MODE (Optional)
+// AUTONOMOUS MODE
 // ============================================================================
 
+/**
+ * Runs the chatbot in autonomous mode with periodic actions
+ *
+ * @param coordinator - The multi-chain coordinator to interact with
+ * @param interval - Time interval between actions in seconds
+ * @returns {Promise<void>}
+ */
 async function runAutonomousMode(coordinator: EnhancedRunner, interval = 10): Promise<void> {
   console.log("🤖 Starting autonomous mode...\n");
 
@@ -391,6 +401,11 @@ async function runAutonomousMode(coordinator: EnhancedRunner, interval = 10): Pr
 // MODE SELECTION
 // ============================================================================
 
+/**
+ * Prompts user to choose between chat and autonomous modes
+ *
+ * @returns {Promise<"chat" | "auto">} The selected mode
+ */
 async function chooseMode(): Promise<"chat" | "auto"> {
   const rl = readline.createInterface({
     input: process.stdin,
@@ -425,6 +440,11 @@ async function chooseMode(): Promise<"chat" | "auto"> {
 // MAIN
 // ============================================================================
 
+/**
+ * Main entry point for the multi-chain chatbot application
+ *
+ * @returns {Promise<void>}
+ */
 async function main(): Promise<void> {
   try {
     const coordinator = await createMultiChainCoordinator();
@@ -448,4 +468,3 @@ if (require.main === module) {
     process.exit(1);
   });
 }
-

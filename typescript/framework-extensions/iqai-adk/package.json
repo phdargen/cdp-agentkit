@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "ADK-TS extension of CDP Agentkit",
   "repository": "https://github.com/coinbase/agentkit",
-  "author": "Coinbase Inc.",
+  "author": "phdargen",
   "license": "Apache-2.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

@@ -3,7 +3,7 @@
  */
 
 import { type BaseTool, convertMcpToolToBaseTool } from "@iqai/adk";
-import { AgentKit} from "@coinbase/agentkit";
+import { AgentKit } from "@coinbase/agentkit";
 import { getMcpTools } from "@coinbase/agentkit-model-context-protocol";
 
 export type AdkTool = BaseTool;

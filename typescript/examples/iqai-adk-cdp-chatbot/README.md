@@ -1,200 +1,64 @@
-# CDP Chatbot with IQAI ADK
+# CDP AgentKit IQAI ADK Extension Examples - Chatbot TypeScript
 
 This example demonstrates a blockchain chatbot built with CDP AgentKit and IQAI ADK (Agent Development Kit for TypeScript).
 
-## Features
+## Ask the chatbot to engage in the Web3 ecosystem!
 
-🛠️ **Full AgentKit Capabilities**
-- Wallet operations (balance, address, transfers)
-- ERC-20 token interactions
-- ERC-721 NFT operations
-- WETH wrapping/unwrapping
-- CDP API integration
-- X402 payment support
-
-🤖 **IQAI ADK Integration**
-- Uses IQAI ADK's LlmAgent for intelligent tool selection
-- Powered by Gemini 2.0 Flash
-- LLM automatically determines which blockchain actions to execute
-- Natural conversation flow
-
-🎯 **Two Operation Modes**
-- **Chat Mode**: Interactive conversations with the agent
-- **Autonomous Mode**: Agent executes interesting blockchain actions on its own
-
-## How It Works
-
-The chatbot:
-
-1. **Initialization**: Creates an AgentKit instance with:
-   - EVM wallet provider for the specified network
-   - AgentKit instance with blockchain actions
-   - IQAI ADK LlmAgent with Gemini model
-
-2. **Mode Selection**: Choose between:
-   - Chat mode for interactive conversations
-   - Autonomous mode for creative blockchain actions
-
-3. **Tool Execution**: The LLM agent automatically selects and executes appropriate blockchain tools based on user requests.
+- "Transfer a portion of your ETH to a random address"
+- "What is the price of BTC?"
+- "Swap USDC to ETH" (base-mainnet only)
+- "Request funds" (testnets only)
 
 ## Prerequisites
 
-### Node Version
+### Checking Node Version
 
-Before using the example, ensure you have Node.js 20 or higher:
+Before using the example, ensure that you have the correct version of Node.js installed. The example requires Node.js 18 or higher. You can check your Node version by running:
 
 ```bash
 node --version
 ```
 
-If you need to install or upgrade Node.js, use [nvm](https://github.com/nvm-sh/nvm):
+If you don't have the correct version, you can install it using [nvm](https://github.com/nvm-sh/nvm):
 
 ```bash
 nvm install node
 ```
 
+This will automatically install and use the latest version of Node.
+
 ### API Keys
 
-You'll need:
+You'll need the following API keys:
+
 - [CDP API Key](https://portal.cdp.coinbase.com/access/api)
-- [CDP Wallet Secret](https://portal.cdp.coinbase.com/products/wallet-api)
-- [Google AI API Key](https://aistudio.google.com/app/apikey) (for Gemini model)
+- [OpenAI API Key](https://platform.openai.com/docs/quickstart#create-and-export-an-api-key)
 
-## Setup
+Once you have them, rename the `.env-local` file to `.env` and make sure you set the API keys to their corresponding environment variables:
 
-1. **Install dependencies** (from the repository root):
+- "CDP_API_KEY_ID"
+- "CDP_API_KEY_SECRET"
+- "CDP_WALLET_SECRET"
+- "OPENAI_API_KEY"
+
+## Running the example
+
+From the root directory, run:
 
 ```bash
 pnpm install
 pnpm build
 ```
 
-2. **Configure environment variables**:
+This will install the dependencies and build the packages locally. The chatbot example uses the local `@coinbase/agentkit-iqai-adk` and `@coinbase/agentkit` packages. If you make changes to the packages, you can run `pnpm build` from root again to rebuild the packages, and your changes will be reflected in the chatbot example.
 
-Create a `.env` file in the example directory with the following:
-```bash
-GOOGLE_AI_API_KEY=your_google_ai_api_key_here
-CDP_API_KEY_ID=your_cdp_api_key_id_here
-CDP_API_KEY_SECRET=your_cdp_api_key_secret_here
-CDP_WALLET_SECRET=your_cdp_wallet_secret_here
-NETWORK_ID=base-sepolia  # Optional, defaults to base-sepolia
-```
-
-## Running the Chatbot
-
-From the `typescript/examples/iqai-adk-cdp-chatbot` directory:
+Now from the `typescript/examples/iqai-adk-cdp-chatbot` directory, run:
 
 ```bash
 pnpm start
 ```
 
-You'll be prompted to choose a mode:
-1. **chat** - Interactive chat mode
-2. **auto** - Autonomous action mode
-
-## Example Interactions
-
-### Chat Mode
-
-```bash
-Starting Agent...
-
-Available modes:
-1. chat    - Interactive chat mode
-2. auto    - Autonomous action mode
-
-Choose a mode (enter number or name): 1
-Starting chat mode... Type 'exit' to end.
-
-Prompt: What's my balance?
-Your balance on base-sepolia is 0.5 ETH
--------------------
-
-Prompt: Deploy an NFT called "Cool Cats"
-Successfully deployed NFT contract at 0xabcd...
--------------------
-
-Prompt: exit
-```
-
-### Autonomous Mode
-
-In autonomous mode, the agent will autonomously execute interesting blockchain actions every 10 seconds:
-
-```bash
-Choose a mode (enter number or name): 2
-Starting autonomous mode...
-I'll check my wallet balance and explore some interesting NFT deployments...
--------------------
-```
-
-## Key Files
-
-- `chatbot.ts` - Main chatbot implementation
-- `package.json` - Dependencies and scripts
-- `README.md` - This file
-
-## Extending the Example
-
-### Using a Different Network
-
-Set the `NETWORK_ID` environment variable:
-
-```bash
-NETWORK_ID=ethereum-mainnet  # or base-mainnet, ethereum-sepolia, etc.
-```
-
-### Using a Different LLM Model
-
-Modify the `model` parameter in `initializeAgent()`:
-
-```typescript
-const agent = new LlmAgent({
-  name: "CDP AgentKit Chatbot",
-  model: "gemini-1.5-pro",  // or other supported models
-  tools,
-  instruction: `...`,
-});
-```
-
-Check [IQAI ADK documentation](https://adk.iqai.com/) for supported models.
-
-### Adding Custom Action Providers
-
-Add your own blockchain actions:
-
-```typescript
-const actionProviders = [
-  walletActionProvider(),
-  cdpApiActionProvider(),
-  cdpEvmWalletActionProvider(),
-  // ... existing providers
-  myCustomActionProvider(), // Add your custom provider
-];
-```
-
-## Resources
-
-- [ADK-TS Documentation](https://adk.iqai.com/)
-- [AgentKit Documentation](https://docs.cdp.coinbase.com/agentkit/docs/welcome)
-- [CDP Platform](https://portal.cdp.coinbase.com/)
-- [Framework Extension Code](../../framework-extensions/iqai-adk/)
-
-## Troubleshooting
-
-**Error: Required environment variables are not set**
-- Make sure you've created a `.env` file with all required variables
-- Check that the values are valid CDP API credentials and Google AI API key
-
-**Error: Failed to initialize agent**
-- Verify your wallet secret is correct
-- Check your CDP account has access to the specified network
-- Ensure your Google AI API key is valid
-
-**Model or API errors**
-- Check your Google AI API key permissions
-- Verify you have access to the Gemini models
-- Try a different model if the current one is unavailable
+Select "1. chat mode" and start telling your Agent to do things onchain!
 
 ## License
 

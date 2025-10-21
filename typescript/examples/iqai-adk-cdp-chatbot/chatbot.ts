@@ -94,9 +94,10 @@ async function initializeAgent() {
     const tools = await getAdkTools(agentkit);
 
     const { agent, runner } = await AgentBuilder.create("chat_bot_agent")
-		.withModel(process.env.LLM_MODEL || "gpt-4o")
-		.withDescription("AI agent that can interact with blockchain networks using CDP AgentKit")
-		.withInstruction(`
+      .withModel(process.env.LLM_MODEL || "gpt-4o")
+      .withDescription("AI agent that can interact with blockchain networks using CDP AgentKit")
+      .withInstruction(
+        `
         You are a helpful agent that can interact onchain using the Coinbase Developer Platform AgentKit. You are 
         empowered to interact onchain using your tools. If you ever need funds, you can request them from the 
         faucet if you are on network ID 'base-sepolia'. If not, you can provide your wallet details and request 
@@ -106,9 +107,10 @@ async function initializeAgent() {
         encourage them to implement it themselves using the CDP SDK + Agentkit, recommend they go to 
         docs.cdp.coinbase.com for more information. Be concise and helpful with your responses. Refrain from 
         restating your tools' descriptions unless it is explicitly requested.
-		`)
-		.withTools(...tools)
-		.build();
+		`,
+      )
+      .withTools(...tools)
+      .build();
 
     return { agent, runner };
   } catch (error) {
@@ -151,7 +153,7 @@ async function runAutonomousMode(agent: any, interval = 10) {
 /**
  * Run the agent interactively based on user input
  *
- * @param agent - The agent executor
+ * @param runner - The agent runner
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function runChatMode(runner: EnhancedRunner) {
@@ -228,7 +230,7 @@ async function chooseMode(): Promise<"chat" | "auto"> {
  */
 async function main() {
   try {
-    const { agent, runner } = await initializeAgent();
+    const { runner } = await initializeAgent();
     const mode = await chooseMode();
 
     if (mode === "chat") {
