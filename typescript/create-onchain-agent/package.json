@@ -14,7 +14,7 @@
     "lint:fix": "eslint -c .eslintrc.json \"src/**/*.ts\" --fix",
     "check:types": "tsc --noEmit",
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
-    "dev": "tsx src/cli.ts"
+    "dev": "pnpm run build && node dist/esm/create.js"
   },
   "files": [
     "dist/**",
