@@ -111,8 +111,11 @@ importers:
         specifier: ^5.4.28
         version: 5.4.28(viem@2.23.15(bufferutil@4.0.9)(typescript@5.8.2)(utf-8-validate@5.0.10)(zod@3.24.2))
       '@zoralabs/coins-sdk':
-        specifier: ^0.2.8
+        specifier: 0.2.8
         version: 0.2.8(abitype@1.0.8(typescript@5.8.2)(zod@3.24.2))(viem@2.23.15(bufferutil@4.0.9)(typescript@5.8.2)(utf-8-validate@5.0.10)(zod@3.24.2))
+      '@zoralabs/protocol-deployments':
+        specifier: 0.6.1
+        version: 0.6.1
       axios:
         specifier: ^1.9.0
         version: 1.9.0
