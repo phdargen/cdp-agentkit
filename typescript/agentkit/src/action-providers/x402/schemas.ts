@@ -1,13 +1,36 @@
 import { z } from "zod";
 
+// Default facilitator URL for x402 Bazaar
+export const DEFAULT_FACILITATOR_URL =
+  "https://api.cdp.coinbase.com/platform/v2/x402";
+
 // Schema for listing x402 services
 export const ListX402ServicesSchema = z
   .object({
+    facilitatorUrl: z
+      .string()
+      .url()
+      .default(DEFAULT_FACILITATOR_URL)
+      .describe(
+        `Optional URL for the x402 facilitator service. Defaults to ${DEFAULT_FACILITATOR_URL}`,
+      ),
     maxUsdcPrice: z
       .number()
       .optional()
       .describe(
         "Optional maximum price in USDC whole units (e.g., 0.1 for 0.10 USDC). Only USDC payment options will be considered when this filter is applied.",
+      ),
+    x402Versions: z
+      .array(z.union([z.literal(1), z.literal(2)]))
+      .default([1, 2])
+      .describe(
+        "Filter by x402 protocol version (1 or 2). Defaults to accepting both versions.",
+      ),
+    keyword: z
+      .string()
+      .optional()
+      .describe(
+        "Optional keyword to filter services by description (case-insensitive). Example: 'weather' to find weather-related services.",
       ),
   })
   .strip()
@@ -39,6 +62,35 @@ export const HttpRequestSchema = z
   .strip()
   .describe("Instructions for making a basic HTTP request");
 
+// Payment option schema that supports both v1 and v2 formats
+const PaymentOptionSchema = z
+  .object({
+    scheme: z.string().describe("Payment scheme (e.g., 'exact')"),
+    network: z
+      .string()
+      .describe("Network identifier (v1: 'base-sepolia' or v2 CAIP-2: 'eip155:84532')"),
+    asset: z.string().describe("Asset address or identifier"),
+    // v1 format
+    maxAmountRequired: z
+      .string()
+      .optional()
+      .describe("Maximum amount required (v1 format)"),
+    // v2 format
+    amount: z
+      .string()
+      .optional()
+      .describe("Amount required (v2 format)"),
+    price: z
+      .string()
+      .optional()
+      .describe("Price (v2 format, e.g., '$0.01')"),
+    payTo: z
+      .string()
+      .optional()
+      .describe("Payment recipient address (v2 format)"),
+  })
+  .describe("Payment option supporting both v1 and v2 x402 formats");
+
 // Schema for retrying a failed request with x402 payment
 export const RetryWithX402Schema = z
   .object({
@@ -53,14 +105,7 @@ export const RetryWithX402Schema = z
       .describe("The HTTP method to use for the request"),
     headers: z.record(z.string()).optional().describe("Optional headers to include in the request"),
     body: z.any().optional().describe("Optional request body for POST/PUT/PATCH requests"),
-    selectedPaymentOption: z
-      .object({
-        scheme: z.string(),
-        network: z.string(),
-        maxAmountRequired: z.string(),
-        asset: z.string(),
-      })
-      .describe("The payment option to use for this request"),
+    selectedPaymentOption: PaymentOptionSchema.describe("The payment option to use for this request"),
   })
   .strip()
   .describe("Instructions for retrying a request with x402 payment after receiving a 402 response");

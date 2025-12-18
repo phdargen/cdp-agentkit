@@ -9,17 +9,22 @@ import {
   ListX402ServicesSchema,
 } from "./schemas";
 import { EvmWalletProvider, WalletProvider, SvmWalletProvider } from "../../wallet-providers";
-import axios, { AxiosError } from "axios";
-import { withPaymentInterceptor, decodeXPaymentResponse } from "x402-axios";
-import { PaymentRequirements } from "x402/types";
-import { useFacilitator } from "x402/verify";
-import { facilitator } from "@coinbase/x402";
+import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { registerExactSvmScheme } from "@x402/svm/exact/client";
 import {
-  getX402Network,
+  getX402Networks,
   handleHttpError,
   formatPaymentOption,
-  convertWholeUnitsToAtomic,
-  isUsdcAsset,
+  fetchAllDiscoveryResources,
+  filterByNetwork,
+  filterByDescription,
+  filterByX402Version,
+  filterByKeyword,
+  filterByMaxPrice,
+  formatSimplifiedResources,
+  toClientEvmSigner,
+  toClientSvmSigner,
 } from "./utils";
 
 const SUPPORTED_NETWORKS = ["base-mainnet", "base-sepolia", "solana-mainnet", "solana-devnet"];
@@ -37,10 +42,31 @@ export class X402ActionProvider extends ActionProvider<WalletProvider> {
   }
 
   /**
+   * Creates an x402 client configured for the given wallet provider.
+   *
+   * @param walletProvider - The wallet provider to configure the client for
+   * @returns Configured x402Client
+   */
+  private async createX402Client(walletProvider: WalletProvider): Promise<x402Client> {
+    const client = new x402Client();
+
+    if (walletProvider instanceof EvmWalletProvider) {
+      const signer = toClientEvmSigner(walletProvider.toSigner());
+      registerExactEvmScheme(client, { signer });
+    } else if (walletProvider instanceof SvmWalletProvider) {
+      const signer = await toClientSvmSigner(walletProvider);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      registerExactSvmScheme(client, { signer: signer as any });
+    }
+
+    return client;
+  }
+
+  /**
    * Discovers available x402 services with optional filtering.
    *
    * @param walletProvider - The wallet provider to use for network filtering
-   * @param args - Optional filters: maxUsdcPrice
+   * @param args - Optional filters: discoveryUrl, maxUsdcPrice
    * @returns JSON string with the list of services (filtered by network and description)
    */
   @CreateAction({
@@ -54,121 +80,60 @@ export class X402ActionProvider extends ActionProvider<WalletProvider> {
     args: z.infer<typeof ListX402ServicesSchema>,
   ): Promise<string> {
     try {
-      const { list } = useFacilitator(facilitator);
-      const services = await list();
-      if (!services || !services.items) {
+      const discoveryUrl = args.facilitatorUrl + "/discovery/resources";
+
+      // Fetch all resources with pagination
+      const allResources = await fetchAllDiscoveryResources(discoveryUrl);
+
+      if (allResources.length === 0) {
         return JSON.stringify({
           error: true,
           message: "No services found",
         });
       }
 
-      // Get the current wallet network
-      const walletNetwork = getX402Network(walletProvider.getNetwork());
+      // Get the wallet's network identifiers (both v1 and v2 formats)
+      const walletNetworks = getX402Networks(walletProvider.getNetwork());
 
-      // Filter services by network, description, and optional USDC price
+      // Apply filter pipeline
+      let filteredResources = filterByNetwork(allResources, walletNetworks);
+      // filteredResources = filterByDescription(filteredResources);
+      filteredResources = filterByX402Version(filteredResources, args.x402Versions);
+
+      // Apply keyword filter if provided
+      if (args.keyword) {
+        filteredResources = filterByKeyword(filteredResources, args.keyword);
+      }
+
+      // Apply price filter if maxUsdcPrice is provided
       const hasValidMaxUsdcPrice =
         typeof args.maxUsdcPrice === "number" &&
         Number.isFinite(args.maxUsdcPrice) &&
         args.maxUsdcPrice > 0;
 
-      const filteredServices = services.items.filter(item => {
-        // Filter by network - only include services that accept the current wallet network
-        const accepts = Array.isArray(item.accepts) ? item.accepts : [];
-        const hasMatchingNetwork = accepts.some(req => req.network === walletNetwork);
-
-        // Filter out services with empty or default descriptions
-        const hasDescription = accepts.some(
-          req =>
-            req.description &&
-            req.description.trim() !== "" &&
-            req.description.trim() !== "Access to protected content",
-        );
-
-        return hasMatchingNetwork && hasDescription;
-      });
-
-      // Apply USDC price filtering if maxUsdcPrice is provided (only consider USDC assets)
-      let priceFilteredServices = filteredServices;
       if (hasValidMaxUsdcPrice) {
-        priceFilteredServices = [];
-        for (const item of filteredServices) {
-          const accepts = Array.isArray(item.accepts) ? item.accepts : [];
-          let shouldInclude = false;
-
-          for (const req of accepts) {
-            if (req.network === walletNetwork && req.asset && req.maxAmountRequired) {
-              // Only consider USDC assets when maxUsdcPrice filter is applied
-              if (isUsdcAsset(req.asset, walletProvider)) {
-                try {
-                  const maxUsdcPriceAtomic = await convertWholeUnitsToAtomic(
-                    args.maxUsdcPrice as number,
-                    req.asset,
-                    walletProvider,
-                  );
-                  if (maxUsdcPriceAtomic) {
-                    const requirement = BigInt(req.maxAmountRequired);
-                    const maxUsdcPriceAtomicBigInt = BigInt(maxUsdcPriceAtomic);
-                    if (requirement <= maxUsdcPriceAtomicBigInt) {
-                      shouldInclude = true;
-                      break;
-                    }
-                  }
-                } catch {
-                  // If conversion fails, skip this requirement
-                  continue;
-                }
-              }
-            }
-          }
-
-          if (shouldInclude) {
-            priceFilteredServices.push(item);
-          }
-        }
+        filteredResources = await filterByMaxPrice(
+          filteredResources,
+          args.maxUsdcPrice as number,
+          walletProvider,
+          walletNetworks,
+        );
       }
 
-      // Format the filtered services
-      const filtered = await Promise.all(
-        priceFilteredServices.map(async item => {
-          const accepts = Array.isArray(item.accepts) ? item.accepts : [];
-          const matchingAccept = accepts.find(req => req.network === walletNetwork);
-
-          // Format amount if available
-          let formattedMaxAmount = matchingAccept?.maxAmountRequired;
-          if (matchingAccept?.maxAmountRequired && matchingAccept?.asset) {
-            formattedMaxAmount = await formatPaymentOption(
-              {
-                asset: matchingAccept.asset,
-                maxAmountRequired: matchingAccept.maxAmountRequired,
-                network: matchingAccept.network,
-              },
-              walletProvider,
-            );
-          }
-
-          return {
-            resource: item.resource,
-            description: matchingAccept?.description || "",
-            cost: formattedMaxAmount,
-            ...(matchingAccept?.outputSchema?.input && {
-              input: matchingAccept.outputSchema.input,
-            }),
-            ...(matchingAccept?.outputSchema?.output && {
-              output: matchingAccept.outputSchema.output,
-            }),
-            ...(item.metadata && item.metadata.length > 0 && { metadata: item.metadata }),
-          };
-        }),
+      // Format simplified output
+      const simplifiedResources = await formatSimplifiedResources(
+        filteredResources,
+        walletNetworks,
+        walletProvider,
       );
 
       return JSON.stringify(
         {
           success: true,
-          walletNetwork,
-          total: services.items.length,
-          returned: filtered.length,
-          items: filtered,
+          services: simplifiedResources,
+          walletNetworks,
+          total: allResources.length,
+          returned: simplifiedResources.length,
         },
         null,
         2,
@@ -213,59 +178,72 @@ If you receive a 402 Payment Required response, use retry_http_request_with_x402
     args: z.infer<typeof HttpRequestSchema>,
   ): Promise<string> {
     try {
-      const response = await axios.request({
-        url: args.url,
+      const response = await fetch(args.url, {
         method: args.method ?? "GET",
         headers: args.headers ?? undefined,
-        data: args.body,
-        validateStatus: status => status === 402 || (status >= 200 && status < 300),
+        body: args.body ? JSON.stringify(args.body) : undefined,
       });
 
       if (response.status !== 402) {
+        const data = await this.parseResponseData(response);
         return JSON.stringify(
           {
             success: true,
             url: args.url,
             method: args.method,
             status: response.status,
-            data: response.data,
+            data,
           },
           null,
           2,
         );
       }
 
-      // Check if wallet network matches any available payment options
-      const walletNetwork = getX402Network(walletProvider.getNetwork());
-      const availableNetworks = response.data.accepts.map(option => option.network);
-      const hasMatchingNetwork = availableNetworks.includes(walletNetwork);
+      // Handle 402 Payment Required
+      const paymentData = await response.json();
+      const walletNetworks = getX402Networks(walletProvider.getNetwork());
+      const availableNetworks = (paymentData.accepts ?? []).map(
+        (option: { network: string }) => option.network,
+      );
+      const hasMatchingNetwork = availableNetworks.some((net: string) =>
+        walletNetworks.includes(net),
+      );
 
-      let paymentOptionsText = `The wallet network ${walletNetwork} does not match any available payment options (${availableNetworks.join(", ")}).`;
-      // Format payment options for matching networks
+      let paymentOptionsText = `The wallet networks ${walletNetworks.join(", ")} do not match any available payment options (${availableNetworks.join(", ")}).`;
+
       if (hasMatchingNetwork) {
-        const matchingOptions = response.data.accepts.filter(
-          option => option.network === walletNetwork,
+        const matchingOptions = (paymentData.accepts ?? []).filter(
+          (option: { network: string }) => walletNetworks.includes(option.network),
         );
         const formattedOptions = await Promise.all(
-          matchingOptions.map(option => formatPaymentOption(option, walletProvider)),
+          matchingOptions.map((option: { asset: string; maxAmountRequired?: string; amount?: string; network: string }) =>
+            formatPaymentOption(
+              {
+                asset: option.asset,
+                maxAmountRequired: option.maxAmountRequired ?? option.amount ?? "0",
+                network: option.network,
+              },
+              walletProvider,
+            ),
+          ),
         );
         paymentOptionsText = `The payment options are: ${formattedOptions.join(", ")}`;
       }
 
       return JSON.stringify({
         status: "error_402_payment_required",
-        acceptablePaymentOptions: response.data.accepts,
+        acceptablePaymentOptions: paymentData.accepts,
         nextSteps: [
           "Inform the user that the requested server replied with a 402 Payment Required response.",
           paymentOptionsText,
           hasMatchingNetwork ? "Ask the user if they want to retry the request with payment." : "",
           hasMatchingNetwork
-            ? `Use retry_http_request_with_x402 to retry the request with payment.`
+            ? "Use retry_http_request_with_x402 to retry the request with payment."
             : "",
         ],
       });
     } catch (error) {
-      return handleHttpError(error as AxiosError, args.url);
+      return handleHttpError(error, args.url);
     }
   }
 
@@ -296,15 +274,15 @@ DO NOT use this action directly without first trying make_http_request!`,
   ): Promise<string> {
     try {
       // Check network compatibility before attempting payment
-      const walletNetwork = getX402Network(walletProvider.getNetwork());
+      const walletNetworks = getX402Networks(walletProvider.getNetwork());
       const selectedNetwork = args.selectedPaymentOption.network;
 
-      if (walletNetwork !== selectedNetwork) {
+      if (!walletNetworks.includes(selectedNetwork)) {
         return JSON.stringify(
           {
             error: true,
             message: "Network mismatch",
-            details: `Wallet is on ${walletNetwork} but payment requires ${selectedNetwork}`,
+            details: `Wallet is on ${walletNetworks.join(", ")} but payment requires ${selectedNetwork}`,
           },
           null,
           2,
@@ -328,59 +306,42 @@ DO NOT use this action directly without first trying make_http_request!`,
         );
       }
 
+      // Create x402 client with appropriate signer
+      const client = await this.createX402Client(walletProvider);
+      const fetchWithPayment = wrapFetchWithPayment(fetch, client);
+
       // Make the request with payment handling
-      const account = await walletProvider.toSigner();
-
-      const paymentSelector = (accepts: PaymentRequirements[]) => {
-        const { scheme, network, maxAmountRequired, asset } = args.selectedPaymentOption;
-
-        let paymentRequirements = accepts.find(
-          accept =>
-            accept.scheme === scheme &&
-            accept.network === network &&
-            accept.maxAmountRequired <= maxAmountRequired &&
-            accept.asset === asset,
-        );
-        if (paymentRequirements) {
-          return paymentRequirements;
-        }
-
-        paymentRequirements = accepts.find(
-          accept =>
-            accept.scheme === scheme &&
-            accept.network === network &&
-            accept.maxAmountRequired <= maxAmountRequired &&
-            accept.asset === asset,
-        );
-        if (paymentRequirements) {
-          return paymentRequirements;
-        }
-
-        return accepts[0];
-      };
-
-      const api = withPaymentInterceptor(
-        axios.create({}),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        account as any,
-        paymentSelector as unknown as Parameters<typeof withPaymentInterceptor>[2],
-      );
-
-      const response = await api.request({
-        url: args.url,
+      const response = await fetchWithPayment(args.url, {
         method: args.method ?? "GET",
         headers: args.headers ?? undefined,
-        data: args.body,
+        body: args.body ? JSON.stringify(args.body) : undefined,
       });
 
-      // Check for payment proof
-      const paymentProof = response.headers["x-payment-response"]
-        ? decodeXPaymentResponse(response.headers["x-payment-response"])
-        : null;
+      const data = await this.parseResponseData(response);
+
+      // Check for payment proof in headers (supports both v1 and v2 header names)
+      const paymentResponseHeader =
+        response.headers.get("payment-response") ?? response.headers.get("x-payment-response");
+
+      let paymentProof: Record<string, unknown> | null = null;
+      if (paymentResponseHeader) {
+        try {
+          paymentProof = JSON.parse(atob(paymentResponseHeader));
+        } catch {
+          // If parsing fails, include raw header
+          paymentProof = { raw: paymentResponseHeader };
+        }
+      }
+
+      // Get the amount used (supports both v1 and v2 formats)
+      const amountUsed =
+        args.selectedPaymentOption.maxAmountRequired ??
+        args.selectedPaymentOption.amount ??
+        args.selectedPaymentOption.price;
 
       return JSON.stringify({
         status: "success",
-        data: response.data,
+        data,
         message: "Request completed successfully with payment",
         details: {
           url: args.url,
@@ -388,19 +349,13 @@ DO NOT use this action directly without first trying make_http_request!`,
           paymentUsed: {
             network: args.selectedPaymentOption.network,
             asset: args.selectedPaymentOption.asset,
-            amount: args.selectedPaymentOption.maxAmountRequired,
+            amount: amountUsed,
           },
-          paymentProof: paymentProof
-            ? {
-                transaction: paymentProof.transaction,
-                network: paymentProof.network,
-                payer: paymentProof.payer,
-              }
-            : null,
+          paymentProof,
         },
       });
     } catch (error) {
-      return handleHttpError(error as AxiosError, args.url);
+      return handleHttpError(error, args.url);
     }
   }
 
@@ -414,7 +369,7 @@ DO NOT use this action directly without first trying make_http_request!`,
   @CreateAction({
     name: "make_http_request_with_x402",
     description: `
-⚠️ WARNING: This action automatically handles payments without asking for confirmation!
+WARNING: This action automatically handles payments without asking for confirmation!
 Only use this when explicitly told to skip the confirmation flow.
 
 For most cases, you should:
@@ -454,22 +409,32 @@ Unless specifically instructed otherwise, prefer the two-step approach with make
           2,
         );
       }
-      const account = await walletProvider.toSigner();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const api = withPaymentInterceptor(axios.create({}), account as any);
+      // Create x402 client with appropriate signer
+      const client = await this.createX402Client(walletProvider);
+      const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 
-      const response = await api.request({
-        url: args.url,
+      const response = await fetchWithPayment(args.url, {
         method: args.method ?? "GET",
         headers: args.headers ?? undefined,
-        data: args.body,
+        body: args.body ? JSON.stringify(args.body) : undefined,
       });
 
-      // Check for payment proof
-      const paymentProof = response.headers["x-payment-response"]
-        ? decodeXPaymentResponse(response.headers["x-payment-response"])
-        : null;
+      const data = await this.parseResponseData(response);
+
+      // Check for payment proof in headers (supports both v1 and v2 header names)
+      const paymentResponseHeader =
+        response.headers.get("payment-response") ?? response.headers.get("x-payment-response");
+
+      let paymentProof: Record<string, unknown> | null = null;
+      if (paymentResponseHeader) {
+        try {
+          paymentProof = JSON.parse(atob(paymentResponseHeader));
+        } catch {
+          // If parsing fails, include raw header
+          paymentProof = { raw: paymentResponseHeader };
+        }
+      }
 
       return JSON.stringify(
         {
@@ -478,21 +443,31 @@ Unless specifically instructed otherwise, prefer the two-step approach with make
           url: args.url,
           method: args.method,
           status: response.status,
-          data: response.data,
-          paymentProof: paymentProof
-            ? {
-                transaction: paymentProof.transaction,
-                network: paymentProof.network,
-                payer: paymentProof.payer,
-              }
-            : null,
+          data,
+          paymentProof,
         },
         null,
         2,
       );
     } catch (error) {
-      return handleHttpError(error as AxiosError, args.url);
+      return handleHttpError(error, args.url);
     }
+  }
+
+  /**
+   * Parses response data based on content type.
+   *
+   * @param response - The fetch Response object
+   * @returns Parsed response data
+   */
+  private async parseResponseData(response: Response): Promise<unknown> {
+    const contentType = response.headers.get("content-type") ?? "";
+
+    if (contentType.includes("application/json")) {
+      return response.json();
+    }
+
+    return response.text();
   }
 
   /**

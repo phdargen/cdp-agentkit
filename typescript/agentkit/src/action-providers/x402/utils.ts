@@ -1,14 +1,10 @@
 import { Network } from "../../network";
-import { AxiosError } from "axios";
 import { getTokenDetails } from "../erc20/utils";
 import { TOKEN_ADDRESSES_BY_SYMBOLS } from "../erc20/constants";
-import { formatUnits, parseUnits } from "viem";
+import { formatUnits, parseUnits, LocalAccount } from "viem";
 import { EvmWalletProvider, SvmWalletProvider, WalletProvider } from "../../wallet-providers";
-
-/**
- * Supported network types for x402 protocol
- */
-export type X402Network = "base" | "base-sepolia" | "solana" | "solana-devnet";
+import type { ClientEvmSigner } from "@x402/evm";
+import type { ClientSvmSigner } from "@x402/svm";
 
 /**
  * USDC token addresses for Solana networks
@@ -19,41 +15,426 @@ const SOLANA_USDC_ADDRESSES = {
 } as const;
 
 /**
- * Converts the internal network ID to the format expected by the x402 protocol.
- *
- * @param network - The network to convert
- * @returns The network ID in x402 format
- * @throws Error if the network is not supported
+ * Network mapping from internal network ID to both v1 and v2 (CAIP-2) formats.
+ * Used for filtering discovery results that may contain either format.
  */
-export function getX402Network(network: Network): X402Network | string | undefined {
-  switch (network.networkId) {
-    case "base-mainnet":
-      return "base";
-    case "base-sepolia":
-      return "base-sepolia";
-    case "solana-mainnet":
-      return "solana";
-    case "solana-devnet":
-      return "solana-devnet";
-    default:
-      return network.networkId;
+const NETWORK_MAPPINGS: Record<string, string[]> = {
+  "base-mainnet": ["base", "eip155:8453"],
+  "base-sepolia": ["base-sepolia", "eip155:84532"],
+  "solana-mainnet": ["solana", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"],
+  "solana-devnet": ["solana-devnet", "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"],
+};
+
+/**
+ * Resource from discovery API
+ */
+export interface DiscoveryResource {
+  url?: string;
+  resource?: string;
+  type?: string;
+  metadata?: {
+    description?: string;
+    input?: Record<string, unknown>;
+    output?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+  accepts?: PaymentOption[];
+  x402Version?: number;
+  lastUpdated?: string;
+}
+
+/**
+ * Payment option from discovery API (supports both v1 and v2 formats)
+ */
+export interface PaymentOption {
+  scheme: string;
+  network: string;
+  asset: string;
+  // v1 format
+  maxAmountRequired?: string;
+  // v2 format
+  amount?: string;
+  price?: string;
+  payTo?: string;
+  description?: string;
+}
+
+/**
+ * Simplified resource output for LLM consumption
+ */
+export interface SimplifiedResource {
+  url: string;
+  price: string;
+  description: string;
+}
+
+/**
+ * x402 protocol version type
+ */
+export type X402Version = 1 | 2;
+
+/**
+ * Returns array of matching network identifiers (both v1 and v2 CAIP-2 formats).
+ * Used for filtering discovery results that may contain either format.
+ *
+ * @param network - The network object
+ * @returns Array of network identifiers that match the wallet's network
+ */
+export function getX402Networks(network: Network): string[] {
+  const networkId = network.networkId;
+  if (!networkId) {
+    return [];
   }
+  return NETWORK_MAPPINGS[networkId] ?? [networkId];
+}
+
+/**
+ * Converts a viem LocalAccount to a ClientEvmSigner for x402Client.
+ *
+ * @param localAccount - The LocalAccount from EvmWalletProvider.toSigner()
+ * @returns A ClientEvmSigner compatible with @x402/evm
+ */
+export function toClientEvmSigner(localAccount: LocalAccount): ClientEvmSigner {
+  return {
+    address: localAccount.address,
+    signTypedData: async message => {
+      return localAccount.signTypedData(message);
+    },
+  };
+}
+
+/**
+ * Creates a client SVM signer from an SvmWalletProvider.
+ *
+ * @param walletProvider - The SVM wallet provider
+ * @returns A signer object compatible with @x402/svm
+ */
+export async function toClientSvmSigner(walletProvider: SvmWalletProvider): Promise<ClientSvmSigner> {
+  return walletProvider.toSigner();
+}
+
+/**
+ * Fetches a URL with retry logic and exponential backoff for rate limiting.
+ *
+ * @param url - The URL to fetch
+ * @param maxRetries - Maximum number of retries (default 3)
+ * @param initialDelayMs - Initial delay in milliseconds (default 1000)
+ * @returns The fetch Response
+ */
+async function fetchWithRetry(
+  url: string,
+  maxRetries: number = 3,
+  initialDelayMs: number = 1000,
+): Promise<Response> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await fetch(url);
+
+    if (response.ok) {
+      return response;
+    }
+
+    if (response.status === 429 && attempt < maxRetries) {
+      const delayMs = initialDelayMs * Math.pow(2, attempt);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+      continue;
+    }
+
+    lastError = new Error(`Discovery API error: ${response.status} ${response.statusText}`);
+    break;
+  }
+
+  throw lastError ?? new Error("Failed to fetch after retries");
+}
+
+/**
+ * Fetches all resources from the discovery API with pagination.
+ *
+ * @param discoveryUrl - The base URL for discovery
+ * @param pageSize - Number of resources per page (default 100)
+ * @returns Array of all discovered resources
+ */
+export async function fetchAllDiscoveryResources(
+  discoveryUrl: string,
+  pageSize: number = 1000,
+): Promise<DiscoveryResource[]> {
+  const allResources: DiscoveryResource[] = [];
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const url = new URL(discoveryUrl);
+    url.searchParams.set("limit", pageSize.toString());
+    url.searchParams.set("offset", offset.toString());
+
+    const response = await fetchWithRetry(url.toString());
+
+    const data = await response.json();
+    const resources = data.resources ?? data.items ?? [];
+
+    if (resources.length === 0) {
+      hasMore = false;
+    } else {
+      allResources.push(...resources);
+      offset += resources.length;
+
+      // Stop when getting fewer resources than requested (last page)
+      if (resources.length < pageSize) {
+        hasMore = false;
+      }
+    }
+  }
+
+  return allResources;
+}
+
+/**
+ * Filters resources by network compatibility.
+ * Matches resources that accept any of the wallet's network identifiers (v1 or v2 format).
+ *
+ * @param resources - Array of discovery resources
+ * @param walletNetworks - Array of network identifiers to match
+ * @returns Filtered array of resources
+ */
+export function filterByNetwork(
+  resources: DiscoveryResource[],
+  walletNetworks: string[],
+): DiscoveryResource[] {
+  return resources.filter(resource => {
+    const accepts = resource.accepts ?? [];
+    return accepts.some(option => walletNetworks.includes(option.network));
+  });
+}
+
+/**
+ * Extracts description from a resource based on its x402 version.
+ * - v1: description is in accepts[].description
+ * - v2: description is in metadata.description
+ *
+ * @param resource - The discovery resource
+ * @returns The description string or empty string if not found
+ */
+function getResourceDescription(resource: DiscoveryResource): string {
+  if (resource.x402Version === 2) {
+    const metadataDesc = resource.metadata?.description;
+    return typeof metadataDesc === "string" ? metadataDesc : "";
+  }
+
+  // v1: look in accepts[].description
+  const accepts = resource.accepts ?? [];
+  for (const option of accepts) {
+    if (option.description?.trim()) {
+      return option.description;
+    }
+  }
+  return "";
+}
+
+/**
+ * Filters resources by having a valid description.
+ * Removes resources with empty or default descriptions.
+ * Supports both v1 (accepts[].description) and v2 (metadata.description) formats.
+ *
+ * @param resources - Array of discovery resources
+ * @returns Filtered array of resources with valid descriptions
+ */
+export function filterByDescription(resources: DiscoveryResource[]): DiscoveryResource[] {
+  return resources.filter(resource => {
+    const desc = getResourceDescription(resource).trim();
+    return desc && desc !== "" && desc !== "Access to protected content";
+  });
+}
+
+/**
+ * Filters resources by x402 protocol version.
+ * Uses the x402Version field on the resource.
+ *
+ * @param resources - Array of discovery resources
+ * @param allowedVersions - Array of allowed versions (default: [1, 2])
+ * @returns Filtered array of resources matching the allowed versions
+ */
+export function filterByX402Version(
+  resources: DiscoveryResource[],
+  allowedVersions: X402Version[] = [1, 2],
+): DiscoveryResource[] {
+  return resources.filter(resource => {
+    const version = resource.x402Version;
+    if (version === undefined) {
+      return true; // Include resources without version info
+    }
+    return allowedVersions.includes(version as X402Version);
+  });
+}
+
+/**
+ * Filters resources by keyword appearing in description or URL.
+ * Case-insensitive search.
+ * Supports both v1 (accepts[].description) and v2 (metadata.description) formats.
+ *
+ * @param resources - Array of discovery resources
+ * @param keyword - The keyword to search for in descriptions and URLs
+ * @returns Filtered array of resources with matching descriptions or URLs
+ */
+export function filterByKeyword(
+  resources: DiscoveryResource[],
+  keyword: string,
+): DiscoveryResource[] {
+  const lowerKeyword = keyword.toLowerCase();
+  return resources.filter(resource => {
+    // Check description (version-aware)
+    const desc = getResourceDescription(resource).toLowerCase();
+    if (desc.includes(lowerKeyword)) {
+      return true;
+    }
+
+    // Also check the URL for keyword matches
+    const url = (resource.resource ?? resource.url ?? "").toLowerCase();
+    if (url.includes(lowerKeyword)) {
+      return true;
+    }
+
+    return false;
+  });
+}
+
+/**
+ * Filters resources by maximum USDC price.
+ *
+ * @param resources - Array of discovery resources
+ * @param maxUsdcPrice - Maximum price in whole USDC units
+ * @param walletProvider - Wallet provider for asset identification
+ * @param walletNetworks - Array of network identifiers to match
+ * @returns Filtered array of resources within price limit
+ */
+export async function filterByMaxPrice(
+  resources: DiscoveryResource[],
+  maxUsdcPrice: number,
+  walletProvider: WalletProvider,
+  walletNetworks: string[],
+): Promise<DiscoveryResource[]> {
+  const filtered: DiscoveryResource[] = [];
+
+  for (const resource of resources) {
+    const accepts = resource.accepts ?? [];
+    let shouldInclude = false;
+
+    for (const option of accepts) {
+      if (!walletNetworks.includes(option.network)) {
+        continue;
+      }
+
+      if (!option.asset) {
+        continue;
+      }
+
+      // Check if this is a USDC asset
+      if (!isUsdcAsset(option.asset, walletProvider)) {
+        continue;
+      }
+
+      // Get the amount (supports both v1 maxAmountRequired and v2 amount/price)
+      const amountStr = option.maxAmountRequired ?? option.amount ?? option.price;
+      if (!amountStr) {
+        continue;
+      }
+
+      try {
+        const maxUsdcPriceAtomic = await convertWholeUnitsToAtomic(
+          maxUsdcPrice,
+          option.asset,
+          walletProvider,
+        );
+        if (maxUsdcPriceAtomic) {
+          const resourceAmount = BigInt(amountStr);
+          const maxAmount = BigInt(maxUsdcPriceAtomic);
+          if (resourceAmount <= maxAmount) {
+            shouldInclude = true;
+            break;
+          }
+        }
+      } catch {
+        // Skip if conversion fails
+        continue;
+      }
+    }
+
+    if (shouldInclude) {
+      filtered.push(resource);
+    }
+  }
+
+  return filtered;
+}
+
+/**
+ * Formats resources into simplified output for LLM consumption.
+ *
+ * @param resources - Array of discovery resources
+ * @param walletNetworks - Array of network identifiers to match for price extraction
+ * @param walletProvider - Wallet provider for formatting
+ * @returns Array of simplified resources with url, price, description
+ */
+export async function formatSimplifiedResources(
+  resources: DiscoveryResource[],
+  walletNetworks: string[],
+  walletProvider: WalletProvider,
+): Promise<SimplifiedResource[]> {
+  const simplified: SimplifiedResource[] = [];
+
+  for (const resource of resources) {
+    const accepts = resource.accepts ?? [];
+    const matchingOption = accepts.find(opt => walletNetworks.includes(opt.network));
+
+    if (!matchingOption) {
+      continue;
+    }
+
+    // Extract URL: v1 and v2 both use resource.resource, but v2 docs show resource.url
+    const url = resource.resource ?? resource.url ?? "";
+
+    // Extract description (version-aware via helper)
+    const description = getResourceDescription(resource);
+
+    let price = "Unknown";
+
+    // Get the amount (supports both v1 and v2 formats)
+    const amountStr = matchingOption.maxAmountRequired ?? matchingOption.amount ?? matchingOption.price;
+    if (amountStr && matchingOption.asset) {
+      price = await formatPaymentOption(
+        {
+          asset: matchingOption.asset,
+          maxAmountRequired: amountStr,
+          network: matchingOption.network,
+        },
+        walletProvider,
+      );
+    }
+
+    simplified.push({
+      url,
+      price,
+      description,
+    });
+  }
+
+  return simplified;
 }
 
 /**
  * Helper method to handle HTTP errors consistently.
  *
- * @param error - The axios error to handle
+ * @param error - The error to handle
  * @param url - The URL that was being accessed when the error occurred
  * @returns A JSON string containing formatted error details
  */
-export function handleHttpError(error: AxiosError, url: string): string {
-  if (error.response) {
+export function handleHttpError(error: unknown, url: string): string {
+  if (error instanceof Response) {
     return JSON.stringify(
       {
         error: true,
-        message: `HTTP ${error.response.status} error when accessing ${url}`,
-        details: (error.response.data as { error?: string })?.error || error.response.statusText,
+        message: `HTTP ${error.status} error when accessing ${url}`,
+        details: error.statusText,
         suggestion: "Check if the URL is correct and the API is available.",
       },
       null,
@@ -61,7 +442,7 @@ export function handleHttpError(error: AxiosError, url: string): string {
     );
   }
 
-  if (error.request) {
+  if (error instanceof TypeError && error.message.includes("fetch")) {
     return JSON.stringify(
       {
         error: true,
@@ -74,11 +455,12 @@ export function handleHttpError(error: AxiosError, url: string): string {
     );
   }
 
+  const message = error instanceof Error ? error.message : String(error);
   return JSON.stringify(
     {
       error: true,
       message: `Error making request to ${url}`,
-      details: error.message,
+      details: message,
       suggestion: "Please check the request parameters and try again.",
     },
     null,
@@ -116,7 +498,7 @@ export async function formatPaymentOption(
         if (asset.toLowerCase() === address.toLowerCase()) {
           const decimals = symbol === "USDC" || symbol === "EURC" ? 6 : 18;
           const formattedAmount = formatUnits(BigInt(maxAmountRequired), decimals);
-          return `${formattedAmount} ${symbol} on ${network} network`;
+          return `${formattedAmount} ${symbol} on ${network}`;
         }
       }
     }
@@ -126,7 +508,7 @@ export async function formatPaymentOption(
       const tokenDetails = await getTokenDetails(walletProvider, asset);
       if (tokenDetails) {
         const formattedAmount = formatUnits(BigInt(maxAmountRequired), tokenDetails.decimals);
-        return `${formattedAmount} ${tokenDetails.name} on ${network} network`;
+        return `${formattedAmount} ${tokenDetails.name} on ${network}`;
       }
     } catch {
       // If we can't get token details, fall back to raw format
@@ -141,12 +523,12 @@ export async function formatPaymentOption(
     if (usdcAddress && asset === usdcAddress) {
       // USDC has 6 decimals on Solana
       const formattedAmount = formatUnits(BigInt(maxAmountRequired), 6);
-      return `${formattedAmount} USDC on ${network} network`;
+      return `${formattedAmount} USDC on ${network}`;
     }
   }
 
   // Fallback to original format for non-EVM/SVM networks or when token details can't be fetched
-  return `${asset} ${maxAmountRequired} on ${network} network`;
+  return `${asset} ${maxAmountRequired} on ${network}`;
 }
 
 /**

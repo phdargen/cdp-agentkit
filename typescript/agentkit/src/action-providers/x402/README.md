@@ -20,14 +20,16 @@ x402/
 1. `make_http_request`: Make initial HTTP request and handle 402 responses
 2. `retry_http_request_with_x402`: Retry a request with payment after receiving payment details
 
-### Alternative Action
+### Alternative Actions
 
 - `make_http_request_with_x402`: Direct payment-enabled requests (skips confirmation flow)
-- `discover_x402_services`: Discover available x402 services (optionally filter by asset and price)
+- `discover_x402_services`: Discover available x402 services (optionally filter by price)
 
 ## Overview
 
 The x402 protocol enables APIs to require micropayments for access. When a client makes a request to a protected endpoint, the server responds with a `402 Payment Required` status code along with payment instructions.
+
+This provider supports **both v1 and v2 x402 endpoints** automatically.
 
 ### Recommended Two-Step Flow
 
@@ -64,19 +66,31 @@ Makes initial request and handles 402 responses:
 
 ### `retry_http_request_with_x402` Action
 
-Retries request with payment after 402:
+Retries request with payment after 402. Supports both v1 and v2 payment option formats:
 
 ```typescript
+// v1 format (legacy endpoints)
 {
   url: "https://api.example.com/data",
-  method: "GET",                    // Optional, defaults to GET
-  headers: { "Accept": "..." },     // Optional
-  body: { ... },                    // Optional
-  selectedPaymentOption: {           // Payment details from 402 response
+  method: "GET",
+  selectedPaymentOption: {
     scheme: "exact",
-    network: "base-sepolia",
+    network: "base-sepolia",          // v1 network identifier
     maxAmountRequired: "1000",
     asset: "0x..."
+  }
+}
+
+// v2 format (CAIP-2 network identifiers)
+{
+  url: "https://api.example.com/data",
+  method: "GET",
+  selectedPaymentOption: {
+    scheme: "exact",
+    network: "eip155:84532",          // v2 CAIP-2 identifier
+    amount: "1000",
+    asset: "0x...",
+    payTo: "0x..."
   }
 }
 ```
@@ -96,22 +110,31 @@ Direct payment-enabled requests (use with caution):
 
 ### `discover_x402_services` Action
 
-Fetches available services and optionally filters them by maximum price in USDC whole units. The action defaults to USDC on the current network:
+Fetches all available services from the x402 Bazaar with full pagination support. Returns simplified output with url, price, and description for each service.
 
 ```typescript
 {
-  maxUsdcPrice: 0.1 // optional (e.g., 0.1 for $0.10 USDC)
+  discoveryUrl: "https://...",     // Optional, defaults to CDP discovery endpoint
+  maxUsdcPrice: 0.1                // Optional, filter by max price in USDC
 }
 ```
 
-Example filtering for USDC services under $0.10:
+Example response:
 
-```ts
-const maxUsdcPrice = 0.1;
-
-const services = await discover_x402_services({ maxUsdcPrice });
-
-
+```json
+{
+  "success": true,
+  "walletNetworks": ["base-sepolia", "eip155:84532"],
+  "total": 150,
+  "returned": 25,
+  "services": [
+    {
+      "url": "https://api.example.com/weather",
+      "price": "0.001 USDC on base-sepolia",
+      "description": "Get current weather data"
+    }
+  ]
+}
 ```
 
 ## Response Format
@@ -132,21 +155,32 @@ Successful responses include payment proof when payment was made:
 
 ## Network Support
 
-The x402 provider currently supports the following networks:
-- `base-mainnet`
-- `base-sepolia`
-- `solana-mainnet`
-- `solana-devnet`
+The x402 provider supports the following networks:
 
-The provider requires EVM-compatible networks where the wallet can sign payment transactions.
+| Internal Network ID | v1 Identifier | v2 CAIP-2 Identifier |
+|---------------------|---------------|----------------------|
+| `base-mainnet` | `base` | `eip155:8453` |
+| `base-sepolia` | `base-sepolia` | `eip155:84532` |
+| `solana-mainnet` | `solana` | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` |
+| `solana-devnet` | `solana-devnet` | `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` |
+
+The provider supports both EVM and SVM (Solana) wallets for signing payment transactions.
+
+## v1/v2 Compatibility
+
+This provider automatically handles both v1 and v2 x402 endpoints:
+
+- **Discovery**: Filters resources matching either v1 or v2 network identifiers
+- **Payment**: The `@x402/fetch` library handles protocol version detection automatically
+- **Headers**: Supports both `X-PAYMENT-RESPONSE` (v1) and `PAYMENT-RESPONSE` (v2) headers
 
 ## Dependencies
 
 This action provider requires:
-- `axios` - For making HTTP requests
-- `x402-axios` - For handling x402 payment flows
-- `x402` - For payment requirement types and validation
+- `@x402/fetch` - For handling x402 payment flows
+- `@x402/evm` - For EVM payment scheme support
+- `@x402/svm` - For Solana payment scheme support
 
 ## Notes
 
-For more information on the **x402 protocol**, visit the [x402 documentation](https://x402.gitbook.io/x402/). 
+For more information on the **x402 protocol**, visit the [x402 documentation](https://docs.cdp.coinbase.com/x402/overview).
