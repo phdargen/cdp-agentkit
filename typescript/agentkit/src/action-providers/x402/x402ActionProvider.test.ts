@@ -42,10 +42,16 @@ const mockBuildUrlWithParams = jest.fn();
 const mockResolveFacilitatorUrl = jest.fn();
 
 // Setup mocks
-jest.mocked(x402Client).mockImplementation(() => mockX402Client as unknown as InstanceType<typeof x402Client>);
+jest
+  .mocked(x402Client)
+  .mockImplementation(() => mockX402Client as unknown as InstanceType<typeof x402Client>);
 jest.mocked(wrapFetchWithPayment).mockReturnValue(mockFetchWithPayment);
-jest.mocked(registerExactEvmScheme).mockImplementation(() => mockX402Client as unknown as InstanceType<typeof x402Client>);
-jest.mocked(registerExactSvmScheme).mockImplementation(() => mockX402Client as unknown as InstanceType<typeof x402Client>);
+jest
+  .mocked(registerExactEvmScheme)
+  .mockImplementation(() => mockX402Client as unknown as InstanceType<typeof x402Client>);
+jest
+  .mocked(registerExactSvmScheme)
+  .mockImplementation(() => mockX402Client as unknown as InstanceType<typeof x402Client>);
 
 jest.mocked(utils.getX402Networks).mockImplementation(mockGetX402Networks);
 jest.mocked(utils.handleHttpError).mockImplementation(mockHandleHttpError);

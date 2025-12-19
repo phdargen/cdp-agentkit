@@ -8,6 +8,7 @@ This directory contains the **X402ActionProvider** implementation, which provide
 x402/
 ├── x402ActionProvider.ts         # Main provider with x402 payment functionality
 ├── schemas.ts                    # x402 action schemas
+├── constants.ts                  # Network mappings and type definitions
 ├── index.ts                      # Main exports
 ├── utils.ts                      # Utility functions
 └── README.md                     # This file
@@ -114,8 +115,10 @@ Fetches all available services from the x402 Bazaar with full pagination support
 
 ```typescript
 {
-  discoveryUrl: "https://...",     // Optional, defaults to CDP discovery endpoint
-  maxUsdcPrice: 0.1                // Optional, filter by max price in USDC
+  facilitator: "cdp",             // Optional: 'cdp', 'payai', or custom URL
+  maxUsdcPrice: 0.1,              // Optional, filter by max price in USDC
+  keyword: "weather",             // Optional, filter by description/URL keyword
+  x402Versions: [1, 2]            // Optional, filter by protocol version
 }
 ```
 
