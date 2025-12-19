@@ -68,10 +68,10 @@ export interface DiscoveryResource {
   resource?: string;
   type?: string;
   metadata?: {
+    [key: string]: unknown;
     description?: string;
     input?: Record<string, unknown>;
     output?: Record<string, unknown>;
-    [key: string]: unknown;
   };
   accepts?: PaymentOption[];
   x402Version?: number;

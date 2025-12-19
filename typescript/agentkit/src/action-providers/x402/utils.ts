@@ -1,7 +1,7 @@
 import { Network } from "../../network";
 import { getTokenDetails } from "../erc20/utils";
 import { TOKEN_ADDRESSES_BY_SYMBOLS } from "../erc20/constants";
-import { formatUnits, parseUnits, LocalAccount } from "viem";
+import { formatUnits, parseUnits } from "viem";
 import { EvmWalletProvider, SvmWalletProvider, WalletProvider } from "../../wallet-providers";
 import {
   SOLANA_USDC_ADDRESSES,
@@ -327,7 +327,8 @@ export async function formatSimplifiedResources(
     let price = "Unknown";
 
     // Get the amount (supports both v1 and v2 formats)
-    const amountStr = matchingOption.maxAmountRequired ?? matchingOption.amount ?? matchingOption.price;
+    const amountStr =
+      matchingOption.maxAmountRequired ?? matchingOption.amount ?? matchingOption.price;
     if (amountStr && matchingOption.asset) {
       price = await formatPaymentOption(
         {
@@ -549,23 +550,23 @@ export async function convertWholeUnitsToAtomic(
   return parseUnits(wholeUnits.toString(), 18).toString();
 }
 
-  /**
-   * Builds a URL with query parameters appended.
-   *
-   * @param baseUrl - The base URL
-   * @param queryParams - Optional query parameters to append
-   * @returns URL string with query parameters
-   */
-  export function buildUrlWithParams(
-    baseUrl: string,
-    queryParams?: Record<string, string> | null,
-  ): string {
-    if (!queryParams || Object.keys(queryParams).length === 0) {
-      return baseUrl;
-    }
-    const url = new URL(baseUrl);
-    Object.entries(queryParams).forEach(([key, value]) => {
-      url.searchParams.append(key, value);
-    });
-    return url.toString();
+/**
+ * Builds a URL with query parameters appended.
+ *
+ * @param baseUrl - The base URL
+ * @param queryParams - Optional query parameters to append
+ * @returns URL string with query parameters
+ */
+export function buildUrlWithParams(
+  baseUrl: string,
+  queryParams?: Record<string, string> | null,
+): string {
+  if (!queryParams || Object.keys(queryParams).length === 0) {
+    return baseUrl;
   }
+  const url = new URL(baseUrl);
+  Object.entries(queryParams).forEach(([key, value]) => {
+    url.searchParams.append(key, value);
+  });
+  return url.toString();
+}

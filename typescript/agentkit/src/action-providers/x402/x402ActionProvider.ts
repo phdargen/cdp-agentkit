@@ -41,26 +41,6 @@ export class X402ActionProvider extends ActionProvider<WalletProvider> {
   }
 
   /**
-   * Creates an x402 client configured for the given wallet provider.
-   *
-   * @param walletProvider - The wallet provider to configure the client for
-   * @returns Configured x402Client
-   */
-  private async createX402Client(walletProvider: WalletProvider): Promise<x402Client> {
-    const client = new x402Client();
-
-    if (walletProvider instanceof EvmWalletProvider) {
-      const signer = walletProvider.toSigner();
-      registerExactEvmScheme(client, { signer });
-    } else if (walletProvider instanceof SvmWalletProvider) {
-      const signer = await walletProvider.toSigner();
-      registerExactSvmScheme(client, { signer });
-    }
-
-    return client;
-  }
-
-  /**
    * Discovers available x402 services with optional filtering.
    *
    * @param walletProvider - The wallet provider to use for network filtering
@@ -184,7 +164,7 @@ If you receive a 402 Payment Required response, use retry_http_request_with_x402
       });
 
       // Retry with other http method for 404 status code
-      if (response.status === 404){
+      if (response.status === 404) {
         method = method === "GET" ? "POST" : "GET";
         canHaveBody = ["POST", "PUT", "PATCH"].includes(method);
         response = await fetch(finalUrl, {
@@ -212,12 +192,12 @@ If you receive a 402 Payment Required response, use retry_http_request_with_x402
       // Handle 402 Payment Required
       // v2 sends requirements in PAYMENT-REQUIRED header; v1 sends in body
       const walletNetworks = getX402Networks(walletProvider.getNetwork());
-      
-      let acceptsArray: Array<{ 
-        scheme?: string; 
-        network: string; 
-        asset: string; 
-        maxAmountRequired?: string; 
+
+      let acceptsArray: Array<{
+        scheme?: string;
+        network: string;
+        asset: string;
+        maxAmountRequired?: string;
         amount?: string;
         payTo?: string;
       }> = [];
@@ -241,7 +221,7 @@ If you receive a 402 Payment Required response, use retry_http_request_with_x402
         acceptsArray = (paymentData.accepts as typeof acceptsArray) ?? [];
       }
 
-      const availableNetworks = acceptsArray.map((option) => option.network);
+      const availableNetworks = acceptsArray.map(option => option.network);
       const hasMatchingNetwork = availableNetworks.some((net: string) =>
         walletNetworks.includes(net),
       );
@@ -249,11 +229,11 @@ If you receive a 402 Payment Required response, use retry_http_request_with_x402
       let paymentOptionsText = `The wallet networks ${walletNetworks.join(", ")} do not match any available payment options (${availableNetworks.join(", ")}).`;
 
       if (hasMatchingNetwork) {
-        const matchingOptions = acceptsArray.filter(
-          (option) => walletNetworks.includes(option.network),
+        const matchingOptions = acceptsArray.filter(option =>
+          walletNetworks.includes(option.network),
         );
         const formattedOptions = await Promise.all(
-          matchingOptions.map((option) =>
+          matchingOptions.map(option =>
             formatPaymentOption(
               {
                 asset: option.asset,
@@ -320,9 +300,8 @@ DO NOT use this action directly without first trying make_http_request!`,
     args: z.infer<typeof RetryWithX402Schema>,
   ): Promise<string> {
     try {
-
       console.log("args", args);
-      
+
       // Check network compatibility before attempting payment
       const walletNetworks = getX402Networks(walletProvider.getNetwork());
       const selectedNetwork = args.selectedPaymentOption.network;
@@ -559,6 +538,35 @@ Unless specifically instructed otherwise, prefer the two-step approach with make
   }
 
   /**
+   * Checks if the action provider supports the given network.
+   *
+   * @param network - The network to check support for
+   * @returns True if the network is supported, false otherwise
+   */
+  supportsNetwork = (network: Network) =>
+    (SUPPORTED_NETWORKS as readonly string[]).includes(network.networkId!);
+
+  /**
+   * Creates an x402 client configured for the given wallet provider.
+   *
+   * @param walletProvider - The wallet provider to configure the client for
+   * @returns Configured x402Client
+   */
+  private async createX402Client(walletProvider: WalletProvider): Promise<x402Client> {
+    const client = new x402Client();
+
+    if (walletProvider instanceof EvmWalletProvider) {
+      const signer = walletProvider.toSigner();
+      registerExactEvmScheme(client, { signer });
+    } else if (walletProvider instanceof SvmWalletProvider) {
+      const signer = await walletProvider.toSigner();
+      registerExactSvmScheme(client, { signer });
+    }
+
+    return client;
+  }
+
+  /**
    * Parses response data based on content type.
    *
    * @param response - The fetch Response object
@@ -573,15 +581,6 @@ Unless specifically instructed otherwise, prefer the two-step approach with make
 
     return response.text();
   }
-
-  /**
-   * Checks if the action provider supports the given network.
-   *
-   * @param network - The network to check support for
-   * @returns True if the network is supported, false otherwise
-   */
-  supportsNetwork = (network: Network) =>
-    (SUPPORTED_NETWORKS as readonly string[]).includes(network.networkId!);
 }
 
 export const x402ActionProvider = () => new X402ActionProvider();
