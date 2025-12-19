@@ -1,4 +1,16 @@
 /**
+ * Known facilitator registry
+ */
+export const KNOWN_FACILITATORS = {
+  cdp: "https://api.cdp.coinbase.com/platform/v2/x402",
+  payai: "https://facilitator.payai.network",
+} as const;
+
+export type KnownFacilitatorName = keyof typeof KNOWN_FACILITATORS;
+
+export const DEFAULT_FACILITATOR: KnownFacilitatorName = "cdp";
+
+/**
  * Supported networks for x402 payment protocol
  */
 export const SUPPORTED_NETWORKS = [

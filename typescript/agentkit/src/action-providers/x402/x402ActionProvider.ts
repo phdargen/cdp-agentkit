@@ -7,6 +7,7 @@ import {
   RetryWithX402Schema,
   DirectX402RequestSchema,
   ListX402ServicesSchema,
+  resolveFacilitatorUrl,
 } from "./schemas";
 import { EvmWalletProvider, WalletProvider, SvmWalletProvider } from "../../wallet-providers";
 import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
@@ -77,7 +78,9 @@ export class X402ActionProvider extends ActionProvider<WalletProvider> {
     args: z.infer<typeof ListX402ServicesSchema>,
   ): Promise<string> {
     try {
-      const discoveryUrl = args.facilitatorUrl + "/discovery/resources";
+      console.log("args", args);
+      const facilitatorUrl = resolveFacilitatorUrl(args.facilitator);
+      const discoveryUrl = facilitatorUrl + "/discovery/resources";
 
       // Fetch all resources with pagination
       const allResources = await fetchAllDiscoveryResources(discoveryUrl);
@@ -94,7 +97,7 @@ export class X402ActionProvider extends ActionProvider<WalletProvider> {
 
       // Apply filter pipeline
       let filteredResources = filterByNetwork(allResources, walletNetworks);
-      // filteredResources = filterByDescription(filteredResources);
+      filteredResources = filterByDescription(filteredResources);
       filteredResources = filterByX402Version(filteredResources, args.x402Versions);
 
       // Apply keyword filter if provided

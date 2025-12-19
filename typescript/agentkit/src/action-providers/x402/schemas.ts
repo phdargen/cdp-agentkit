@@ -1,18 +1,33 @@
 import { z } from "zod";
+import {
+  KNOWN_FACILITATORS,
+  KnownFacilitatorName,
+  DEFAULT_FACILITATOR,
+} from "./constants";
 
-// Default facilitator URL for x402 Bazaar
-export const DEFAULT_FACILITATOR_URL =
-  "https://api.cdp.coinbase.com/platform/v2/x402";
+/**
+ * Resolves a facilitator name or URL to the actual URL.
+ * @param facilitator - Either a known facilitator name ('cdp', 'payai') or a custom URL
+ * @returns The facilitator URL
+ */
+export function resolveFacilitatorUrl(facilitator: string): string {
+  if (facilitator in KNOWN_FACILITATORS) {
+    return KNOWN_FACILITATORS[facilitator as KnownFacilitatorName];
+  }
+  return facilitator;
+}
 
 // Schema for listing x402 services
 export const ListX402ServicesSchema = z
   .object({
-    facilitatorUrl: z
-      .string()
-      .url()
-      .default(DEFAULT_FACILITATOR_URL)
+    facilitator: z
+      .union([
+        z.enum(["cdp", "payai"]),
+        z.string().url(),
+      ])
+      .default(DEFAULT_FACILITATOR)
       .describe(
-        `Optional URL for the x402 facilitator service.`,
+        "Facilitator to query: 'cdp' (Coinbase CDP), 'payai' (PayAI Network), or a custom facilitator URL.",
       ),
     maxUsdcPrice: z
       .number()
