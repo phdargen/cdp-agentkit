@@ -12,10 +12,12 @@ export const ListX402ServicesSchema = z
       .url()
       .default(DEFAULT_FACILITATOR_URL)
       .describe(
-        `Optional URL for the x402 facilitator service. Defaults to ${DEFAULT_FACILITATOR_URL}`,
+        `Optional URL for the x402 facilitator service.`,
       ),
     maxUsdcPrice: z
       .number()
+      .positive()
+      .finite()
       .optional()
       .describe(
         "Optional maximum price in USDC whole units (e.g., 0.1 for 0.10 USDC). Only USDC payment options will be considered when this filter is applied.",
@@ -53,11 +55,25 @@ export const HttpRequestSchema = z
       .optional()
       .nullable()
       .describe("Optional headers to include in the request"),
+    queryParams: z
+      .record(z.string())
+      .optional()
+      .nullable()
+      .describe(
+        "Query parameters to append to the URL as key-value string pairs. " +
+          "Use ONLY for GET/DELETE requests. " +
+          "For POST/PUT/PATCH, you must use the 'body' parameter instead. " +
+          "Example: {location: 'NYC', units: 'metric'} becomes ?location=NYC&units=metric",
+      ),
     body: z
       .any()
       .optional()
       .nullable()
-      .describe("Optional request body for POST/PUT/PATCH requests"),
+      .describe(
+        "Request body - REQUIRED for POST/PUT/PATCH requests when sending data. " +
+          "Always prefer 'body' over 'queryParams' for POST/PUT/PATCH. " +
+          "Do NOT use for GET or DELETE, use queryParams instead.",
+      ),
   })
   .strip()
   .describe("Instructions for making a basic HTTP request");
@@ -104,7 +120,24 @@ export const RetryWithX402Schema = z
       .default("GET")
       .describe("The HTTP method to use for the request"),
     headers: z.record(z.string()).optional().describe("Optional headers to include in the request"),
-    body: z.any().optional().describe("Optional request body for POST/PUT/PATCH requests"),
+    queryParams: z
+      .record(z.string())
+      .optional()
+      .nullable()
+      .describe(
+        "Query parameters to append to the URL as key-value string pairs. " +
+          "Use ONLY for GET/DELETE requests. " +
+          "For POST/PUT/PATCH, you must use the 'body' parameter instead. " +
+          "Example: {location: 'NYC', units: 'metric'} becomes ?location=NYC&units=metric",
+      ),
+    body: z
+      .any()
+      .optional()
+      .describe(
+        "Request body - REQUIRED for POST/PUT/PATCH requests when sending data. " +
+          "Always prefer 'body' over 'queryParams' for POST/PUT/PATCH. " +
+          "Do NOT use for GET or DELETE, use queryParams instead.",
+      ),
     selectedPaymentOption: PaymentOptionSchema.describe("The payment option to use for this request"),
   })
   .strip()
@@ -127,11 +160,25 @@ export const DirectX402RequestSchema = z
       .optional()
       .nullable()
       .describe("Optional headers to include in the request"),
+    queryParams: z
+      .record(z.string())
+      .optional()
+      .nullable()
+      .describe(
+        "Query parameters to append to the URL as key-value string pairs. " +
+          "Use ONLY for GET/DELETE requests. " +
+          "For POST/PUT/PATCH, use the 'body' parameter instead. " +
+          "Example: {location: 'NYC', units: 'metric'} becomes ?location=NYC&units=metric",
+      ),
     body: z
       .any()
       .optional()
       .nullable()
-      .describe("Optional request body for POST/PUT/PATCH requests"),
+      .describe(
+        "Request body - REQUIRED for POST/PUT/PATCH requests when sending data. " +
+          "Always prefer 'body' over 'queryParams' for POST/PUT/PATCH. " +
+          "Do NOT use for GET or DELETE, use queryParams instead.",
+      ),
   })
   .strip()
   .describe(

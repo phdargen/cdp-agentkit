@@ -23,11 +23,10 @@ import {
   filterByKeyword,
   filterByMaxPrice,
   formatSimplifiedResources,
-  toClientEvmSigner,
-  toClientSvmSigner,
+  buildUrlWithParams,
 } from "./utils";
-
-const SUPPORTED_NETWORKS = ["base-mainnet", "base-sepolia", "solana-mainnet", "solana-devnet"];
+import { SUPPORTED_NETWORKS } from "./constants";
+import { ClientSvmSigner } from "@x402/svm";
 
 /**
  * X402ActionProvider provides actions for making HTTP requests, with optional x402 payment handling.
@@ -51,12 +50,12 @@ export class X402ActionProvider extends ActionProvider<WalletProvider> {
     const client = new x402Client();
 
     if (walletProvider instanceof EvmWalletProvider) {
-      const signer = toClientEvmSigner(walletProvider.toSigner());
+      const signer = walletProvider.toSigner();
       registerExactEvmScheme(client, { signer });
     } else if (walletProvider instanceof SvmWalletProvider) {
-      const signer = await toClientSvmSigner(walletProvider);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      registerExactSvmScheme(client, { signer: signer as any });
+      const signer = walletProvider.toSigner();
+      // TODO: Fix 
+      registerExactSvmScheme(client, {signer: signer as unknown as ClientSvmSigner});
     }
 
     return client;
@@ -106,15 +105,10 @@ export class X402ActionProvider extends ActionProvider<WalletProvider> {
       }
 
       // Apply price filter if maxUsdcPrice is provided
-      const hasValidMaxUsdcPrice =
-        typeof args.maxUsdcPrice === "number" &&
-        Number.isFinite(args.maxUsdcPrice) &&
-        args.maxUsdcPrice > 0;
-
-      if (hasValidMaxUsdcPrice) {
+      if (args.maxUsdcPrice !== undefined) {
         filteredResources = await filterByMaxPrice(
           filteredResources,
-          args.maxUsdcPrice as number,
+          args.maxUsdcPrice,
           walletProvider,
           walletNetworks,
         );
@@ -168,9 +162,9 @@ it will return payment details that can be used with retry_http_request_with_x40
 EXAMPLES:
 - Production API: make_http_request("https://api.example.com/weather")
 - Local development: make_http_request("http://localhost:3000/api/data")
-- Testing x402: make_http_request("http://localhost:3000/protected")
 
-If you receive a 402 Payment Required response, use retry_http_request_with_x402 to handle the payment.`,
+If you receive a 402 Payment Required response, use retry_http_request_with_x402 to handle the payment.
+`,
     schema: HttpRequestSchema,
   })
   async makeHttpRequest(
@@ -178,19 +172,34 @@ If you receive a 402 Payment Required response, use retry_http_request_with_x402
     args: z.infer<typeof HttpRequestSchema>,
   ): Promise<string> {
     try {
-      const response = await fetch(args.url, {
-        method: args.method ?? "GET",
+      const finalUrl = buildUrlWithParams(args.url, args.queryParams);
+      let method = args.method ?? "GET";
+      let canHaveBody = ["POST", "PUT", "PATCH"].includes(method);
+
+      let response = await fetch(finalUrl, {
+        method,
         headers: args.headers ?? undefined,
-        body: args.body ? JSON.stringify(args.body) : undefined,
+        body: canHaveBody && args.body ? JSON.stringify(args.body) : undefined,
       });
+
+      // Retry with other http method for 404 status code
+      if (response.status === 404){
+        method = method === "GET" ? "POST" : "GET";
+        canHaveBody = ["POST", "PUT", "PATCH"].includes(method);
+        response = await fetch(finalUrl, {
+          method,
+          headers: args.headers ?? undefined,
+          body: canHaveBody && args.body ? JSON.stringify(args.body) : undefined,
+        });
+      }
 
       if (response.status !== 402) {
         const data = await this.parseResponseData(response);
         return JSON.stringify(
           {
             success: true,
-            url: args.url,
-            method: args.method,
+            url: finalUrl,
+            method,
             status: response.status,
             data,
           },
@@ -200,11 +209,38 @@ If you receive a 402 Payment Required response, use retry_http_request_with_x402
       }
 
       // Handle 402 Payment Required
-      const paymentData = await response.json();
+      // v2 sends requirements in PAYMENT-REQUIRED header; v1 sends in body
       const walletNetworks = getX402Networks(walletProvider.getNetwork());
-      const availableNetworks = (paymentData.accepts ?? []).map(
-        (option: { network: string }) => option.network,
-      );
+      
+      let acceptsArray: Array<{ 
+        scheme?: string; 
+        network: string; 
+        asset: string; 
+        maxAmountRequired?: string; 
+        amount?: string;
+        payTo?: string;
+      }> = [];
+      let paymentData: Record<string, unknown> = {};
+
+      // Check for v2 header-based payment requirements
+      const paymentRequiredHeader = response.headers.get("payment-required");
+      if (paymentRequiredHeader) {
+        try {
+          const decoded = JSON.parse(atob(paymentRequiredHeader));
+          acceptsArray = decoded.accepts ?? [];
+          paymentData = decoded;
+        } catch {
+          // Header parsing failed, fall back to body
+        }
+      }
+
+      // Fall back to v1 body-based requirements if header not present or empty
+      if (acceptsArray.length === 0) {
+        paymentData = await response.json();
+        acceptsArray = (paymentData.accepts as typeof acceptsArray) ?? [];
+      }
+
+      const availableNetworks = acceptsArray.map((option) => option.network);
       const hasMatchingNetwork = availableNetworks.some((net: string) =>
         walletNetworks.includes(net),
       );
@@ -212,11 +248,11 @@ If you receive a 402 Payment Required response, use retry_http_request_with_x402
       let paymentOptionsText = `The wallet networks ${walletNetworks.join(", ")} do not match any available payment options (${availableNetworks.join(", ")}).`;
 
       if (hasMatchingNetwork) {
-        const matchingOptions = (paymentData.accepts ?? []).filter(
-          (option: { network: string }) => walletNetworks.includes(option.network),
+        const matchingOptions = acceptsArray.filter(
+          (option) => walletNetworks.includes(option.network),
         );
         const formattedOptions = await Promise.all(
-          matchingOptions.map((option: { asset: string; maxAmountRequired?: string; amount?: string; network: string }) =>
+          matchingOptions.map((option) =>
             formatPaymentOption(
               {
                 asset: option.asset,
@@ -230,15 +266,25 @@ If you receive a 402 Payment Required response, use retry_http_request_with_x402
         paymentOptionsText = `The payment options are: ${formattedOptions.join(", ")}`;
       }
 
+      // Extract discovery info from v2 response (description, mimeType, extensions)
+      const discoveryInfo: Record<string, unknown> = {};
+      if (paymentData.description) discoveryInfo.description = paymentData.description;
+      if (paymentData.mimeType) discoveryInfo.mimeType = paymentData.mimeType;
+      if (paymentData.extensions) discoveryInfo.extensions = paymentData.extensions;
+
       return JSON.stringify({
         status: "error_402_payment_required",
-        acceptablePaymentOptions: paymentData.accepts,
+        acceptablePaymentOptions: acceptsArray,
+        ...(Object.keys(discoveryInfo).length > 0 && { discoveryInfo }),
         nextSteps: [
           "Inform the user that the requested server replied with a 402 Payment Required response.",
           paymentOptionsText,
+          "Include the description of the service in the response.",
+          "IMPORTANT: Identify required or optional query or body parameters based on this response. If there are any, you must inform the user and request them to provide the values. Always suggest example values.",
+          "CRITICAL: For POST/PUT/PATCH requests, you MUST use the 'body' parameter (NOT queryParams) to send data.",
           hasMatchingNetwork ? "Ask the user if they want to retry the request with payment." : "",
           hasMatchingNetwork
-            ? "Use retry_http_request_with_x402 to retry the request with payment."
+            ? "Use retry_http_request_with_x402 to retry the request with payment. IMPORTANT: You must retry_http_request_with_x402 with the correct Http method. "
             : "",
         ],
       });
@@ -273,6 +319,9 @@ DO NOT use this action directly without first trying make_http_request!`,
     args: z.infer<typeof RetryWithX402Schema>,
   ): Promise<string> {
     try {
+
+      console.log("args", args);
+      
       // Check network compatibility before attempting payment
       const walletNetworks = getX402Networks(walletProvider.getNetwork());
       const selectedNetwork = args.selectedPaymentOption.network;
@@ -310,16 +359,27 @@ DO NOT use this action directly without first trying make_http_request!`,
       const client = await this.createX402Client(walletProvider);
       const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 
+      // Build URL with query params and determine if body is allowed
+      const finalUrl = buildUrlWithParams(args.url, args.queryParams);
+      const method = args.method ?? "GET";
+      const canHaveBody = ["POST", "PUT", "PATCH"].includes(method);
+
+      // Build headers, adding Content-Type for JSON body
+      const headers: Record<string, string> = { ...(args.headers ?? {}) };
+      if (canHaveBody && args.body) {
+        headers["Content-Type"] = "application/json";
+      }
+
       // Make the request with payment handling
-      const response = await fetchWithPayment(args.url, {
-        method: args.method ?? "GET",
-        headers: args.headers ?? undefined,
-        body: args.body ? JSON.stringify(args.body) : undefined,
+      const response = await fetchWithPayment(finalUrl, {
+        method,
+        headers,
+        body: canHaveBody && args.body ? JSON.stringify(args.body) : undefined,
       });
 
       const data = await this.parseResponseData(response);
 
-      // Check for payment proof in headers (supports both v1 and v2 header names)
+      // Check for payment proof in headers (v2: payment-response, v1: x-payment-response)
       const paymentResponseHeader =
         response.headers.get("payment-response") ?? response.headers.get("x-payment-response");
 
@@ -339,13 +399,28 @@ DO NOT use this action directly without first trying make_http_request!`,
         args.selectedPaymentOption.amount ??
         args.selectedPaymentOption.price;
 
+      // Check if the response was successful
+      // Payment is only settled on 200 status
+      if (response.status !== 200) {
+        return JSON.stringify({
+          status: "error",
+          message: `Request failed with status ${response.status}. Payment was not settled.`,
+          httpStatus: response.status,
+          data,
+          details: {
+            url: finalUrl,
+            method,
+          },
+        });
+      }
+
       return JSON.stringify({
         status: "success",
         data,
         message: "Request completed successfully with payment",
         details: {
-          url: args.url,
-          method: args.method,
+          url: finalUrl,
+          method,
           paymentUsed: {
             network: args.selectedPaymentOption.network,
             asset: args.selectedPaymentOption.asset,
@@ -414,15 +489,26 @@ Unless specifically instructed otherwise, prefer the two-step approach with make
       const client = await this.createX402Client(walletProvider);
       const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 
-      const response = await fetchWithPayment(args.url, {
-        method: args.method ?? "GET",
-        headers: args.headers ?? undefined,
-        body: args.body ? JSON.stringify(args.body) : undefined,
+      // Build URL with query params and determine if body is allowed
+      const finalUrl = buildUrlWithParams(args.url, args.queryParams);
+      const method = args.method ?? "GET";
+      const canHaveBody = ["POST", "PUT", "PATCH"].includes(method);
+
+      // Build headers, adding Content-Type for JSON body
+      const headers: Record<string, string> = { ...(args.headers ?? {}) };
+      if (canHaveBody && args.body) {
+        headers["Content-Type"] = "application/json";
+      }
+
+      const response = await fetchWithPayment(finalUrl, {
+        method,
+        headers,
+        body: canHaveBody && args.body ? JSON.stringify(args.body) : undefined,
       });
 
       const data = await this.parseResponseData(response);
 
-      // Check for payment proof in headers (supports both v1 and v2 header names)
+      // Check for payment proof in headers (v2: payment-response, v1: x-payment-response)
       const paymentResponseHeader =
         response.headers.get("payment-response") ?? response.headers.get("x-payment-response");
 
@@ -436,12 +522,29 @@ Unless specifically instructed otherwise, prefer the two-step approach with make
         }
       }
 
+      // Check if the response was successful
+      // Payment is only settled on 200 status
+      if (response.status !== 200) {
+        return JSON.stringify(
+          {
+            success: false,
+            message: `Request failed with status ${response.status}. Payment was not settled.`,
+            url: finalUrl,
+            method,
+            status: response.status,
+            data,
+          },
+          null,
+          2,
+        );
+      }
+
       return JSON.stringify(
         {
           success: true,
           message: "Request completed successfully (payment handled automatically if required)",
-          url: args.url,
-          method: args.method,
+          url: finalUrl,
+          method,
           status: response.status,
           data,
           paymentProof,
@@ -476,7 +579,8 @@ Unless specifically instructed otherwise, prefer the two-step approach with make
    * @param network - The network to check support for
    * @returns True if the network is supported, false otherwise
    */
-  supportsNetwork = (network: Network) => SUPPORTED_NETWORKS.includes(network.networkId!);
+  supportsNetwork = (network: Network) =>
+    (SUPPORTED_NETWORKS as readonly string[]).includes(network.networkId!);
 }
 
 export const x402ActionProvider = () => new X402ActionProvider();

@@ -3,75 +3,13 @@ import { getTokenDetails } from "../erc20/utils";
 import { TOKEN_ADDRESSES_BY_SYMBOLS } from "../erc20/constants";
 import { formatUnits, parseUnits, LocalAccount } from "viem";
 import { EvmWalletProvider, SvmWalletProvider, WalletProvider } from "../../wallet-providers";
-import type { ClientEvmSigner } from "@x402/evm";
-import type { ClientSvmSigner } from "@x402/svm";
-
-/**
- * USDC token addresses for Solana networks
- */
-const SOLANA_USDC_ADDRESSES = {
-  "solana-devnet": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
-  "solana-mainnet": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-} as const;
-
-/**
- * Network mapping from internal network ID to both v1 and v2 (CAIP-2) formats.
- * Used for filtering discovery results that may contain either format.
- */
-const NETWORK_MAPPINGS: Record<string, string[]> = {
-  "base-mainnet": ["base", "eip155:8453"],
-  "base-sepolia": ["base-sepolia", "eip155:84532"],
-  "solana-mainnet": ["solana", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"],
-  "solana-devnet": ["solana-devnet", "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"],
-};
-
-/**
- * Resource from discovery API
- */
-export interface DiscoveryResource {
-  url?: string;
-  resource?: string;
-  type?: string;
-  metadata?: {
-    description?: string;
-    input?: Record<string, unknown>;
-    output?: Record<string, unknown>;
-    [key: string]: unknown;
-  };
-  accepts?: PaymentOption[];
-  x402Version?: number;
-  lastUpdated?: string;
-}
-
-/**
- * Payment option from discovery API (supports both v1 and v2 formats)
- */
-export interface PaymentOption {
-  scheme: string;
-  network: string;
-  asset: string;
-  // v1 format
-  maxAmountRequired?: string;
-  // v2 format
-  amount?: string;
-  price?: string;
-  payTo?: string;
-  description?: string;
-}
-
-/**
- * Simplified resource output for LLM consumption
- */
-export interface SimplifiedResource {
-  url: string;
-  price: string;
-  description: string;
-}
-
-/**
- * x402 protocol version type
- */
-export type X402Version = 1 | 2;
+import {
+  SOLANA_USDC_ADDRESSES,
+  NETWORK_MAPPINGS,
+  type DiscoveryResource,
+  type SimplifiedResource,
+  type X402Version,
+} from "./constants";
 
 /**
  * Returns array of matching network identifiers (both v1 and v2 CAIP-2 formats).
@@ -89,28 +27,18 @@ export function getX402Networks(network: Network): string[] {
 }
 
 /**
- * Converts a viem LocalAccount to a ClientEvmSigner for x402Client.
+ * Gets network ID from a CAIP-2 or v1 network identifier.
  *
- * @param localAccount - The LocalAccount from EvmWalletProvider.toSigner()
- * @returns A ClientEvmSigner compatible with @x402/evm
+ * @param network - The x402 network identifier (e.g., "eip155:8453" for v2 or "base" for v1)
+ * @returns The network ID (e.g., "base-mainnet") or the original if not found
  */
-export function toClientEvmSigner(localAccount: LocalAccount): ClientEvmSigner {
-  return {
-    address: localAccount.address,
-    signTypedData: async message => {
-      return localAccount.signTypedData(message);
-    },
-  };
-}
-
-/**
- * Creates a client SVM signer from an SvmWalletProvider.
- *
- * @param walletProvider - The SVM wallet provider
- * @returns A signer object compatible with @x402/svm
- */
-export async function toClientSvmSigner(walletProvider: SvmWalletProvider): Promise<ClientSvmSigner> {
-  return walletProvider.toSigner();
+export function getNetworkId(network: string): string {
+  for (const [agentKitId, formats] of Object.entries(NETWORK_MAPPINGS)) {
+    if (formats.includes(network)) {
+      return agentKitId;
+    }
+  }
+  return network;
 }
 
 /**
@@ -498,7 +426,7 @@ export async function formatPaymentOption(
         if (asset.toLowerCase() === address.toLowerCase()) {
           const decimals = symbol === "USDC" || symbol === "EURC" ? 6 : 18;
           const formattedAmount = formatUnits(BigInt(maxAmountRequired), decimals);
-          return `${formattedAmount} ${symbol} on ${network}`;
+          return `${formattedAmount} ${symbol} on ${getNetworkId(network)}`;
         }
       }
     }
@@ -508,7 +436,7 @@ export async function formatPaymentOption(
       const tokenDetails = await getTokenDetails(walletProvider, asset);
       if (tokenDetails) {
         const formattedAmount = formatUnits(BigInt(maxAmountRequired), tokenDetails.decimals);
-        return `${formattedAmount} ${tokenDetails.name} on ${network}`;
+        return `${formattedAmount} ${tokenDetails.name} on ${getNetworkId(network)}`;
       }
     } catch {
       // If we can't get token details, fall back to raw format
@@ -523,12 +451,12 @@ export async function formatPaymentOption(
     if (usdcAddress && asset === usdcAddress) {
       // USDC has 6 decimals on Solana
       const formattedAmount = formatUnits(BigInt(maxAmountRequired), 6);
-      return `${formattedAmount} USDC on ${network}`;
+      return `${formattedAmount} USDC on ${getNetworkId(network)}`;
     }
   }
 
   // Fallback to original format for non-EVM/SVM networks or when token details can't be fetched
-  return `${asset} ${maxAmountRequired} on ${network}`;
+  return `${asset} ${maxAmountRequired} on ${getNetworkId(network)}`;
 }
 
 /**
@@ -620,3 +548,24 @@ export async function convertWholeUnitsToAtomic(
   // Fallback to 18 decimals for unknown tokens or non-EVM/SVM networks
   return parseUnits(wholeUnits.toString(), 18).toString();
 }
+
+  /**
+   * Builds a URL with query parameters appended.
+   *
+   * @param baseUrl - The base URL
+   * @param queryParams - Optional query parameters to append
+   * @returns URL string with query parameters
+   */
+  export function buildUrlWithParams(
+    baseUrl: string,
+    queryParams?: Record<string, string> | null,
+  ): string {
+    if (!queryParams || Object.keys(queryParams).length === 0) {
+      return baseUrl;
+    }
+    const url = new URL(baseUrl);
+    Object.entries(queryParams).forEach(([key, value]) => {
+      url.searchParams.append(key, value);
+    });
+    return url.toString();
+  }
