@@ -26,7 +26,6 @@ import {
   buildUrlWithParams,
 } from "./utils";
 import { SUPPORTED_NETWORKS } from "./constants";
-import { ClientSvmSigner } from "@x402/svm";
 
 /**
  * X402ActionProvider provides actions for making HTTP requests, with optional x402 payment handling.
@@ -53,9 +52,8 @@ export class X402ActionProvider extends ActionProvider<WalletProvider> {
       const signer = walletProvider.toSigner();
       registerExactEvmScheme(client, { signer });
     } else if (walletProvider instanceof SvmWalletProvider) {
-      const signer = walletProvider.toSigner();
-      // TODO: Fix 
-      registerExactSvmScheme(client, {signer: signer as unknown as ClientSvmSigner});
+      const signer = await walletProvider.toSigner();
+      registerExactSvmScheme(client, { signer });
     }
 
     return client;
