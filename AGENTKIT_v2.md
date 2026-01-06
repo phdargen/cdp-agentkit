@@ -381,6 +381,16 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
 
 ---
 
+## 3. New examples
+
+- create-onchain-agent: external wallet wagmi/onchainkit
+- create-onchain-agent: external wallet CDP embedded wallet
+- langchain-xmtp-external chatbot
+
+---
+
+---
+
 ## 4. Deprecations & Dependency Updates
 
 ### Deprecations
