@@ -5,7 +5,8 @@ Outlines plans for significant Agentkit upgrade to make it more modular, define 
 1. [Capability-Based Wallet/Action Provider Matching](#1-capability-based-walletaction-provider-matching)
 2. [External Wallet Support](#2-external-wallet-support)
 3. [Modular Package Structure](#3-modular-package-structure)
-4. [Deprecations & Dependency Updates](#4-deprecations--dependency-updates)
+4. [New examples](#4-new-examples)
+5. [Deprecations & Dependency Updates](#5-deprecations--dependency-updates)
 
 ---
 
@@ -381,7 +382,7 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
 
 ---
 
-## 3. New examples
+## 4. New examples
 
 - create-onchain-agent: external wallet wagmi/onchainkit
 - create-onchain-agent: external wallet CDP embedded wallet
@@ -391,7 +392,7 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
 
 ---
 
-## 4. Deprecations & Dependency Updates
+## 5. Deprecations & Dependency Updates
 
 ### Deprecations
 
