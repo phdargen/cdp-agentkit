@@ -7,6 +7,7 @@ Outlines plans for significant Agentkit upgrade to make it more modular, define 
 3. [Modular Package Structure](#3-modular-package-structure)
 4. [New examples](#4-new-examples)
 5. [Deprecations & Dependency Updates](#5-deprecations--dependency-updates)
+6. [Agent Extensions (x402, A2A, ERC-8004)](#6-agent-extensions-x402-a2a-erc-8004)
 
 ---
 
@@ -404,5 +405,154 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
 - Upgrade to Zod v4
 - Upgrade to LangChain v1
 - Upgrade to Vercel AI SDK v6
+
+---
+
+## 6. Agent Extensions (x402, A2A, ERC-8004)
+
+### Problem
+
+AgentKit agents can invoke external services but cannot:
+- **Receive payments** for their actions (agent as service)
+- **Be discovered and called** by other agents (interoperability)
+- **Prove identity** onchain (trust)
+
+### Solution
+
+Introduce **Agent Extensions**—optional wrappers that expose the agent as a service:
+- **ActionProviders** = Tools for the agent to call others (client-side)
+- **Extensions** = How the agent is exposed to be called (server-side)
+
+### New ActionProviders
+
+| Provider | Purpose |
+|----------|---------|
+| `a2aActionProvider` | Call other A2A-compatible agents |
+| `erc8004ActionProvider` | Query identity/reputation registries, post feedback |
+
+*Note: `x402ActionProvider` already exists for paying x402 services.*
+
+### Extensions
+
+```typescript
+const agent = await AgentKit.from({
+  walletProvider,
+  actionProviders: [
+    erc20ActionProvider(),
+    a2aActionProvider(),
+    erc8004ActionProvider(),
+  ],
+  
+  extensions: [
+    erc8004Extension({           // Register agent identity on-chain
+      autoRegister: true,
+      metadata: { name: 'My Agent', description: '...' },
+    }),
+    x402Extension({              // Receive payments for actions
+      receivableAddress: '0x...',
+      network: 'base-mainnet',
+      pricing: { /* see below */ },
+    }),
+    a2aExtension({               // Expose via A2A protocol
+      streaming: true,
+    }),
+  ],
+});
+```
+
+### x402Extension: Pricing Configuration
+
+Pricing is configured entirely at the extension level—no need to modify ActionProvider code:
+
+```typescript
+x402Extension({
+  receivableAddress: '0x...',
+  network: 'base-mainnet',
+  pricing: {
+    // Default price for all actions (direct tool call)
+    default: '$0.001',
+    
+    // Override specific actions by name
+    actions: {
+      'transfer': '$0.002',
+      'morpho_supply': '$0.01',
+      'swap': '$0.05',
+      'get_balance': 'free',       // Explicitly free
+      'get_token_info': 'free',
+    },
+    
+    // Chat endpoint (LLM-powered, access to all tools)
+    chat: {
+      enabled: true,
+      price: '$0.01',
+    },
+  },
+})
+```
+
+### A2A Agent Card
+
+`a2aExtension` auto-generates `/.well-known/agent-card.json` from registered ActionProviders:
+
+```json
+{
+  "name": "My Agent",
+  "skills": [
+    { "id": "transfer", "description": "Transfer ERC20 tokens", "price": "$0.002" },
+    { "id": "morpho_supply", "description": "Supply to Morpho vault", "price": "$0.01" },
+    { "id": "get_balance", "description": "Check token balance" }
+  ],
+  "registrations": [{ "agentId": 42, "registry": "eip155:84532:0x8004..." }]
+}
+```
+
+### ERC-8004 Identity
+
+`erc8004Extension` handles agent's own on-chain identity:
+
+```typescript
+erc8004Extension({
+  chainId: 84532,                    // Base Sepolia
+  autoRegister: true,                // Register if not exists
+  metadata: {
+    name: 'My Agent',
+    description: 'Helpful DeFi agent',
+    image: 'https://...',
+    endpoints: [
+      { name: 'A2A', endpoint: 'https://agent.com/.well-known/agent-card.json' }
+    ],
+  },
+})
+```
+
+### Package Structure
+
+Add to Section 3's package list:
+
+```
+@coinbase/agentkit-x402       # x402Extension + x402ActionProvider
+@coinbase/agentkit-a2a        # a2aExtension + a2aActionProvider
+@coinbase/agentkit-identity   # erc8004Extension + erc8004ActionProvider
+```
+
+### Interface
+
+```typescript
+interface AgentExtension {
+  name: string;
+  onInit?(kit: AgentKit): Promise<void>;
+  getRoutes?(): Route[];
+}
+
+interface X402ExtensionConfig {
+  receivableAddress: string;
+  network: string;
+  pricing?: {
+    default?: string;                    // e.g., '$0.001'
+    actions?: Record<string, string>;    // action name → price or 'free'
+    chat?: { enabled: boolean; price: string };
+  };
+}
+```
 
 ---
