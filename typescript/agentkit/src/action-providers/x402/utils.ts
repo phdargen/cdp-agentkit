@@ -103,6 +103,7 @@ export async function fetchAllDiscoveryResources(
   let pageNumber = 1;
   let knownTotal = 0;
 
+  // eslint-disable-next-line no-constant-condition
   while (true) {
     const url = new URL(discoveryUrl);
     url.searchParams.set("limit", pageSize.toString());

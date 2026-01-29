@@ -753,6 +753,7 @@ If disabled, services must be pre-registered by the agent administrator.`,
    * Lists all registered service URLs that can be used for x402 requests.
    *
    * @param _walletProvider - The wallet provider (unused but required by interface)
+   * @param _args - Empty arguments object (unused but required by interface)
    * @returns A JSON string containing the list of registered services
    */
   @CreateAction({
@@ -787,6 +788,7 @@ These are the only services that can be called using make_http_request or make_h
    * Lists all facilitators (known and custom registered) that can be used for service discovery.
    *
    * @param _walletProvider - The wallet provider (unused but required by interface)
+   * @param _args - Empty arguments object (unused but required by interface)
    * @returns A JSON string containing the list of facilitators
    */
   @CreateAction({
