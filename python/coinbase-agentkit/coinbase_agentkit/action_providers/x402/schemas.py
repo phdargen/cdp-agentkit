@@ -127,12 +127,8 @@ class PaymentOptionSchema(BaseModel):
     )
     # v2 format
     amount: str | None = Field(default=None, description="Amount required (v2 format)")
-    price: str | None = Field(
-        default=None, description="Price (v2 format, e.g., '$0.01')"
-    )
-    pay_to: str | None = Field(
-        default=None, description="Payment recipient address (v2 format)"
-    )
+    price: str | None = Field(default=None, description="Price (v2 format, e.g., '$0.01')")
+    pay_to: str | None = Field(default=None, description="Payment recipient address (v2 format)")
 
     class Config:
         """Pydantic config."""

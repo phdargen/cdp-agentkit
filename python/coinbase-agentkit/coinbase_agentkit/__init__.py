@@ -4,6 +4,7 @@ from .__version__ import __version__
 from .action_providers import (
     Action,
     ActionProvider,
+    X402Config,
     aave_action_provider,
     basename_action_provider,
     cdp_api_action_provider,
@@ -25,7 +26,6 @@ from .action_providers import (
     weth_action_provider,
     wow_action_provider,
     x402_action_provider,
-    X402Config,
 )
 from .agentkit import AgentKit, AgentKitConfig
 from .wallet_providers import (

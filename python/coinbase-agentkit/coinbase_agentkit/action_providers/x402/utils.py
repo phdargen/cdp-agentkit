@@ -16,14 +16,12 @@ from .constants import (
     NETWORK_MAPPINGS,
     SOLANA_USDC_ADDRESSES,
     DiscoveryResource,
-    PaymentOption,
     SimplifiedResource,
     X402Version,
 )
 
 if TYPE_CHECKING:
     from ...network import Network
-    from ...wallet_providers.evm_wallet_provider import EvmWalletProvider
     from ...wallet_providers.wallet_provider import WalletProvider
 
 
@@ -531,9 +529,7 @@ def format_payment_option(
         try:
             token_details = get_token_details(wallet_provider, asset)
             if token_details:
-                formatted_amount = _format_units(
-                    int(max_amount_required), token_details.decimals
-                )
+                formatted_amount = _format_units(int(max_amount_required), token_details.decimals)
                 return f"{formatted_amount} {token_details.name} on {get_network_id(network)}"
         except Exception:
             # If we can't get token details, fall back to raw format

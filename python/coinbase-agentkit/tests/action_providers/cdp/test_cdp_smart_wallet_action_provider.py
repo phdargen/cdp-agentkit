@@ -291,7 +291,9 @@ class TestCdpSmartWalletActionProvider:
         assert "Smart wallet owner account is not a CDP server account" in parsed_result["error"]
 
     @patch("coinbase_agentkit.action_providers.cdp.swap_utils.get_token_details")
-    @patch("coinbase_agentkit.action_providers.cdp.swap_utils.retry_with_exponential_backoff")
+    @patch(
+        "coinbase_agentkit.action_providers.cdp.cdp_smart_wallet_action_provider.retry_with_exponential_backoff"
+    )
     @patch("asyncio.get_event_loop")
     def test_swap_successful_execution(
         self,
@@ -472,7 +474,9 @@ class TestCdpSmartWalletActionProvider:
         assert "but only have 0.05 ETH" in parsed_result["error"]
 
     @patch("coinbase_agentkit.action_providers.cdp.swap_utils.get_token_details")
-    @patch("coinbase_agentkit.action_providers.cdp.swap_utils.retry_with_exponential_backoff")
+    @patch(
+        "coinbase_agentkit.action_providers.cdp.cdp_smart_wallet_action_provider.retry_with_exponential_backoff"
+    )
     @patch("web3.Web3")
     @patch("asyncio.get_event_loop")
     def test_swap_with_approval_transaction(
@@ -567,8 +571,12 @@ class TestCdpSmartWalletActionProvider:
         assert parsed_result["transactionHash"] == MOCK_SWAP_USER_OP_HASH
 
     @patch("coinbase_agentkit.action_providers.cdp.swap_utils.get_token_details")
+    @patch(
+        "coinbase_agentkit.action_providers.cdp.cdp_smart_wallet_action_provider.retry_with_exponential_backoff"
+    )
     def test_swap_execution_error(
         self,
+        mock_retry,
         mock_get_token_details,
         action_provider,
         mock_smart_wallet_provider,
@@ -593,6 +601,7 @@ class TestCdpSmartWalletActionProvider:
 
         mock_smart_account.quote_swap.return_value = mock_swap_quote
         mock_swap_quote.execute.side_effect = Exception("Swap execution failed")
+        mock_retry.side_effect = Exception("Swap execution failed")
 
         args = {"from_token": MOCK_ETH_ADDRESS, "to_token": MOCK_USDC_ADDRESS, "from_amount": "0.1"}
 
@@ -605,7 +614,9 @@ class TestCdpSmartWalletActionProvider:
         assert "Swap failed: Swap execution failed" in parsed_result["error"]
 
     @patch("coinbase_agentkit.action_providers.cdp.swap_utils.get_token_details")
-    @patch("coinbase_agentkit.action_providers.cdp.swap_utils.retry_with_exponential_backoff")
+    @patch(
+        "coinbase_agentkit.action_providers.cdp.cdp_smart_wallet_action_provider.retry_with_exponential_backoff"
+    )
     def test_swap_user_operation_reverted(
         self,
         mock_retry,

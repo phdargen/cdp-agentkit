@@ -89,9 +89,7 @@ class x402ActionProvider(ActionProvider[WalletProvider]):  # noqa: N801
         description="""Discover available x402 services. Only services available on the current network will be returned. Optionally filter by a maximum price in whole units of USDC (only USDC payment options will be considered when filter is applied).""",
         schema=ListX402ServicesSchema,
     )
-    def discover_x402_services(
-        self, wallet_provider: WalletProvider, args: dict[str, Any]
-    ) -> str:
+    def discover_x402_services(self, wallet_provider: WalletProvider, args: dict[str, Any]) -> str:
         """Discover available x402 services with optional filtering.
 
         Args:
@@ -105,9 +103,7 @@ class x402ActionProvider(ActionProvider[WalletProvider]):  # noqa: N801
         try:
             # Validate facilitator is allowed (known name or registered name)
             facilitator = args.get("facilitator", "cdp")
-            validation = validate_facilitator(
-                facilitator, self._config.registered_facilitators
-            )
+            validation = validate_facilitator(facilitator, self._config.registered_facilitators)
 
             if not validation["is_allowed"]:
                 known_names = list(KNOWN_FACILITATORS.keys())
@@ -201,9 +197,7 @@ EXAMPLES:
 If you receive a 402 Payment Required response, use retry_http_request_with_x402 to handle the payment.""",
         schema=HttpRequestSchema,
     )
-    def make_http_request(
-        self, wallet_provider: WalletProvider, args: dict[str, Any]
-    ) -> str:
+    def make_http_request(self, wallet_provider: WalletProvider, args: dict[str, Any]) -> str:
         """Make initial HTTP request and handle 402 responses.
 
         Args:
@@ -386,9 +380,7 @@ EXAMPLE WORKFLOW:
 DO NOT use this action directly without first trying make_http_request!""",
         schema=RetryWithX402Schema,
     )
-    def retry_with_x402(
-        self, wallet_provider: WalletProvider, args: dict[str, Any]
-    ) -> str:
+    def retry_with_x402(self, wallet_provider: WalletProvider, args: dict[str, Any]) -> str:
         """Retry a request with x402 payment after receiving payment details.
 
         Args:
@@ -704,9 +696,7 @@ NOTE: This action is only available if service discovery is enabled in the agent
 If disabled, services must be pre-registered by the agent administrator.""",
         schema=RegisterServiceSchema,
     )
-    def register_service(
-        self, wallet_provider: WalletProvider, args: dict[str, Any]
-    ) -> str:
+    def register_service(self, wallet_provider: WalletProvider, args: dict[str, Any]) -> str:
         """Register a service URL for x402 requests.
 
         Args:
@@ -819,8 +809,7 @@ These are the only services that can be called using make_http_request or make_h
 
         """
         known_facilitators = [
-            {"name": name, "url": url, "type": "known"}
-            for name, url in KNOWN_FACILITATORS.items()
+            {"name": name, "url": url, "type": "known"} for name, url in KNOWN_FACILITATORS.items()
         ]
 
         custom_facilitators = [
@@ -852,7 +841,16 @@ These are the only services that can be called using make_http_request or make_h
             bool: Whether the network is supported.
 
         """
-        return network.network_id in SUPPORTED_NETWORKS
+        if network.network_id not in SUPPORTED_NETWORKS:
+            return False
+
+        # Check protocol family matches network type
+        if network.network_id.startswith("base-"):
+            return network.protocol_family == "evm"
+        if network.network_id.startswith("solana-"):
+            return network.protocol_family == "solana"
+
+        return False
 
     def _create_x402_client(self, wallet_provider: EvmWalletProvider) -> x402ClientSync:
         """Create an x402 client configured for the given wallet provider.
