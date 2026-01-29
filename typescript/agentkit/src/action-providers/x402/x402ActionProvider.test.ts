@@ -6,17 +6,12 @@ import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { registerExactSvmScheme } from "@x402/svm/exact/client";
 
 import * as utils from "./utils";
-import { resolveFacilitatorUrl } from "./schemas";
 
 // Mock external modules
 jest.mock("@x402/fetch");
 jest.mock("@x402/evm/exact/client");
 jest.mock("@x402/svm/exact/client");
 jest.mock("./utils");
-jest.mock("./schemas", () => ({
-  ...jest.requireActual("./schemas"),
-  resolveFacilitatorUrl: jest.fn(),
-}));
 
 // Create mock functions
 const mockFetch = jest.fn();
@@ -39,7 +34,6 @@ const mockFilterByKeyword = jest.fn();
 const mockFilterByMaxPrice = jest.fn();
 const mockFormatSimplifiedResources = jest.fn();
 const mockBuildUrlWithParams = jest.fn();
-const mockResolveFacilitatorUrl = jest.fn();
 
 // Setup mocks
 jest
@@ -64,7 +58,6 @@ jest.mocked(utils.filterByKeyword).mockImplementation(mockFilterByKeyword);
 jest.mocked(utils.filterByMaxPrice).mockImplementation(mockFilterByMaxPrice);
 jest.mocked(utils.formatSimplifiedResources).mockImplementation(mockFormatSimplifiedResources);
 jest.mocked(utils.buildUrlWithParams).mockImplementation(mockBuildUrlWithParams);
-jest.mocked(resolveFacilitatorUrl).mockImplementation(mockResolveFacilitatorUrl);
 
 // Mock global fetch
 global.fetch = mockFetch;
@@ -144,7 +137,6 @@ describe("X402ActionProvider", () => {
       });
     });
     mockFormatPaymentOption.mockResolvedValue("mocked payment option");
-    mockResolveFacilitatorUrl.mockReturnValue("https://api.cdp.coinbase.com/platform/v2/x402");
   });
 
   afterEach(() => {
@@ -272,6 +264,7 @@ describe("X402ActionProvider", () => {
 
       const result = await provider.discoverX402Services(makeMockWalletProvider("base-sepolia"), {
         facilitator: "cdp",
+        maxUsdcPrice: 1.0,
         x402Versions: [1, 2],
       });
       const parsed = JSON.parse(result);
@@ -345,6 +338,7 @@ describe("X402ActionProvider", () => {
 
       const result = await provider.discoverX402Services(makeMockWalletProvider("base-sepolia"), {
         facilitator: "cdp",
+        maxUsdcPrice: 1.0,
         x402Versions: [1, 2],
       });
       const parsed = JSON.parse(result);

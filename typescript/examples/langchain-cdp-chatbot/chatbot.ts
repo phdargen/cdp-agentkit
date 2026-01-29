@@ -115,6 +115,15 @@ async function initializeAgent() {
       ? await CdpSolanaWalletProvider.configureWithWallet(cdpWalletConfig)
       : await CdpEvmWalletProvider.configureWithWallet(cdpWalletConfig);
 
+    // x402 configuration 
+    const x402Config = {
+      registeredServices: networkId === "base-sepolia" ?  ["https://www.x402.org/protected/"] : [], // add approved x402 services
+      allowDynamicServiceRegistration: true, // set to true to allow registering services discovered through facilitators bazaar
+      maxPaymentUsdc: 1.0, // maximum payment per request in USDC
+      registeredFacilitators: { "my-custom-facilitator": "https://my-custom-facilitator.example.com" }, // add custom facilitators for discovery, format: { "name": "https://url" }
+    };
+
+    // action providers
     const actionProviders = [
       walletActionProvider(),
       cdpApiActionProvider(),
@@ -124,10 +133,10 @@ async function initializeAgent() {
             wethActionProvider(),
             erc20ActionProvider(),
             erc721ActionProvider(),
-            x402ActionProvider(),
+            x402ActionProvider(x402Config),
           ]
         : isSolanaWalletProvider(walletProvider)
-          ? [splActionProvider(), x402ActionProvider()]
+          ? [splActionProvider(), x402ActionProvider(x402Config)]
           : []),
     ];
 
