@@ -118,6 +118,7 @@ describe("ZeroDev Wallet Action Provider", () => {
       const args = {
         type: "networkType" as const,
         networkType: "mainnet" as const,
+        tokenTickers: null,
       };
 
       const error = new Error("Failed to get balances");

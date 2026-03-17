@@ -58,6 +58,7 @@ describe("CDP EVM Wallet Action Provider", () => {
   describe("listSpendPermissions", () => {
     const mockArgs = {
       smartAccountAddress: "0xabcd1234567890123456789012345678901234567890",
+      network: null,
     };
 
     beforeEach(() => {
@@ -122,6 +123,7 @@ describe("CDP EVM Wallet Action Provider", () => {
     const mockArgs = {
       smartAccountAddress: "0xabcd1234567890123456789012345678901234567890",
       value: "2500",
+      network: null,
     };
 
     beforeEach(() => {

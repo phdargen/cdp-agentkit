@@ -145,6 +145,7 @@ describe("Farcaster Action Provider", () => {
 
       const args = {
         castText: "Hello, Farcaster!",
+        embeds: null,
       };
 
       const result = await actionProvider.postCast(args);
@@ -201,6 +202,7 @@ describe("Farcaster Action Provider", () => {
 
       const args = {
         castText: "Hello, Farcaster!",
+        embeds: null,
       };
 
       const result = await actionProvider.postCast(args);

@@ -168,6 +168,7 @@ describe("ZeroX Action Provider", () => {
         buyToken: MOCK_BUY_TOKEN,
         sellAmount: MOCK_SELL_AMOUNT,
         slippageBps: 50,
+        swapFeeRecipient: null,
         swapFeeBps: 100,
       };
 
@@ -212,6 +213,7 @@ describe("ZeroX Action Provider", () => {
         buyToken: MOCK_BUY_TOKEN,
         sellAmount: MOCK_SELL_AMOUNT,
         slippageBps: 50,
+        swapFeeRecipient: null,
         swapFeeBps: 100,
       };
 
@@ -231,6 +233,7 @@ describe("ZeroX Action Provider", () => {
         buyToken: MOCK_BUY_TOKEN,
         sellAmount: MOCK_SELL_AMOUNT,
         slippageBps: 50,
+        swapFeeRecipient: null,
         swapFeeBps: 100,
       };
 
@@ -267,6 +270,7 @@ describe("ZeroX Action Provider", () => {
         buyToken: MOCK_BUY_TOKEN,
         sellAmount: MOCK_SELL_AMOUNT,
         slippageBps: 50,
+        swapFeeRecipient: null,
         swapFeeBps: 100,
       };
 
@@ -365,6 +369,7 @@ describe("ZeroX Action Provider", () => {
         buyToken: MOCK_BUY_TOKEN,
         sellAmount: MOCK_SELL_AMOUNT,
         slippageBps: 50,
+        swapFeeRecipient: null,
         swapFeeBps: 100,
       };
 
@@ -409,6 +414,7 @@ describe("ZeroX Action Provider", () => {
         buyToken: MOCK_BUY_TOKEN,
         sellAmount: MOCK_SELL_AMOUNT,
         slippageBps: 50,
+        swapFeeRecipient: null,
         swapFeeBps: 100,
       };
 
@@ -436,6 +442,7 @@ describe("ZeroX Action Provider", () => {
         buyToken: MOCK_BUY_TOKEN,
         sellAmount: MOCK_SELL_AMOUNT,
         slippageBps: 50,
+        swapFeeRecipient: null,
         swapFeeBps: 100,
       };
 
@@ -480,6 +487,7 @@ describe("ZeroX Action Provider", () => {
         buyToken: MOCK_BUY_TOKEN,
         sellAmount: MOCK_SELL_AMOUNT,
         slippageBps: 50,
+        swapFeeRecipient: null,
         swapFeeBps: 100,
       };
 

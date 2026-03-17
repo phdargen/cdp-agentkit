@@ -253,6 +253,7 @@ describe("WowActionProvider", () => {
       const args = {
         name: MOCK_NAME,
         symbol: MOCK_SYMBOL,
+        tokenUri: null,
       };
 
       await provider.createToken(mockWallet, args);
@@ -277,6 +278,7 @@ describe("WowActionProvider", () => {
       const args = {
         name: MOCK_NAME,
         symbol: MOCK_SYMBOL,
+        tokenUri: null,
       };
 
       const error = new Error("Create failed");

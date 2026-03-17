@@ -144,6 +144,8 @@ describe("ZoraActionProvider", () => {
         description: "A test coin",
         image: "https://example.com/image.png",
         category: "social",
+        payoutRecipient: null,
+        platformReferrer: null,
         currency: "ZORA" as const,
       };
 
@@ -170,6 +172,8 @@ describe("ZoraActionProvider", () => {
         description: "A test coin",
         image: "https://example.com/image.png",
         category: "social",
+        payoutRecipient: null,
+        platformReferrer: null,
         currency: "ZORA" as const,
       };
 
@@ -191,6 +195,8 @@ describe("ZoraActionProvider", () => {
         description: "A test coin",
         image: "https://example.com/image.png",
         category: "social",
+        payoutRecipient: null,
+        platformReferrer: null,
         currency: "ZORA" as const,
       };
 
@@ -209,6 +215,8 @@ describe("ZoraActionProvider", () => {
         description: "A test coin",
         image: "https://example.com/image.png",
         category: "social",
+        payoutRecipient: null,
+        platformReferrer: null,
         currency: "ZORA" as const,
       };
 
@@ -232,6 +240,8 @@ describe("ZoraActionProvider", () => {
         description: "A test coin",
         image: "https://example.com/image.png",
         category: "social",
+        payoutRecipient: null,
+        platformReferrer: null,
         currency: "ZORA" as const,
       };
 
