@@ -637,7 +637,7 @@ requires-dist = [
     { name = "solana", specifier = ">=0.36.6" },
     { name = "solders", specifier = ">=0.26.0" },
     { name = "web3", specifier = ">=7.6.0,<8" },
-    { name = "x402", extras = ["requests"], specifier = ">=2.3.0" },
+    { name = "x402", extras = ["requests"], specifier = ">=2.4.0" },
 ]
 
 [package.metadata.requires-dev]
