@@ -142,12 +142,12 @@ _Prerequisites_:
 - Set `OPENAI_API_KEY` environment variable.
 
 ```bash
-npm install @langchain @langchain/langgraph @langchain/openai
+npm install langchain @langchain/langgraph @langchain/openai
 ```
 
 ```typescript
 import { getLangChainTools } from "@coinbase/agentkit-langchain";
-import { createReactAgent } from "@langchain/langgraph/prebuilt";
+import { createAgent } from "langchain";
 import { ChatOpenAI } from "@langchain/openai";
 
 const tools = await getLangChainTools(agentKit);
@@ -156,8 +156,8 @@ const llm = new ChatOpenAI({
   model: "gpt-4o-mini",
 });
 
-const agent = createReactAgent({
-  llm,
+const agent = createAgent({
+  model: llm,
   tools,
 });
 ```

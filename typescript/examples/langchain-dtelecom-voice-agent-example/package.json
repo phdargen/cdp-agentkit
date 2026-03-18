@@ -1,5 +1,5 @@
 {
-  "name": "dtelecom-voice-agent",
+  "name": "@coinbase/langchain-dtelecom-voice-agent-example",
   "version": "0.1.0",
   "private": true,
   "description": "Voice AI agent using Coinbase AgentKit + dTelecom",

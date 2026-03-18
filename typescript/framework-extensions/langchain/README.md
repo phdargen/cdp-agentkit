@@ -13,7 +13,7 @@ LangChain extension of AgentKit. Enables agentic workflows to interact with onch
 ### Installation
 
 ```bash
-npm install @coinbase/agentkit-langchain @coinbase/agentkit @langchain @langchain/langgraph @langchain/openai
+npm install @coinbase/agentkit-langchain @coinbase/agentkit langchain @langchain/langgraph @langchain/openai
 ```
 
 ### Environment Setup
@@ -30,7 +30,7 @@ export OPENAI_API_KEY=<your-openai-api-key>
 
 ```typescript
 import { getLangChainTools } from "@coinbase/agentkit-langchain";
-import { createReactAgent } from "@langchain/langgraph/prebuilt";
+import { createAgent } from "langchain";
 import { ChatOpenAI } from "@langchain/openai";
 import { AgentKit } from "@coinbase/agentkit";
 
@@ -45,8 +45,8 @@ const llm = new ChatOpenAI({
     model: "gpt-4o-mini",
 });
 
-const agent = createReactAgent({
-    llm,
+const agent = createAgent({
+    model: llm,
     tools,
 });
 ```
