@@ -13,6 +13,8 @@ describe("ZeroX Schema Validation", () => {
       buyToken: "0x0987654321098765432109876543210987654321",
       sellAmount: "1.5",
       slippageBps: 50,
+      swapFeeRecipient: null,
+      swapFeeBps: null,
     };
 
     const result = GetSwapPriceSchema.safeParse(validInput);
@@ -36,6 +38,9 @@ describe("ZeroX Schema Validation", () => {
       sellToken: "0x1234567890123456789012345678901234567890",
       buyToken: "0x0987654321098765432109876543210987654321",
       sellAmount: "1.5",
+      slippageBps: null,
+      swapFeeRecipient: null,
+      swapFeeBps: null,
     };
 
     const result = GetSwapPriceSchema.safeParse(inputWithoutSlippage);
@@ -50,6 +55,7 @@ describe("ZeroX Schema Validation", () => {
       sellToken: "0x1234567890123456789012345678901234567890",
       buyToken: "0x0987654321098765432109876543210987654321",
       sellAmount: "1.5",
+      slippageBps: null,
       swapFeeRecipient: "0xabcdef1234567890abcdef1234567890abcdef12",
       swapFeeBps: 50,
     };
@@ -63,6 +69,7 @@ describe("ZeroX Schema Validation", () => {
       sellToken: "0x1234567890123456789012345678901234567890",
       buyToken: "0x0987654321098765432109876543210987654321",
       sellAmount: "1.5",
+      slippageBps: null,
       swapFeeBps: 100,
       swapFeeRecipient: "0xabcdef1234567890abcdef1234567890abcdef12",
     };
@@ -93,6 +100,8 @@ describe("ZeroX Schema Validation", () => {
       buyToken: "0x0987654321098765432109876543210987654321",
       sellAmount: "1.5",
       slippageBps: 50,
+      swapFeeRecipient: null,
+      swapFeeBps: null,
     };
 
     const result = ExecuteSwapSchema.safeParse(validInput);

@@ -217,7 +217,16 @@ describe("FlaunchActionProvider", () => {
         image: "https://example.com/image.png",
         description: "A test token",
         websiteUrl: "https://example.com",
-        premineAmount: 5,
+        discordUrl: null,
+        twitterUrl: null,
+        telegramUrl: null,
+        fairLaunchPercent: null,
+        fairLaunchDuration: null,
+        initialMarketCapUSD: null,
+        creatorFeeAllocationPercent: null,
+        creatorSplitPercent: null,
+        splitReceivers: null,
+        preminePercent: 5,
       };
       const parseResult = FlaunchSchema.safeParse(validInput);
       expect(parseResult.success).toBe(true);

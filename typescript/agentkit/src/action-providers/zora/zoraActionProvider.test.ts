@@ -116,6 +116,8 @@ describe("ZoraActionProvider", () => {
         image: "https://example.com/image.png",
         category: "social",
         currency: "ZORA" as const,
+        payoutRecipient: null,
+        platformReferrer: null,
       };
 
       const parseResult = CreateCoinSchema.safeParse(validInput);

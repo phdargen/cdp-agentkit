@@ -35,6 +35,7 @@ describe("ZeroDev Wallet Action Provider Input Schemas", () => {
       const validInput = {
         type: "networkType" as const,
         networkType: "mainnet" as const,
+        tokenTickers: null,
       };
 
       const result = GetCABSchema.safeParse(validInput);

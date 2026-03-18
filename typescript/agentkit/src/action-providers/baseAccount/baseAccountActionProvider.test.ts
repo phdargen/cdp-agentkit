@@ -110,6 +110,8 @@ describe("UseBaseAccountSpendPermissionSchema", () => {
     const validInput = {
       baseAccount: MOCK_BASE_ACCOUNT,
       amount: MOCK_AMOUNT_USD,
+      tokenAddress: null,
+      permissionIndex: null,
     };
 
     const result = UseBaseAccountSpendPermissionSchema.safeParse(validInput);
@@ -155,6 +157,7 @@ describe("RevokeBaseAccountSpendPermissionSchema", () => {
   it("should successfully parse valid input without permission index", () => {
     const validInput = {
       baseAccount: MOCK_BASE_ACCOUNT,
+      permissionIndex: null,
     };
 
     const result = RevokeBaseAccountSpendPermissionSchema.safeParse(validInput);

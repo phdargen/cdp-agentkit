@@ -165,7 +165,11 @@ describe("DtelecomActionProvider", () => {
         offset: 0,
       });
 
-      const result = await provider.getSessions(mockWallet, { status: "active", limit: null, offset: null });
+      const result = await provider.getSessions(mockWallet, {
+        status: "active",
+        limit: null,
+        offset: null,
+      });
       const parsed = JSON.parse(result);
 
       expect(parsed.success).toBe(true);
