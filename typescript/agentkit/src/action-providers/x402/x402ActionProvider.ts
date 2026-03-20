@@ -13,7 +13,6 @@ import {
 } from "./schemas";
 import { EvmWalletProvider, WalletProvider, SvmWalletProvider } from "../../wallet-providers";
 import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
-import { toClientEvmSigner } from "@x402/evm";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { registerExactSvmScheme } from "@x402/svm/exact/client";
 import {

@@ -12,6 +12,4 @@ export { SUPPORTED_NETWORK_IDS, getChainIdFromNetwork, isNetworkSupported } from
 export type { SupportedNetworkId } from "./constants";
 
 // Shared utilities
-export { ipfsToHttpUrl, jsonToDataUri, dataUriToJson } from "./utils";
-
-export type { PinataConfig } from "./utils";
+export { getAgent0SDK } from "./utils";

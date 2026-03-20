@@ -11,50 +11,8 @@ import {
 import { EvmWalletProvider } from "../../wallet-providers";
 import { getAgent0SDK } from "./utils";
 
-// Configurable reject reason for updateAgentMetadata Agent mock (set in tests before calling)
-let updateAgentMockRejectReason: string | null = null;
-
 // Mock agent0-sdk (ESM-only) before loading the identity provider
-jest.mock("agent0-sdk", () => {
-  /** Mock Agent class simulating agent0-sdk Agent behavior for tests. */
-  const MockAgent = class {
-    updateInfo = jest.fn();
-    getRegistrationFile = jest.fn(() => this.regFile);
-    registerIPFS = jest.fn().mockImplementation(() => {
-      if (updateAgentMockRejectReason) {
-        return Promise.reject(new Error(updateAgentMockRejectReason));
-      }
-      return Promise.resolve({
-        hash: "0xhash",
-        waitMined: () => Promise.resolve({ result: { agentURI: "ipfs://Qm" } }),
-      });
-    });
-    setAgentURI = jest.fn().mockImplementation(() => {
-      if (updateAgentMockRejectReason) {
-        return Promise.reject(new Error(updateAgentMockRejectReason));
-      }
-      return Promise.resolve({
-        hash: "0xhash",
-        waitMined: () => Promise.resolve({}),
-      });
-    });
-
-    /**
-     * Creates a new MockAgent instance.
-     *
-     * @param _sdk - The SDK instance (unused).
-     * @param regFile - The registration file object.
-     */
-    constructor(
-      _sdk: unknown,
-      private regFile: Record<string, unknown>,
-    ) {}
-  };
-  return {
-    Agent: MockAgent,
-    IDENTITY_REGISTRY_ABI: [],
-  };
-});
+jest.mock("agent0-sdk", () => ({}));
 
 const MOCK_AGENT_ID = "123";
 const MOCK_ADDRESS = "0x1234567890123456789012345678901234567890";
@@ -190,8 +148,7 @@ describe("Identity Schema Validation", () => {
       const result = SearchAgentsSchema.safeParse(validInput);
 
       expect(result.success).toBe(true);
-      // limit has default(10) so empty input produces { limit: 10 }
-      expect(result.data).toEqual({ limit: 10 });
+      expect(result.data).toEqual({ limit: 10, offset: 0 });
     });
 
     it("should successfully parse input with all filters", () => {
@@ -222,8 +179,8 @@ describe("Identity Schema Validation", () => {
       const result = SearchAgentsSchema.safeParse(inputWithUnknownField);
 
       expect(result.success).toBe(true);
-      // networkId is not in schema, so it gets stripped; limit defaults to 10
-      expect(result.data).toEqual({ limit: 10 });
+      // networkId is not in schema stripped; limit and offset use schema defaults
+      expect(result.data).toEqual({ limit: 10, offset: 0 });
     });
 
     it("should successfully parse input with only keyword", () => {
@@ -319,22 +276,21 @@ describe("Register Agent Action", () => {
       getAddress: jest.fn().mockReturnValue(MOCK_ADDRESS),
     } as unknown as jest.Mocked<EvmWalletProvider>;
 
-    mockGetAgent0SDK.mockImplementation((_w, jwt) => {
-      if (!jwt) throw new Error("PINATA_JWT is required");
-      return mockSdk as never;
-    });
+    mockGetAgent0SDK.mockReturnValue(mockSdk as never);
   });
 
-  it("should fail without Pinata JWT", async () => {
+  it("should register without Pinata JWT (always on-chain)", async () => {
     const providerWithoutJwt = erc8004IdentityActionProvider();
 
     const response = await providerWithoutJwt.registerAgent(mockWallet, {});
 
-    expect(response).toContain("Error: PINATA_JWT is required");
+    expect(mockSdk.createAgent).toHaveBeenCalled();
+    expect(mockAgent.registerOnChain).toHaveBeenCalled();
+    expect(response).toContain("Agent registered successfully!");
   });
 
   it("should handle error when registration fails", async () => {
-    mockAgent.registerIPFS.mockRejectedValueOnce(new Error("Transaction failed"));
+    mockAgent.registerOnChain.mockRejectedValueOnce(new Error("Transaction failed"));
 
     const actionProvider = erc8004IdentityActionProvider({ pinataJwt: "test-jwt" });
 
@@ -347,18 +303,24 @@ describe("Register Agent Action", () => {
 
 describe("Update Agent Metadata Action", () => {
   let mockWallet: jest.Mocked<EvmWalletProvider>;
+  const mockHandle = {
+    hash: "0xhash",
+    waitMined: jest.fn().mockResolvedValue({
+      result: { agentURI: "onchain://data" },
+    }),
+  };
+  const mockAgent = {
+    updateInfo: jest.fn(),
+    registerOnChain: jest.fn().mockResolvedValue(mockHandle),
+  };
   const mockUpdateSdk = {
-    loadAgent: jest.fn().mockRejectedValue(new Error("loadAgent fails for data URIs")),
-    identityRegistryAddress: jest
-      .fn()
-      .mockReturnValue("0x1234567890123456789012345678901234567890"),
+    loadAgent: jest.fn().mockResolvedValue(mockAgent),
   };
 
   beforeEach(() => {
     mockWallet = {
       sendTransaction: jest.fn(),
       waitForTransactionReceipt: jest.fn(),
-      readContract: jest.fn(),
       getName: jest.fn().mockReturnValue("evm_wallet_provider"),
       getNetwork: jest.fn().mockReturnValue({
         protocolFamily: "evm",
@@ -366,14 +328,12 @@ describe("Update Agent Metadata Action", () => {
       }),
     } as unknown as jest.Mocked<EvmWalletProvider>;
 
-    updateAgentMockRejectReason = null;
-    mockGetAgent0SDK.mockImplementation((_w, jwt) => {
-      if (!jwt) throw new Error("PINATA_JWT is required");
-      return mockUpdateSdk as never;
-    });
+    mockGetAgent0SDK.mockReturnValue(mockUpdateSdk as never);
+    mockUpdateSdk.loadAgent.mockResolvedValue(mockAgent);
+    mockAgent.registerOnChain.mockResolvedValue(mockHandle);
   });
 
-  it("should fail without Pinata JWT", async () => {
+  it("should update metadata without Pinata JWT (always on-chain)", async () => {
     const providerWithoutJwt = erc8004IdentityActionProvider();
 
     const args = {
@@ -383,12 +343,13 @@ describe("Update Agent Metadata Action", () => {
 
     const response = await providerWithoutJwt.updateAgentMetadata(mockWallet, args);
 
-    expect(response).toContain("Error: PINATA_JWT is required");
+    expect(mockUpdateSdk.loadAgent).toHaveBeenCalledWith("84532:123");
+    expect(mockAgent.registerOnChain).toHaveBeenCalled();
+    expect(response).toContain("Agent updated successfully!");
   });
 
-  it("should fail when agent has no URI set", async () => {
-    updateAgentMockRejectReason = "Agent has no registration URI set";
-    mockWallet.readContract.mockResolvedValue(null);
+  it("should fail when loadAgent fails", async () => {
+    mockUpdateSdk.loadAgent.mockRejectedValueOnce(new Error("Agent not found"));
 
     const actionProvider = erc8004IdentityActionProvider({ pinataJwt: "test-jwt" });
 
@@ -399,11 +360,11 @@ describe("Update Agent Metadata Action", () => {
 
     const response = await actionProvider.updateAgentMetadata(mockWallet, args);
 
-    expect(response).toContain("has no registration URI set");
+    expect(response).toContain("Error updating agent metadata");
   });
 
-  it("should handle error when updating metadata fails", async () => {
-    mockWallet.readContract.mockRejectedValue(new Error("Read failed"));
+  it("should handle error when registerOnChain fails", async () => {
+    mockAgent.registerOnChain.mockRejectedValueOnce(new Error("Transaction failed"));
 
     const actionProvider = erc8004IdentityActionProvider({ pinataJwt: "test-jwt" });
 
@@ -419,30 +380,9 @@ describe("Update Agent Metadata Action", () => {
 });
 
 // Mock the utils module (avoid loading real utils which imports the ESM-only agent0-sdk)
-jest.mock("./utils", () => {
-  const { Agent } = jest.requireMock("agent0-sdk");
-  return {
-    getAgent0SDK: jest.fn(),
-    ipfsToHttpUrl: jest.fn((uri: string) => uri),
-    loadOrHydrateAgent: jest
-      .fn()
-      .mockImplementation(
-        async (
-          sdk: { loadAgent: (id: string) => Promise<unknown> },
-          walletProvider: { readContract: (args: unknown) => Promise<unknown> },
-          fullAgentId: string,
-        ) => {
-          try {
-            return await sdk.loadAgent(fullAgentId);
-          } catch {
-            // fall through to readContract path
-          }
-          await walletProvider.readContract({});
-          return new Agent(null, {});
-        },
-      ),
-  };
-});
+jest.mock("./utils", () => ({
+  getAgent0SDK: jest.fn(),
+}));
 
 const mockGetAgent0SDK = getAgent0SDK as jest.MockedFunction<typeof getAgent0SDK>;
 
@@ -455,14 +395,11 @@ function createRegisterAgentMocks() {
   const mockHandle = {
     hash: "0xhash",
     waitMined: jest.fn().mockResolvedValue({
-      result: { agentId: "84532:1", agentURI: "ipfs://Qm", name: "Agent" },
+      result: { agentId: "84532:1", agentURI: "onchain://data", name: "Agent" },
     }),
   };
   const mockAgent = {
-    registerIPFS: jest.fn().mockResolvedValue(mockHandle),
-    registerHTTP: jest.fn().mockResolvedValue(mockHandle),
-    setAgentURI: jest.fn().mockResolvedValue(mockHandle),
-    getRegistrationFile: jest.fn(() => ({ name: "Agent", description: "" })),
+    registerOnChain: jest.fn().mockResolvedValue(mockHandle),
   };
   const mockSdk = {
     createAgent: jest.fn().mockReturnValue(mockAgent),
@@ -670,6 +607,9 @@ describe("Search Agents Action", () => {
         name: "Full Agent",
         averageValue: 85,
         feedbackCount: 12,
+        mcp: "https://mcp.example.com/rpc",
+        a2a: "https://agent.example/.well-known/agent-card.json",
+        x402support: true,
       },
     ]);
 
@@ -679,6 +619,7 @@ describe("Search Agents Action", () => {
     expect(response).toContain("Name: Full Agent");
     expect(response).toContain("Reputation: 85");
     expect(response).toContain("Feedback count: 12");
+    expect(response).toContain("MCP: Yes | A2A: Yes | x402: Yes");
   });
 
   it("should support offset for pagination", async () => {
@@ -737,7 +678,8 @@ describe("Get Agent Info Action", () => {
       name: "Test Agent",
       description: "A comprehensive test agent",
       owners: [MOCK_ADDRESS],
-      mcp: true,
+      mcp: "https://mcp.test-agent.example/sse",
+      a2a: "https://test-agent.example/.well-known/agent-card.json",
       mcpTools: ["code_generation", "data_analysis"],
       a2aSkills: ["python"],
       active: true,
@@ -749,6 +691,8 @@ describe("Get Agent Info Action", () => {
     expect(mockSdk.getAgent).toHaveBeenCalledWith("84532:123");
     expect(response).toContain("Agent 123");
     expect(response).toContain("Test Agent");
+    expect(response).toContain("MCP: https://mcp.test-agent.example/sse");
+    expect(response).toContain("A2A: https://test-agent.example/.well-known/agent-card.json");
     expect(response).toContain("code_generation");
     expect(response).toContain("Active: true");
   });

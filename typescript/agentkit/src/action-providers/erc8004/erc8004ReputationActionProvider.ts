@@ -10,7 +10,7 @@ import {
   GetAgentFeedbackSchema,
 } from "./reputationSchemas";
 import { getChainIdFromNetwork, isNetworkSupported } from "./constants";
-import { PinataConfig, getAgent0SDK } from "./utils";
+import { getAgent0SDK } from "./utils";
 
 /**
  * Configuration options for the ERC8004 Reputation Action Provider
@@ -24,7 +24,7 @@ export interface ERC8004ReputationActionProviderConfig {
  * This includes giving feedback, revoking feedback, responding to feedback, and querying reputation.
  */
 export class ERC8004ReputationActionProvider extends ActionProvider<EvmWalletProvider> {
-  private pinataConfig?: PinataConfig;
+  private pinataJwt?: string;
 
   /**
    * Constructor for the ERC8004ReputationActionProvider.
@@ -33,9 +33,7 @@ export class ERC8004ReputationActionProvider extends ActionProvider<EvmWalletPro
    */
   constructor(config?: ERC8004ReputationActionProviderConfig) {
     super("erc8004_reputation", []);
-    if (config?.pinataJwt) {
-      this.pinataConfig = { jwt: config.pinataJwt };
-    }
+    this.pinataJwt = config?.pinataJwt;
   }
 
   /**
@@ -78,7 +76,7 @@ Examples:
 
       const fullAgentId = args.agentId.includes(":") ? args.agentId : `${chainId}:${args.agentId}`;
 
-      const sdk = getAgent0SDK(walletProvider, this.pinataConfig?.jwt);
+      const sdk = getAgent0SDK(walletProvider, this.pinataJwt);
 
       const isOwner = await sdk.isAgentOwner(fullAgentId, clientAddress);
       if (isOwner) {
@@ -91,27 +89,55 @@ Examples:
           ? (args.value / Math.pow(10, decimals)).toFixed(decimals)
           : args.value.toString();
 
-      // Only pass the off-chain file when IPFS is configured
-      const feedbackFile =
-        this.pinataConfig && args.comment ? { comment: args.comment } : undefined;
+      const hasA2aFileFields =
+        Boolean(args.a2aTaskId) ||
+        Boolean(args.a2aContextId) ||
+        Boolean(args.a2aSkills && args.a2aSkills.length > 0);
+      const hasOffchainPayload = Boolean(args.comment) || hasA2aFileFields;
+
+      let feedbackFile: Record<string, unknown> | undefined;
+      if (this.pinataJwt && hasOffchainPayload) {
+        feedbackFile = {};
+        if (args.comment) feedbackFile.comment = args.comment;
+        if (args.a2aTaskId) feedbackFile.a2aTaskId = args.a2aTaskId;
+        if (args.a2aContextId) feedbackFile.a2aContextId = args.a2aContextId;
+        if (args.a2aSkills?.length) feedbackFile.a2aSkills = args.a2aSkills;
+      }
 
       const handle = await sdk.giveFeedback(
         fullAgentId,
         humanValue,
         args.tag1,
         args.tag2,
-        undefined,
+        args.endpoint,
         feedbackFile,
       );
 
       await handle.waitMined();
 
       const commentLine = args.comment
-        ? this.pinataConfig
+        ? this.pinataJwt
           ? `\nComment: ${args.comment}`
           : `\nComment: ${args.comment} (not persisted — configure PINATA_JWT for off-chain storage)`
         : "";
-      return `Feedback submitted successfully!\n\nAgent ID: ${args.agentId}\nValue: ${args.value}${decimals ? ` (${decimals} decimals)` : ""}\nTags: ${args.tag1 || "(none)"}${args.tag2 ? `, ${args.tag2}` : ""}${commentLine}\n\nTransaction hash: ${handle.hash}`;
+
+      const a2aPersistLine =
+        hasA2aFileFields && !this.pinataJwt
+          ? "\nA2A metadata (task/context/skills) was not persisted — configure PINATA_JWT for off-chain storage"
+          : "";
+
+      const a2aSubmittedLines: string[] = [];
+      if (this.pinataJwt && hasA2aFileFields) {
+        if (args.a2aTaskId) a2aSubmittedLines.push(`A2A task: ${args.a2aTaskId}`);
+        if (args.a2aContextId) a2aSubmittedLines.push(`A2A context: ${args.a2aContextId}`);
+        if (args.a2aSkills?.length)
+          a2aSubmittedLines.push(`A2A skills: ${args.a2aSkills.join(", ")}`);
+      }
+      const a2aDetail = a2aSubmittedLines.length > 0 ? `\n${a2aSubmittedLines.join("\n")}` : "";
+
+      const endpointLine = args.endpoint ? `\n Endpoint: ${args.endpoint}` : "";
+
+      return `Feedback submitted successfully!\n\nAgent ID: ${args.agentId}\nValue: ${args.value}${decimals ? ` (${decimals} decimals)` : ""}\nTags: ${args.tag1 || "(none)"}${args.tag2 ? `, ${args.tag2}` : ""}${endpointLine}${commentLine}${a2aPersistLine}${a2aDetail}\n\nTransaction hash: ${handle.hash}`;
     } catch (error) {
       return `Error giving feedback: ${error}`;
     }
@@ -259,6 +285,11 @@ This is a read-only operation using indexed data for fast queries.
       // Format the response
       const feedbackList = limitedItems
         .map(feedback => {
+          const withA2a = feedback as typeof feedback & {
+            a2aTaskId?: string;
+            a2aContextId?: string;
+            a2aSkills?: string[];
+          };
           const reviewer = feedback.reviewer ? `Reviewer: ${feedback.reviewer}` : "";
           const value = feedback.value !== undefined ? `\n  Value: ${feedback.value}` : "";
           const tags = feedback.tags?.length ? `\n  Tags: ${feedback.tags.join(", ")}` : "";
@@ -268,8 +299,13 @@ This is a read-only operation using indexed data for fast queries.
           const timestamp = feedback.createdAt
             ? `\n  Created: ${new Date(feedback.createdAt * 1000).toISOString()}`
             : "";
+          const a2aTask = withA2a.a2aTaskId ? `\n  A2A task: ${withA2a.a2aTaskId}` : "";
+          const a2aCtx = withA2a.a2aContextId ? `\n  A2A context: ${withA2a.a2aContextId}` : "";
+          const a2aSkills = withA2a.a2aSkills?.length
+            ? `\n  A2A skills: ${withA2a.a2aSkills.join(", ")}`
+            : "";
 
-          return `- ${reviewer}${value}${tags}${endpoint}${revoked}${timestamp}`;
+          return `- ${reviewer}${value}${tags}${endpoint}${a2aTask}${a2aCtx}${a2aSkills}${revoked}${timestamp}`;
         })
         .join("\n\n");
 

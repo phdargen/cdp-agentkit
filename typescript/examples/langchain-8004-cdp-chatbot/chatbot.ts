@@ -1,15 +1,14 @@
 import {
   AgentKit,
   CdpEvmWalletProvider,
-  wethActionProvider,
   walletActionProvider,
   erc20ActionProvider,
-  erc721ActionProvider,
   cdpApiActionProvider,
   cdpEvmWalletActionProvider,
-  CdpSolanaWalletProvider,
-  splActionProvider,
-  x402ActionProvider,
+  erc8004IdentityActionProvider,
+  erc8004ReputationActionProvider,
+  getAgent0SDK,
+  getChainIdFromNetwork,
 } from "@coinbase/agentkit";
 import { getLangChainTools } from "@coinbase/agentkit-langchain";
 import { HumanMessage } from "@langchain/core/messages";
@@ -62,27 +61,55 @@ function validateEnvironment(): void {
 validateEnvironment();
 
 /**
- * Type guard to check if the wallet provider is an EVM provider
+ * Resolves the agent ID for this chatbot session.
+ * Priority: AGENT_ID env var → most recent owned agent → register new.
  *
- * @param walletProvider - The wallet provider to check
- * @returns True if the wallet provider is an EVM provider, false otherwise
+ * @param walletProvider - The EVM wallet provider
+ * @returns The fully-qualified agent ID (chainId:numericId)
  */
-function isEvmWalletProvider(
-  walletProvider: CdpEvmWalletProvider | CdpSolanaWalletProvider,
-): walletProvider is CdpEvmWalletProvider {
-  return walletProvider instanceof CdpEvmWalletProvider;
-}
+async function resolveAgentId(walletProvider: CdpEvmWalletProvider): Promise<string> {
+  const sdk = getAgent0SDK(walletProvider);
+  const network = walletProvider.getNetwork();
+  const chainId = getChainIdFromNetwork(network);
+  const walletAddress = walletProvider.getAddress();
 
-/**
- * Type guard to check if the wallet provider is a Solana provider
- *
- * @param walletProvider - The wallet provider to check
- * @returns True if the wallet provider is a Solana provider, false otherwise
- */
-function isSolanaWalletProvider(
-  walletProvider: CdpEvmWalletProvider | CdpSolanaWalletProvider,
-): walletProvider is CdpSolanaWalletProvider {
-  return walletProvider instanceof CdpSolanaWalletProvider;
+  const ensureFullId = (id: string) => (id.includes(":") ? id : `${chainId}:${id}`);
+
+  if (process.env.AGENT_ID) {
+    const fullId = ensureFullId(process.env.AGENT_ID);
+    const agent = await sdk.getAgent(fullId);
+    if (!agent) {
+      throw new Error(`Agent ${fullId} not found on chain ${chainId}`);
+    }
+    console.log(`Loaded agent from AGENT_ID env: ${fullId} (${agent.name || "Unnamed"})`);
+    return fullId;
+  }
+
+  const owned = await sdk.searchAgents({ owners: [walletAddress], chains: [chainId] });
+  if (owned.length > 0) {
+    const sorted = [...owned].sort((a, b) => {
+      const numA = parseInt(a.agentId.split(":").pop()!, 10);
+      const numB = parseInt(b.agentId.split(":").pop()!, 10);
+      return numB - numA;
+    });
+    const mostRecent = sorted[0];
+    const fullId = ensureFullId(mostRecent.agentId);
+    console.log(
+      `Found ${owned.length} owned agent(s). Using most recent: ${fullId} (${mostRecent.name || "Unnamed"})`,
+    );
+    return fullId;
+  }
+
+  console.log("No agents found for this wallet. Registering new agent...");
+  const agent = sdk.createAgent(
+    "CDP AgentKit Chatbot",
+    "A helpful agent that can interact onchain using the Coinbase Developer Platform AgentKit.",
+  );
+  const handle = await agent.registerOnChain();
+  const { result } = await handle.waitMined();
+  const fullId = ensureFullId(String(result.agentId));
+  console.log(`New agent registered: ${fullId} (tx: ${handle.hash})`);
+  return fullId;
 }
 
 /**
@@ -99,9 +126,8 @@ async function initializeAgent() {
 
     // Configure CDP Wallet Provider
     const networkId = process.env.NETWORK_ID || "base-sepolia";
-    const isSolana = networkId.includes("solana");
 
-    const cdpWalletConfig = {
+    const walletProvider = await CdpEvmWalletProvider.configureWithWallet({
       apiKeyId: process.env.CDP_API_KEY_ID,
       apiKeySecret: process.env.CDP_API_KEY_SECRET,
       walletSecret: process.env.CDP_WALLET_SECRET,
@@ -109,41 +135,24 @@ async function initializeAgent() {
       address: process.env.ADDRESS as `0x${string}` | undefined,
       networkId,
       rpcUrl: process.env.RPC_URL,
-    };
+    });
 
-    const walletProvider = isSolana
-      ? await CdpSolanaWalletProvider.configureWithWallet(cdpWalletConfig)
-      : await CdpEvmWalletProvider.configureWithWallet(cdpWalletConfig);
+    console.log(`Wallet address: ${walletProvider.getAddress()}`);
+    console.log(`Network: ${networkId}`);
 
-    // x402 configuration
-    const x402Config = {
-      registeredServices: networkId === "base-sepolia" ? ["https://www.x402.org/protected"] : [], // add approved x402 services
-      allowDynamicServiceRegistration: false, // set to true to allow registering services discovered through facilitators bazaar
-      maxPaymentUsdc: 1.0, // maximum payment per request in USDC
-      registeredFacilitators: {}, // add custom facilitators for discovery (CDP and PayAI are pre-registered), format: { "name": "https://url" }
-    };
+    const agentId = await resolveAgentId(walletProvider);
+    console.log(`Agent ID: ${agentId}`);
 
-    // action providers
-    const actionProviders = [
-      walletActionProvider(),
-      cdpApiActionProvider(),
-      ...(isEvmWalletProvider(walletProvider)
-        ? [
-            cdpEvmWalletActionProvider(),
-            wethActionProvider(),
-            erc20ActionProvider(),
-            erc721ActionProvider(),
-            x402ActionProvider(x402Config),
-          ]
-        : isSolanaWalletProvider(walletProvider)
-          ? [splActionProvider(), x402ActionProvider(x402Config)]
-          : []),
-    ];
-
-    // Initialize AgentKit
     const agentkit = await AgentKit.from({
       walletProvider,
-      actionProviders,
+      actionProviders: [
+        walletActionProvider(),
+        erc20ActionProvider(),
+        cdpApiActionProvider(),
+        cdpEvmWalletActionProvider(),
+        erc8004IdentityActionProvider({ pinataJwt: process.env.PINATA_JWT }),
+        erc8004ReputationActionProvider({ pinataJwt: process.env.PINATA_JWT }),
+      ],
     });
 
     const tools = await getLangChainTools(agentkit);
@@ -159,11 +168,16 @@ async function initializeAgent() {
       checkpointer: memory,
       systemPrompt: `
         You are a helpful agent that can interact onchain using the Coinbase Developer Platform AgentKit. You are 
-        empowered to interact onchain using your tools. If you ever need funds, you can request them from the 
+        empowered to interact onchain using your tools. 
+
+        Your registered agent ID is ${agentId} and you are on network ${networkId}. 
+        Your wallet address is ${walletProvider.getAddress()}.
+
+        If you ever need funds, you can request them from the 
         faucet if you are on network ID 'base-sepolia'. If not, you can provide your wallet details and request 
-        funds from the user. Before executing your first action, get the wallet details to see what network 
-        you're on. If there is a 5XX (internal) HTTP error code, ask the user to try again later. If someone 
-        asks you to do something you can't do with your currently available tools, you must say so, and 
+        funds from the user. 
+        
+        If someone asks you to do something you can't do with your currently available tools, you must say so, and 
         encourage them to implement it themselves using the CDP SDK + Agentkit, recommend they go to 
         docs.cdp.coinbase.com for more information. Be concise and helpful with your responses. Refrain from 
         restating your tools' descriptions unless it is explicitly requested.

@@ -11,13 +11,7 @@ import {
   GetAgentInfoSchema,
 } from "./identitySchemas";
 import { getChainIdFromNetwork, isNetworkSupported } from "./constants";
-import {
-  PinataConfig,
-  getAgent0SDK,
-  jsonToDataUri,
-  ipfsToHttpUrl,
-  loadOrHydrateAgent,
-} from "./utils";
+import { getAgent0SDK } from "./utils";
 
 /**
  * Configuration options for the ERC8004 Identity Action Provider
@@ -31,7 +25,7 @@ export interface ERC8004IdentityActionProviderConfig {
  * This includes agent registration, URI management, and on-chain metadata.
  */
 export class ERC8004IdentityActionProvider extends ActionProvider<EvmWalletProvider> {
-  private pinataConfig?: PinataConfig;
+  private pinataJwt?: string;
 
   /**
    * Constructor for the ERC8004IdentityActionProvider.
@@ -40,9 +34,7 @@ export class ERC8004IdentityActionProvider extends ActionProvider<EvmWalletProvi
    */
   constructor(config?: ERC8004IdentityActionProviderConfig) {
     super("erc8004_identity", []);
-    if (config?.pinataJwt) {
-      this.pinataConfig = { jwt: config.pinataJwt };
-    }
+    this.pinataJwt = config?.pinataJwt;
   }
 
   /**
@@ -78,14 +70,15 @@ Examples:
     try {
       const network = walletProvider.getNetwork();
       const chainId = getChainIdFromNetwork(network);
-      const fullAgentId = `${chainId}:${args.agentId}`;
-      const sdk = getAgent0SDK(walletProvider, this.pinataConfig?.jwt);
+      const fullAgentId = args.agentId.includes(":") ? args.agentId : `${chainId}:${args.agentId}`;
+      const sdk = getAgent0SDK(walletProvider, this.pinataJwt);
 
-      const agent = await loadOrHydrateAgent(sdk, walletProvider, fullAgentId, args.agentId);
+      const agent = await sdk.loadAgent(fullAgentId);
       const updates: string[] = [];
 
       // Core
-      if (args.name !== undefined || args.description !== undefined || args.image !== undefined) {
+      const hasCoreUpdate = [args.name, args.description, args.image].some(v => v !== undefined);
+      if (hasCoreUpdate) {
         agent.updateInfo(args.name, args.description, args.image);
         if (args.name !== undefined) updates.push(`Name: ${args.name}`);
         if (args.description !== undefined) updates.push(`Description: ${args.description}`);
@@ -165,29 +158,10 @@ Examples:
         updates.push(`Metadata: ${entries}`);
       }
 
-      // Re-register
-      let newUri: string;
-      let txHash: string;
+      const handle = await agent.registerOnChain();
+      await handle.waitMined();
 
-      if (this.pinataConfig) {
-        const handle = await agent.registerIPFS();
-        const { result } = await handle.waitMined();
-        newUri = result.agentURI ?? "";
-        txHash = handle.hash;
-      } else {
-        const regFile = agent.getRegistrationFile();
-        const dataUri = jsonToDataUri(regFile);
-        const handle = await agent.setAgentURI(dataUri);
-        await handle.waitMined();
-        newUri = dataUri;
-        txHash = handle.hash;
-      }
-
-      const uriDisplay = newUri.startsWith("ipfs://")
-        ? `Metadata URI: ${newUri}\nHTTP Gateway: ${ipfsToHttpUrl(newUri)}`
-        : `Metadata URI: (onchain data URI)`;
-
-      return `Agent updated successfully!\n\nAgent ID: ${args.agentId}\nUpdated fields:\n${updates.length > 0 ? updates.map(u => `- ${u}`).join("\n") : "(no changes)"}\n\n${uriDisplay}\nTransaction hash: ${txHash}`;
+      return `Agent updated successfully!\n\nAgent ID: ${args.agentId}\nUpdated fields:\n${updates.length > 0 ? updates.map(u => `- ${u}`).join("\n") : "(no changes)"}\n\nTransaction hash: ${handle.hash}`;
     } catch (error) {
       return `Error updating agent metadata: ${error}`;
     }
@@ -219,33 +193,15 @@ Never choose values for optional fields unless explicitly asked to do so.
   ): Promise<string> {
     try {
       const network = walletProvider.getNetwork();
-      const sdk = getAgent0SDK(walletProvider, this.pinataConfig?.jwt);
+      const sdk = getAgent0SDK(walletProvider, this.pinataJwt);
 
       const agentName = args.name || "Agent";
       const agent = sdk.createAgent(agentName, args.description || "", args.image);
 
-      if (this.pinataConfig) {
-        const handle = await agent.registerIPFS();
-        const { result } = await handle.waitMined();
-
-        const agentId = result.agentId!;
-        const agentURI = result.agentURI ?? "";
-        const httpUrl = ipfsToHttpUrl(agentURI);
-
-        return `Agent registered successfully!\n\nAgent ID: ${agentId}\nName: ${result.name || agentName}\nDescription: ${args.description || "(empty)"}\nImage: ${args.image || "(empty)"}\nNetwork: ${network.networkId}\n\nMetadata URI: ${agentURI}\nHTTP Gateway: ${httpUrl}\n\nTransaction hash: ${handle.hash}`;
-      }
-
-      // No IPFS: register with empty URI, then set a data URI containing the agentId
-      const handle = await agent.registerHTTP("");
+      const handle = await agent.registerOnChain();
       const { result } = await handle.waitMined();
 
-      const agentId = result.agentId!;
-      const regFile = agent.getRegistrationFile();
-      const dataUri = jsonToDataUri(regFile);
-      const handle2 = await agent.setAgentURI(dataUri);
-      await handle2.waitMined();
-
-      return `Agent registered successfully!\n\nAgent ID: ${agentId}\nName: ${result.name || agentName}\nDescription: ${args.description || "(empty)"}\nImage: ${args.image || "(empty)"}\nNetwork: ${network.networkId}\n\nMetadata: stored on-chain (data URI)\n\nTransaction hashes:\n- Register: ${handle.hash}\n- Set URI: ${handle2.hash}`;
+      return `Agent registered successfully!\n\nAgent ID: ${result.agentId}\nName: ${result.name || agentName}\nDescription: ${args.description || "(empty)"}\nImage: ${args.image || "(empty)"}\nNetwork: ${network.networkId}\n\nMetadata URI: ${result.agentURI ?? "(onchain)"}\nTransaction hash: ${handle.hash}`;
     } catch (error) {
       return `Error during registration: ${error}`;
     }
@@ -424,6 +380,13 @@ Sorting & pagination:
           if (agent.semanticScore !== undefined)
             lines.push(`  Relevance: ${agent.semanticScore.toFixed(3)}`);
 
+          const mcpOn = Boolean(agent.mcp);
+          const a2aOn = Boolean(agent.a2a);
+          const x402On = agent.x402support === true;
+          lines.push(
+            `  MCP: ${mcpOn ? "Yes" : "No"} | A2A: ${a2aOn ? "Yes" : "No"} | x402: ${x402On ? "Yes" : "No"}`,
+          );
+
           return lines.join("\n");
         })
         .join("\n\n");
@@ -509,8 +472,14 @@ Returns:
 
       // Endpoints
       const endpoints: string[] = [];
-      if (agent.mcp) endpoints.push(`MCP: Enabled`);
-      if (agent.a2a) endpoints.push(`A2A: Enabled`);
+      if (agent.mcp) {
+        const mcpUrl = typeof agent.mcp === "string" ? agent.mcp : "Enabled";
+        endpoints.push(`MCP: ${mcpUrl}`);
+      }
+      if (agent.a2a) {
+        const a2aUrl = typeof agent.a2a === "string" ? agent.a2a : "Enabled";
+        endpoints.push(`A2A: ${a2aUrl}`);
+      }
       if (agent.ens) endpoints.push(`ENS: ${agent.ens}`);
       if (agent.did) endpoints.push(`DID: ${agent.did}`);
       if (endpoints.length > 0) {

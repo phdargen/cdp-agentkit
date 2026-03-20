@@ -1,6 +1,24 @@
 import { z } from "zod";
 
 /**
+ * Optional field: accepts omitted or null from tool callers; normalizes to undefined when absent.
+ *
+ * @param schema - Base Zod string schema (e.g. with min/max constraints).
+ * @returns A Zod schema chain that accepts nullish values and outputs `string | undefined`.
+ */
+const optionalString = (schema: z.ZodString) =>
+  schema
+    .nullish()
+    .transform(v => (v == null ? undefined : v))
+    .optional();
+
+const optionalBoolean = z
+  .boolean()
+  .nullish()
+  .transform((v): boolean | undefined => (typeof v === "boolean" ? v : undefined))
+  .optional();
+
+/**
  * Input schema for registering a new agent.
  * All fields are optional - if not provided, defaults will be used:
  * - name: "Agent <agentId>"
@@ -9,16 +27,13 @@ import { z } from "zod";
  */
 export const RegisterAgentSchema = z
   .object({
-    name: z.string().min(1).max(100).optional().describe("The name of the agent (optional)"),
-    description: z
-      .string()
-      .max(500)
-      .optional()
-      .describe("A description of the agent's capabilities (optional)"),
-    image: z
-      .string()
-      .optional()
-      .describe("Optional image URL (https:// or ipfs://) for the agent (optional)"),
+    name: optionalString(z.string().min(1).max(100)).describe("The name of the agent (optional)"),
+    description: optionalString(z.string().max(500)).describe(
+      "A description of the agent's capabilities (optional)",
+    ),
+    image: optionalString(z.string()).describe(
+      "Optional image URL (https:// or ipfs://) for the agent (optional)",
+    ),
   })
   .strip()
   .describe("Registers a new agent.");
@@ -32,45 +47,47 @@ export const UpdateAgentMetadataSchema = z
     agentId: z.string().describe("The agent ID to update"),
 
     // Presentation
-    name: z.string().min(1).max(100).optional().describe("New name for the agent"),
-    description: z.string().max(500).optional().describe("New description for the agent"),
-    image: z.string().optional().describe("New image URL for the agent"),
+    name: optionalString(z.string().min(1).max(100)).describe("New name for the agent"),
+    description: optionalString(z.string().max(500)).describe("New description for the agent"),
+    image: optionalString(z.string()).describe("New image URL for the agent"),
 
     // Endpoints
-    mcpEndpoint: z
-      .string()
-      .optional()
-      .describe(
-        "MCP server URL. Tools, prompts, and resources are auto-extracted from the endpoint.",
-      ),
-    a2aEndpoint: z
-      .string()
-      .optional()
-      .describe("A2A agent card URL. Skills are auto-extracted from the endpoint."),
-    ensName: z.string().optional().describe("ENS name for the agent (e.g., 'myagent.eth')"),
+    mcpEndpoint: optionalString(z.string()).describe(
+      "MCP server URL. Tools, prompts, and resources are auto-extracted from the endpoint.",
+    ),
+    a2aEndpoint: optionalString(z.string()).describe(
+      "A2A agent card URL. Skills are auto-extracted from the endpoint.",
+    ),
+    ensName: optionalString(z.string()).describe("ENS name for the agent (e.g., 'myagent.eth')"),
 
     // Status
-    active: z.boolean().optional().describe("Set the agent active or inactive"),
-    x402support: z.boolean().optional().describe("Enable or disable x402 payment support"),
+    active: optionalBoolean.describe("Set the agent active or inactive"),
+    x402support: optionalBoolean.describe("Enable or disable x402 payment support"),
 
     // Trust models (replaces all current trust settings when any flag is provided)
-    trustReputation: z.boolean().optional().describe("Enable reputation trust model"),
-    trustCryptoEconomic: z.boolean().optional().describe("Enable crypto-economic trust model"),
-    trustTeeAttestation: z.boolean().optional().describe("Enable TEE attestation trust model"),
+    trustReputation: optionalBoolean.describe("Enable reputation trust model"),
+    trustCryptoEconomic: optionalBoolean.describe("Enable crypto-economic trust model"),
+    trustTeeAttestation: optionalBoolean.describe("Enable TEE attestation trust model"),
 
     // OASF taxonomies
     oasfSkills: z
       .array(z.string())
+      .nullish()
+      .transform(v => (v == null ? undefined : v))
       .optional()
       .describe("OASF skill slugs to add (e.g., 'data_engineering/data_transformation_pipeline')"),
     oasfDomains: z
       .array(z.string())
+      .nullish()
+      .transform(v => (v == null ? undefined : v))
       .optional()
       .describe("OASF domain slugs to add (e.g., 'finance_and_business/investment_services')"),
 
     // Custom metadata
     metadata: z
       .record(z.string(), z.string())
+      .nullish()
+      .transform(v => (v == null ? undefined : v))
       .optional()
       .describe("Custom metadata key-value pairs to set on the agent"),
   })
@@ -82,17 +99,18 @@ export const UpdateAgentMetadataSchema = z
  */
 export const GetOwnedAgentsSchema = z
   .object({
-    walletAddress: z
-      .string()
-      .optional()
-      .describe("The wallet address to query (optional, defaults to the connected wallet address)"),
+    walletAddress: optionalString(z.string()).describe(
+      "The wallet address to query (optional, defaults to the connected wallet address)",
+    ),
     pageSize: z
       .number()
       .min(1)
       .max(100)
+      .nullish()
+      .transform(v => (v == null ? undefined : v))
       .optional()
       .describe("Number of results per page (default: 50, max: 100)"),
-    cursor: z.string().optional().describe("Pagination cursor from a previous result"),
+    cursor: optionalString(z.string()).describe("Pagination cursor from a previous result"),
   })
   .strip()
   .describe(
@@ -105,16 +123,17 @@ export const GetOwnedAgentsSchema = z
  */
 export const SearchAgentsSchema = z
   .object({
-    keyword: z
-      .string()
-      .optional()
-      .describe(
-        "Natural-language semantic search query (e.g. 'financial data analysis agent'). Results are ranked by semantic relevance score.",
-      ),
-    name: z.string().optional().describe("Search by agent name (substring match)"),
-    description: z.string().optional().describe("Search by agent description (substring match)"),
+    keyword: optionalString(z.string()).describe(
+      "Natural-language semantic search query (e.g. 'financial data analysis agent'). Results are ranked by semantic relevance score.",
+    ),
+    name: optionalString(z.string()).describe("Search by agent name (substring match)"),
+    description: optionalString(z.string()).describe(
+      "Search by agent description (substring match)",
+    ),
     require: z
       .array(z.enum(["mcp", "a2a", "active", "x402"]))
+      .nullish()
+      .transform(v => (v == null ? undefined : v))
       .optional()
       .describe(
         "Status/capability requirements. ONLY add values the user explicitly asks for. " +
@@ -122,32 +141,60 @@ export const SearchAgentsSchema = z
           "'active' = must be active, 'x402' = must support x402 payments. " +
           "Leave empty or omit if the user does not mention any of these.",
       ),
-    minReputation: z.number().optional().describe("Minimum average reputation score"),
-    maxReputation: z.number().optional().describe("Maximum average reputation score"),
-    minCount: z.number().min(0).optional().describe("Minimum feedback count"),
-    maxCount: z.number().min(0).optional().describe("Maximum feedback count"),
+    minReputation: z
+      .number()
+      .nullish()
+      .transform(v => (v == null ? undefined : v))
+      .optional()
+      .describe("Minimum average reputation score"),
+    maxReputation: z
+      .number()
+      .nullish()
+      .transform(v => (v == null ? undefined : v))
+      .optional()
+      .describe("Maximum average reputation score"),
+    minCount: z
+      .number()
+      .min(0)
+      .nullish()
+      .transform(v => (v == null ? undefined : v))
+      .optional()
+      .describe("Minimum feedback count"),
+    maxCount: z
+      .number()
+      .min(0)
+      .nullish()
+      .transform(v => (v == null ? undefined : v))
+      .optional()
+      .describe("Maximum feedback count"),
     fromReviewers: z
       .array(z.string())
+      .nullish()
+      .transform(v => (v == null ? undefined : v))
       .optional()
       .describe("Only consider feedback from these reviewer wallet addresses"),
-    reputationTag: z
-      .string()
-      .optional()
-      .describe("Only consider feedback matching this tag when filtering by reputation"),
-    sort: z
-      .string()
-      .optional()
-      .describe(
-        "Sort order, e.g. 'updatedAt:desc', 'averageValue:desc', 'name:asc'. " +
-          "Defaults to 'semanticScore:desc' for keyword searches, 'updatedAt:desc' otherwise.",
-      ),
+    reputationTag: optionalString(z.string()).describe(
+      "Only consider feedback matching this tag when filtering by reputation",
+    ),
+    sort: optionalString(z.string()).describe(
+      "Sort order, e.g. 'updatedAt:desc', 'averageValue:desc', 'name:asc'. " +
+        "Defaults to 'semanticScore:desc' for keyword searches, 'updatedAt:desc' otherwise.",
+    ),
     limit: z
       .number()
       .min(1)
       .max(50)
-      .default(10)
+      .nullish()
+      .transform(val => val ?? 10)
+      .optional()
       .describe("Maximum number of results to return (default: 10)"),
-    offset: z.number().min(0).optional().describe("Number of results to skip (default: 0)"),
+    offset: z
+      .number()
+      .min(0)
+      .nullish()
+      .transform(val => val ?? 0)
+      .optional()
+      .describe("Number of results to skip (default: 0)"),
   })
   .strip()
   .describe("Searches for registered agents by capabilities, attributes, or reputation");

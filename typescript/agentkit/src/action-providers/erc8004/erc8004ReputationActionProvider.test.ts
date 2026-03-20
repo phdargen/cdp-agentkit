@@ -14,7 +14,6 @@ import * as utils from "./utils";
 // Mock utils to avoid loading the ESM-only agent0-sdk at module load time
 jest.mock("./utils", () => ({
   getAgent0SDK: jest.fn(),
-  ipfsToHttpUrl: jest.fn((uri: string) => uri),
 }));
 
 const MOCK_AGENT_ID = "123";
@@ -114,6 +113,32 @@ describe("Reputation Schema Validation", () => {
 
       const result = GiveFeedbackSchema.safeParse(invalidInput);
       expect(result.success).toBe(false);
+    });
+
+    it("should accept optional A2A metadata fields", () => {
+      const input = {
+        agentId: MOCK_AGENT_ID,
+        value: 85,
+        a2aTaskId: "task-abc",
+        a2aContextId: "ctx-xyz",
+        a2aSkills: ["skill-one", "skill-two"],
+      };
+      const result = GiveFeedbackSchema.safeParse(input);
+      expect(result.success).toBe(true);
+      expect(result.data?.a2aTaskId).toBe("task-abc");
+      expect(result.data?.a2aContextId).toBe("ctx-xyz");
+      expect(result.data?.a2aSkills).toEqual(["skill-one", "skill-two"]);
+    });
+
+    it("should accept optional on-chain endpoint", () => {
+      const input = {
+        agentId: MOCK_AGENT_ID,
+        value: 85,
+        endpoint: "https://agent.example/.well-known/agent-card.json",
+      };
+      const result = GiveFeedbackSchema.safeParse(input);
+      expect(result.success).toBe(true);
+      expect(result.data?.endpoint).toBe("https://agent.example/.well-known/agent-card.json");
     });
   });
 
@@ -386,6 +411,50 @@ describe("Give Feedback Action", () => {
     });
   });
 
+  it("should pass A2A fields in feedbackFile when Pinata is configured", async () => {
+    const args = {
+      agentId: MOCK_AGENT_ID,
+      value: 85,
+      valueDecimals: 0,
+      tag1: "",
+      tag2: "",
+      a2aTaskId: "task-1",
+      a2aContextId: "ctx-1",
+      a2aSkills: ["summarize"],
+    };
+
+    await actionProvider.giveFeedback(mockWallet, args);
+
+    expect(mockSdk.giveFeedback).toHaveBeenCalledWith("84532:123", "85", "", "", undefined, {
+      a2aTaskId: "task-1",
+      a2aContextId: "ctx-1",
+      a2aSkills: ["summarize"],
+    });
+  });
+
+  it("should pass on-chain endpoint to giveFeedback", async () => {
+    const endpoint = "https://mcp.example.com/sse";
+    const args = {
+      agentId: MOCK_AGENT_ID,
+      value: 85,
+      valueDecimals: 0,
+      tag1: "reachable",
+      tag2: "",
+      endpoint,
+    };
+
+    await actionProvider.giveFeedback(mockWallet, args);
+
+    expect(mockSdk.giveFeedback).toHaveBeenCalledWith(
+      "84532:123",
+      "85",
+      "reachable",
+      "",
+      endpoint,
+      undefined,
+    );
+  });
+
   it("should successfully submit feedback without Pinata JWT when no comment", async () => {
     const providerWithoutJwt = erc8004ReputationActionProvider();
 
@@ -613,6 +682,27 @@ describe("Get Agent Feedback Action", () => {
     expect(response).toContain("Reviewer:");
     expect(response).toContain("Value: 85");
     expect(response).toContain("Tags: quality");
+  });
+
+  it("should include A2A metadata when present on feedback", async () => {
+    mockSdk.searchFeedback.mockResolvedValue([
+      {
+        reviewer: MOCK_CLIENT_ADDRESS,
+        value: 85,
+        tags: ["quality"],
+        isRevoked: false,
+        createdAt: 1700000000,
+        a2aTaskId: "task-99",
+        a2aContextId: "ctx-88",
+        a2aSkills: ["fetch", "reply"],
+      },
+    ]);
+
+    const response = await actionProvider.getAgentFeedback(mockWallet, { agentId: MOCK_AGENT_ID });
+
+    expect(response).toContain("A2A task: task-99");
+    expect(response).toContain("A2A context: ctx-88");
+    expect(response).toContain("A2A skills: fetch, reply");
   });
 
   it("should handle multiple feedback entries", async () => {
