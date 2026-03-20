@@ -218,7 +218,7 @@ If you receive a 402 Payment Required response, use retry_http_request_with_x402
       }
 
       const finalUrl = buildUrlWithParams(args.url, args.queryParams);
-      let method = args.method ?? "GET";
+      let method = args.method;
       let canHaveBody = ["POST", "PUT", "PATCH"].includes(method);
 
       let response = await fetch(finalUrl, {
@@ -467,7 +467,7 @@ DO NOT use this action directly without first trying make_http_request!`,
 
       // Build URL with query params and determine if body is allowed
       const finalUrl = buildUrlWithParams(args.url, args.queryParams);
-      const method = args.method ?? "GET";
+      const method = args.method;
       const canHaveBody = ["POST", "PUT", "PATCH"].includes(method);
 
       // Build headers, adding Content-Type for JSON body
@@ -614,7 +614,7 @@ Unless specifically instructed otherwise, prefer the two-step approach with make
 
       // Build URL with query params and determine if body is allowed
       const finalUrl = buildUrlWithParams(args.url, args.queryParams);
-      const method = args.method ?? "GET";
+      const method = args.method;
       const canHaveBody = ["POST", "PUT", "PATCH"].includes(method);
 
       // Build headers, adding Content-Type for JSON body
