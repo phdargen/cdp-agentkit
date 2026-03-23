@@ -2,6 +2,20 @@
 
 <!-- towncrier release notes start -->
 
+## [0.8.0] - 2026-03-24
+
+### Fixed
+
+- Fixed polygon network details ([#882](https://github.com/coinbase/agentkit/pull/882))
+- Added pre-registration of x402 services ([#922](https://github.com/coinbase/agentkit/pull/922))
+- Fixed asyncio event loop conflicts in CdpEvmWalletProvider, CdpSmartWalletProvider, and CdpSolanaWalletProvider when used within existing async contexts (e.g., Jupyter notebooks, async frameworks) ([#968](https://github.com/coinbase/agentkit/pull/968))
+
+### Added
+
+- Added new Aave action provider for interacting with Aave V3 protocol on Base networks. The provider supports supply, withdraw, borrow, repay, and portfolio management operations. ([#add-aave-action-provider](https://github.com/coinbase/agentkit/pull/add-aave-action-provider))
+- Bump dependencies ([#1018](https://github.com/coinbase/agentkit/pull/1018))
+
+
 ## [0.7.4] - 2025-10-03
 
 ### Fixed
