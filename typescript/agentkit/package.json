@@ -60,6 +60,7 @@
     "@zerodev/sdk": "^5.4.28",
     "@zoralabs/coins-sdk": "0.2.8",
     "@zoralabs/protocol-deployments": "0.6.1",
+    "agent0-sdk": "^1.7.1",
     "bs58": "^4.0.1",
     "canonicalize": "^2.1.0",
     "clanker-sdk": "^4.1.18",
